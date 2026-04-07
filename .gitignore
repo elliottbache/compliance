@@ -1,0 +1,40 @@
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments (highly recommended)
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+### SQL & Databases ###
+# SQLite databases (common for local SQLAlchemy development)
+*.db
+*.sqlite
+*.sqlite3
+
+# Local database dumps or logs
+*.sql
+*.log
+
+### SQLAlchemy & Environment ###
+# Sensitive configuration (credentials, DB URLs)
+.env
+instance/
+
+### IDEs & OS ###
+.vscode/
+.idea/
+.DS_Store
+
+### prep files ###
+populate_tables.py
+AGENTS.md
