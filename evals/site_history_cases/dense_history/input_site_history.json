@@ -1,0 +1,93 @@
+{
+  "site_id": 81,
+  "inspection_count": 4,
+  "latest_inspection_date": "2026-04-10",
+  "certifications": [
+    {
+      "cert_id": 71,
+      "result": "Fail",
+      "resolution_date": "2025-02-15",
+      "reg_title": "ISO 27001",
+      "reg_description": "International standard for information security management systems.",
+      "certifier_org_name": "Global Assurance",
+      "inspection_date": "2025-01-10",
+      "findings": [
+        {
+          "finding_id": 601,
+          "finding": "Encryption keys stored in plain text on dev server.",
+          "rule_index": "A.10.1",
+          "rule_title": "Key Management",
+          "rule_description": "Cryptographic keys must be protected against unauthorized disclosure or replacement."
+        },
+        {
+          "finding_id": 602,
+          "finding": "Visitor logs missing entries for Q4 2024.",
+          "rule_index": "A.11.1",
+          "rule_title": "Physical Entry",
+          "rule_description": "Physical entry points to sensitive areas must be controlled and logged."
+        }
+      ]
+    },
+    {
+      "cert_id": 72,
+      "result": "Pass",
+      "resolution_date": "2025-08-01",
+      "reg_title": "SOC2 Type II",
+      "reg_description": "Audit of service organization controls related to security, availability, and privacy.",
+      "certifier_org_name": "AuditPros",
+      "inspection_date": "2025-07-20",
+      "findings": [
+        {
+          "finding_id": 603,
+          "finding": "Firewall rules contain legacy permissive entries.",
+          "rule_index": "CC6.6",
+          "rule_title": "Network Perimeter",
+          "rule_description": "Network boundaries must be secured to prevent unauthorized traffic."
+        }
+      ]
+    },
+    {
+      "cert_id": 73,
+      "result": "Fail",
+      "resolution_date": "2026-01-10",
+      "reg_title": "GDPR Compliance",
+      "reg_description": "European regulation on data protection and privacy.",
+      "certifier_org_name": "EuroCompliance",
+      "inspection_date": "2025-12-01",
+      "findings": [
+        {
+          "finding_id": 604,
+          "finding": "DPO contact details not listed on privacy page.",
+          "rule_index": "Art.37",
+          "rule_title": "DPO Appointment",
+          "rule_description": "Data subjects must be able to contact the designated Data Protection Officer easily."
+        },
+        {
+          "finding_id": 605,
+          "finding": "Right to erasure workflow takes 45 days (limit 30).",
+          "rule_index": "Art.17",
+          "rule_title": "Right to Erasure",
+          "rule_description": "Requests for data deletion must be fulfilled without undue delay within 30 days."
+        }
+      ]
+    },
+    {
+      "cert_id": 74,
+      "result": "Pass",
+      "resolution_date": "2026-04-10",
+      "reg_title": "Cyber Essentials Plus",
+      "reg_description": "Technical audit of security controls against common cyber threats.",
+      "certifier_org_name": "SecureLink",
+      "inspection_date": "2026-04-10",
+      "findings": [
+        {
+          "finding_id": 606,
+          "finding": "All endpoints confirmed to be running current OS patches.",
+          "rule_index": "CE.3",
+          "rule_title": "Patch Management",
+          "rule_description": "Security patches must be applied within 14 days of release for critical vulnerabilities."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "should_parse": true,
+  "expected_site_id": 78,
+  "expected_inspection_count": 3,
+  "expected_summary_phrases": [
+    "emergency exit"
+  ],
+  "expected_recurring_issues": ["emergency exit"],
+  "expected_missing_information": [],
+  "needs_human_review": [],
+  "expected_rule_mentions": [
+    "HS.4"
+  ],
+  "max_summary_sentences": 5,
+  "forbidden_phrases": [
+    "insufficient information",
+    "unable to determine compliance status",
+    "passed"
+  ],
+  "forbidden_summary_terms": [
+    "passed",
+    "unclear"
+  ]
+}

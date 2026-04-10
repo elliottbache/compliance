@@ -1,0 +1,26 @@
+{
+  "site_id": 80,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-04-10",
+  "certifications": [
+    {
+      "cert_id": 70,
+      "result": "Pass",
+      "resolution_date": "2026-04-10",
+      "reg_title": "Basic Site Registry",
+      "reg_description": "Initial administrative registration and baseline safety check for new facilities.",
+      "certifier_org_name": "Municipal Bureau",
+      "inspection_date": "2026-04-10",
+      "findings": [
+        {
+          "finding_id": 501,
+          "finding": "Site contact information verified.",
+          "rule_id": 1,
+          "rule_index": "GEN.1",
+          "rule_title": "Contact Verification",
+          "rule_description": "Requirement to maintain up-to-date emergency contact details and facility ownership records."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "site_id": 77,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-04-02",
+  "certifications": [
+    {
+      "cert_id": 46,
+      "result": "Fail",
+      "resolution_date": "2026-04-16",
+      "reg_title": "Operational Security",
+      "reg_description": "Standards for maintaining physical and logical integrity of critical infrastructure.",
+      "certifier_org_name": "SecureCheck",
+      "inspection_date": "2026-04-02",
+      "findings": []
+    }
+  ]
+}

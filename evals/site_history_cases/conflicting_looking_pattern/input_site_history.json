@@ -1,0 +1,43 @@
+{
+  "site_id": 77,
+  "inspection_count": 2,
+  "latest_inspection_date": "2026-04-01",
+  "certifications": [
+    {
+      "cert_id": 44,
+      "result": "Pass",
+      "resolution_date": "2026-02-15",
+      "reg_title": "Operational Security",
+      "reg_description": "Standards for maintaining physical and logical integrity of critical infrastructure.",
+      "certifier_org_name": "SecureCheck",
+      "inspection_date": "2026-02-01",
+      "findings": [
+        {
+          "finding_id": 115,
+          "finding": "All server racks properly bolted and secured.",
+          "rule_index": "S.1",
+          "rule_title": "Physical Stability",
+          "rule_description": "Hardware infrastructure must be permanently anchored to the building structure to prevent seismic damage or unauthorized removal."
+        }
+      ]
+    },
+    {
+      "cert_id": 45,
+      "result": "Fail",
+      "resolution_date": "2026-04-15",
+      "reg_title": "Operational Security",
+      "reg_description": "Standards for maintaining physical and logical integrity of critical infrastructure.",
+      "certifier_org_name": "SecureCheck",
+      "inspection_date": "2026-04-01",
+      "findings": [
+        {
+          "finding_id": 120,
+          "finding": "Server racks found unbolted during maintenance review.",
+          "rule_index": "S.1",
+          "rule_title": "Physical Stability",
+          "rule_description": "Hardware infrastructure must be permanently anchored to the building structure to prevent seismic damage or unauthorized removal."
+        }
+      ]
+    }
+  ]
+}

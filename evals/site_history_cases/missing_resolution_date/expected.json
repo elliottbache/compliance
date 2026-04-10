@@ -1,0 +1,19 @@
+{
+  "should_parse": true,
+  "expected_site_id": 79,
+  "expected_inspection_count": 1,
+  "expected_summary_phrases": [],
+  "expected_recurring_issues": [],
+  "expected_missing_information": ["resolution date"],
+  "needs_human_review": [],
+  "max_summary_sentences": 3,
+  "expected_rule_mentions": ["P.1"],
+  "forbidden_phrases": [
+    "recurring issue",
+    "passed inspection"
+  ],
+  "forbidden_summary_terms": [
+    "violation",
+    "recurring"
+  ]
+}

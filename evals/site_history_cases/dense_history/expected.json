@@ -1,0 +1,21 @@
+{
+  "should_parse": true,
+  "expected_site_id": 81,
+  "expected_inspection_count": 4,
+  "expected_summary_phrases": ["ISO 27001", "GDPR Compliance"],
+  "expected_recurring_issues": [],
+  "expected_missing_information": [],
+  "needs_human_review": [],
+  "max_summary_sentences": 8,
+  "expected_rule_mentions": ["Art.37", "Art.17", "A.10.1", "A.11.1"],
+  "forbidden_phrases": [
+    "unable to determine compliance status",
+    "recurring issue"
+  ],
+  "forbidden_summary_terms": [
+    "violation",
+    "non-compliance",
+    "recurring",
+    "unclear"
+  ]
+}

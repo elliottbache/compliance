@@ -1,0 +1,21 @@
+{
+  "should_parse": true,
+  "expected_site_id": 76,
+  "expected_inspection_count": 1,
+  "expected_summary_phrases": ["in progress"],
+  "expected_recurring_issues": [],
+  "expected_missing_information": ["waste management documentation"],
+  "needs_human_review": [],
+  "max_summary_sentences": 3,
+  "expected_rule_mentions": ["E.2"],
+  "forbidden_phrases": [
+    "recurring issue",
+    "failed inspection",
+    "passed inspection"
+  ],
+  "forbidden_summary_terms": [
+    "violation",
+    "recurring",
+    "unclear"
+  ]
+}
