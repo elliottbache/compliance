@@ -26,7 +26,7 @@ class Certification(BaseModel):
     resolution_date: date | None
     reg_title: str
     reg_description: str
-    organization_name: str
+    certifier_org_name: str
     inspection_date: date | None
     findings: list[Finding] = Field(default_factory=list)
 
@@ -34,6 +34,6 @@ class Certification(BaseModel):
 class Site(BaseModel):
     site_id: int
     certifications: list[Certification] = Field(default_factory=list)
-    n_inspections: int = Field(default=0)
+    inspection_count: int = Field(default=0)
     latest_inspection_date: date | None
 
