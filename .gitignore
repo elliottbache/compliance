@@ -35,6 +35,7 @@ instance/
 .idea/
 .DS_Store
 
-### prep files ###
+### my files ###
 populate_tables.py
 AGENTS.md
+anthropic_quickstart.py
