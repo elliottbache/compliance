@@ -1,0 +1,61 @@
+{
+  "site_id": 78,
+  "inspection_count": 3,
+  "latest_inspection_date": "2026-06-01",
+  "certifications": [
+    {
+      "cert_id": 50,
+      "result": "Fail",
+      "resolution_date": "2025-06-15",
+      "reg_title": "Occupational Health",
+      "reg_description": "Safety standards governing workplace environments, emergency access, and hazard prevention.",
+      "certifier_org_name": "SafeWork Corp",
+      "inspection_date": "2025-06-01",
+      "findings": [
+        {
+          "finding_id": 201,
+          "finding": "Emergency exit blocked by storage boxes.",
+          "rule_index": "HS.4",
+          "rule_title": "Clear Egress",
+          "rule_description": "All designated emergency exits and evacuation routes must remain unobstructed at all times to ensure immediate egress."
+        }
+      ]
+    },
+    {
+      "cert_id": 51,
+      "result": "Fail",
+      "resolution_date": "2025-12-20",
+      "reg_title": "Occupational Health",
+      "reg_description": "Safety standards governing workplace environments, emergency access, and hazard prevention.",
+      "certifier_org_name": "SafeWork Corp",
+      "inspection_date": "2025-12-05",
+      "findings": [
+        {
+          "finding_id": 255,
+          "finding": "Pallets found obstructing the rear emergency exit.",
+          "rule_index": "HS.4",
+          "rule_title": "Clear Egress",
+          "rule_description": "All designated emergency exits and evacuation routes must remain unobstructed at all times to ensure immediate egress."
+        }
+      ]
+    },
+    {
+      "cert_id": 52,
+      "result": "Fail",
+      "resolution_date": "2026-06-01",
+      "reg_title": "Occupational Health",
+      "reg_description": "Safety standards governing workplace environments, emergency access, and hazard prevention.",
+      "certifier_org_name": "SafeWork Corp",
+      "inspection_date": "2026-06-01",
+      "findings": [
+        {
+          "finding_id": 310,
+          "finding": "Trash bins and inventory placed in front of emergency exit door.",
+          "rule_index": "HS.4",
+          "rule_title": "Clear Egress",
+          "rule_description": "All designated emergency exits and evacuation routes must remain unobstructed at all times to ensure immediate egress."
+        }
+      ]
+    }
+  ]
+}

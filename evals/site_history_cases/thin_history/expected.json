@@ -1,0 +1,22 @@
+{
+  "should_parse": true,
+  "expected_site_id": 80,
+  "expected_inspection_count": 1,
+  "expected_summary_phrases": [],
+  "expected_recurring_issues": [],
+  "expected_missing_information": [],
+  "needs_human_review": [],
+  "max_summary_sentences": 2,
+  "expected_rule_mentions": [],
+  "forbidden_phrases": [
+    "unable to determine compliance status",
+    "recurring issue",
+    "failed inspection"
+  ],
+  "forbidden_summary_terms": [
+    "violation",
+    "non-compliance",
+    "recurring",
+    "unclear"
+  ]
+}

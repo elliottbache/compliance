@@ -1,0 +1,16 @@
+{
+  "site_id": 73,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-02-05",
+  "certifications": [
+    {
+      "cert_id": 35,
+      "result": "Pass",
+      "resolution_date": "2026-02-15",
+      "reg_title": "AI Ethical Standards",
+      "certifier_org_name": "Tech Watchdogs",
+      "inspection_date": "2026-02-05",
+      "findings": []
+    }
+  ]
+}

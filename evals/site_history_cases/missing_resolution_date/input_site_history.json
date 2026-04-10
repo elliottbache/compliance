@@ -1,0 +1,25 @@
+{
+  "site_id": 79,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-03-10",
+  "certifications": [
+    {
+      "cert_id": 60,
+      "result": "Fail",
+      "resolution_date": null,
+      "reg_title": "Data Privacy Standard",
+      "reg_description": "Framework for protecting sensitive customer data through technical and organizational measures.",
+      "certifier_org_name": "TrustGuard",
+      "inspection_date": "2026-03-10",
+      "findings": [
+        {
+          "finding_id": 401,
+          "finding": "Customer database lacks field-level encryption.",
+          "rule_index": "P.1",
+          "rule_title": "Encryption at Rest",
+          "rule_description": "All sensitive personal identifiers must be encrypted using approved cryptographic algorithms while stored in a non-volatile state."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "site_id": 76,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-03-15",
+  "certifications": [
+    {
+      "cert_id": 43,
+      "result": "In Progress",
+      "resolution_date": null,
+      "reg_title": "Environmental Impact Standards",
+      "certifier_org_name": "GreenAudit Org",
+      "inspection_date": "2026-03-15",
+      "findings": [
+        {
+          "finding_id": 110,
+          "finding": "Waste management documentation is incomplete.",
+          "rule_index": "E.2",
+          "rule_title": "Waste Tracking"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "site_id": 74,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-03-20",
+  "certifications": [
+    {
+      "cert_id": 40,
+      "result": "Pass",
+      "resolution_date": "2026-03-25",
+      "reg_title": "Safety Protocol v2",
+      "reg_description": "Comprehensive safety standards for physical facility management and emergency preparedness.",
+      "certifier_org_name": "EcoCert",
+      "inspection_date": "2026-03-20",
+      "findings": [
+        {
+          "finding_id": 88,
+          "finding": "Emergency exits clearly marked.",
+          "rule_index": "4.1",
+          "rule_title": "Signage",
+          "rule_description": "All emergency egress points must be identifiable via high-contrast, illuminated, or photoluminescent signage visible from at least 50 feet."
+        }
+      ]
+    }
+  ]
+}
