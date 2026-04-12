@@ -59,7 +59,7 @@ def get_site_history(site_id: int) -> Site | None:
             ],
             regulations_table.c.title.label("reg_title"),
             regulations_table.c.description.label("reg_description"),
-            certifiers_table.c.organization_name.label("cert_org_name"),
+            certifiers_table.c.organization_name.label("certifier_org_name"),
             findings_table.c.id.label("finding_id"), findings_table.c.finding,
             rules_table.c.rule_index, rules_table.c.title.label("rule_title"),
             rules_table.c.description.label("rule_description")
@@ -111,7 +111,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
                 "resolution_date": row["resolution_date"],
                 "reg_title": row["reg_title"],
                 "reg_description": row["reg_description"],
-                "cert_org_name": row["cert_org_name"],
+                "certifier_org_name": row["certifier_org_name"],
                 "inspection_date": row["inspection_date"],
             }
             if row["finding_id"] is not None:
