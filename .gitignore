@@ -39,3 +39,5 @@ instance/
 populate_tables.py
 AGENTS.md
 anthropic_quickstart.py
+*.pkl
+eval_results*
