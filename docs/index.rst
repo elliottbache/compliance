@@ -1,6 +1,6 @@
-.. MarketFlows documentation master file
+.. Compliance documentation master file
 
-MarketFlows documentation
+Compliance documentation
 =======================================
 
 

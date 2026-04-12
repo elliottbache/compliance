@@ -30,7 +30,7 @@ def configure_logging(
 
     This attaches two handlers to the **root** logger:
 
-    1) A file handler at ``level`` writing to ``<state-dir>/marketflows/logs/<node>.log``.
+    1) A file handler at ``level`` writing to ``<state-dir>/compliance/logs/<node>.log``.
        - On Linux/WSL: ``$XDG_STATE_HOME`` (fallback: ``~/.local/state``)
        - On Windows: ``%LOCALAPPDATA%`` (fallback: ``~/AppData/Local``)
 
@@ -83,7 +83,7 @@ def configure_logging(
     root.addHandler(err_handler)
 
     # define and create folder for saving log
-    safe_node = _sanitize_node(node) or "marketflows"
+    safe_node = _sanitize_node(node) or "compliance"
     log_file = pathlib.Path(safe_node).with_suffix(".log")
     fn = _default_log_dir() / log_file
 
@@ -145,7 +145,7 @@ def _default_log_dir() -> pathlib.Path:
             os.getenv("XDG_STATE_HOME", pathlib.Path.home() / ".local" / "state")
         )
 
-    log_dir = base / "marketflows" / "logs"
+    log_dir = base / "compliance" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     return log_dir
