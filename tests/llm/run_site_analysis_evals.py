@@ -12,7 +12,7 @@ from compliance.schemas import ModelSummary, Site, SiteAnalysis, SummaryChecks
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
-_DEFAULT_CASES_DIRECTORY = Path("evals/site_history_cases")
+_DEFAULT_CASES_DIRECTORY = Path("tests/llm/evals/site_history_cases")
 _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
 _DEFAULT_AI_MODEL = (
     "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
@@ -55,7 +55,7 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
         eval_results[case_name] = dict()
         try:
             is_retry, prompt_version, response = summarize_previous_visits(
-                site_history, ai_model=_DEFAULT_AI_MODEL
+                site_history, ai_model=_DEFAULT_AI_MODEL, case_info=case_name
             )
 
             # record the prompt version
@@ -181,6 +181,7 @@ def _is_strings_in(resp: list[str], exp: list[str]) -> bool:
 def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
     """Write pertinent results to file."""
     to_write = dict()
+    failed_cases = list()
     for case_name in eval_results:
         to_write[case_name] = dict()
         to_write[case_name]["model_name"] = eval_results[case_name]["model_name"]
@@ -207,6 +208,7 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
             to_write[case_name]["expected_results"] = eval_results[case_name][
                 "expected_results"
             ].model_dump(mode="json")
+            failed_cases.append(case_name)
 
         checks = [field_name for field_name in SummaryChecks.model_fields]
         logger.info(
@@ -214,6 +216,8 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
             f" pass/fail checks: {checks},"
             f" summary_output: {to_write[case_name]["output_summary"]}"
         )
+
+    to_write["failed_cases"] = failed_cases
 
     # write a results file
     with open(outfile, mode="w") as f:
