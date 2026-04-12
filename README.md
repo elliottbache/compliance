@@ -9,3 +9,9 @@ Its goal is to improve traceability, make historical reviews easier, and support
 consistent report generation without replacing human technical judgment. Over time, it is 
 intended to add tightly controlled AI assistance for tasks like summarization, drafting, and 
 comparison of past certifications while keeping factual retrieval and validation in code.
+
+
+## TODO
+- Add local model option.
+- Add privacy for Anthropic and write guide in README.
+- Fix logging in anthropic_api and run_site_analysis_evals to go to a specific file for lower levels
