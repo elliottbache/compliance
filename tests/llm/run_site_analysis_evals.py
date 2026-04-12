@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import spacy
-from anthropic_api import summarize_previous_visits
 from pydantic import ValidationError
-from schemas import ModelSummary, Site, SiteAnalysis, SummaryChecks
+
+from compliance.llm.anthropic_api import summarize_previous_visits
+from compliance.schemas import ModelSummary, Site, SiteAnalysis, SummaryChecks
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
@@ -17,7 +18,6 @@ _DEFAULT_AI_MODEL = (
     "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
 )
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 # Create a blank English model and add sentencizer
 _nlp = spacy.blank("en")
@@ -203,10 +203,10 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
         if to_write[case_name]["failures"]:
             to_write[case_name]["model_results"] = eval_results[case_name][
                 "model_results"
-            ]
+            ].model_dump(mode="json")
             to_write[case_name]["expected_results"] = eval_results[case_name][
                 "expected_results"
-            ]
+            ].model_dump(mode="json")
 
         checks = [field_name for field_name in SummaryChecks.model_fields]
         logger.info(
@@ -257,4 +257,8 @@ def _find_failed_checks(checks: SummaryChecks) -> list[str]:
 
 
 if __name__ == "__main__":
+    from compliance.logging_utils import configure_logging
+
+    configure_logging(level="DEBUG", node="debug", is_tutorial=False)
+    configure_logging(level="INFO", node="info", is_tutorial=False)
     run_evals()
