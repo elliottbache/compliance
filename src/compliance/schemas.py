@@ -1,4 +1,5 @@
 from datetime import date
+
 from pydantic import BaseModel, Field
 
 
@@ -30,6 +31,7 @@ class Site(BaseModel):
 
 class SummaryChecks(BaseModel):
     """Eval metrics."""
+
     is_site_id_correct: bool
     is_n_inspections_correct: bool
     is_max_summary_sentences: bool
@@ -44,6 +46,7 @@ class SummaryChecks(BaseModel):
 
 class SiteAnalysis(BaseModel):
     """Returned from the model."""
+
     site_id: int
     inspection_count: int
     summary: str
@@ -56,6 +59,7 @@ class SiteAnalysis(BaseModel):
 
 class ModelSummary(BaseModel):
     """Expected from model."""
+
     site_id: int
     inspection_count: int
     max_summary_sentences: int

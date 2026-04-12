@@ -1,7 +1,7 @@
 from compliance.db.query_history import get_site_history
 
 
-def run_pipeline():
+def run_pipeline() -> None:
     print(f"site 72: {get_site_history(72)}")
 
 

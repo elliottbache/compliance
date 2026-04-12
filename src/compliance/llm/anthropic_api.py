@@ -1,13 +1,12 @@
-import anthropic
 import json
 import logging
 import pprint
-
 from datetime import datetime
-from dotenv import load_dotenv
-from pydantic import BaseModel, ValidationError
 
+import anthropic
 from app import get_site_history
+from dotenv import load_dotenv
+from pydantic import ValidationError
 from schemas import Site, SiteAnalysis
 
 MAX_TOKENS = 1000
@@ -19,10 +18,12 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[bool, str, SiteAnalysis]:
+def summarize_previous_visits(
+    site_history: Site, *, ai_model: str
+) -> tuple[bool, str, SiteAnalysis]:
     """if site_history is None:
-        logger.warning("No site history found.")
-        return False, "", None"""
+    logger.warning("No site history found.")
+    return False, "", None"""
 
     system_context = """You are assisting with inspection-history analysis.
     
@@ -63,7 +64,9 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
     
     Site history:
     """
-    user_message += json.dumps(site_history.model_dump(mode="json"), separators=(',', ':'))
+    user_message += json.dumps(
+        site_history.model_dump(mode="json"), separators=(",", ":")
+    )
     """
     user_message = "What should I search for to find the latest developments in renewable energy?"
     system_context = "Give me a short answer."
@@ -75,7 +78,13 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
     client = anthropic.Anthropic()
     try:
         is_retry = False
-        response = _call_model(client=client, ai_model=ai_model, system_context=system_context, user_message=user_message, is_retry=is_retry)
+        response = _call_model(
+            client=client,
+            ai_model=ai_model,
+            system_context=system_context,
+            user_message=user_message,
+            is_retry=is_retry,
+        )
     except ValidationError as e:
         is_retry = True
         logger.warning(_create_error_message(ai_model, system_context, user_message))
@@ -84,10 +93,13 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
         # retry with added context
         added_context = f"Your previous response did not match the required schema. I got ValidationError: {e}. Return only valid structured output matching SiteAnalysis. Original message:"
         try:
-            response = _call_model(client=client, ai_model=ai_model,
-                                   system_context=system_context,
-                                   user_message=added_context + user_message,
-                                   is_retry=is_retry)
+            response = _call_model(
+                client=client,
+                ai_model=ai_model,
+                system_context=system_context,
+                user_message=added_context + user_message,
+                is_retry=is_retry,
+            )
             SiteAnalysis.model_validate(response)
         except ValidationError as err:
             logger.error(_create_error_message(ai_model, system_context, user_message))
@@ -108,12 +120,12 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
 
 
 def _call_model(
-        *,
-        client: anthropic.Anthropic,
-        ai_model: str,
-        system_context: str,
-        user_message: str,
-        is_retry: bool
+    *,
+    client: anthropic.Anthropic,
+    ai_model: str,
+    system_context: str,
+    user_message: str,
+    is_retry: bool,
 ) -> SiteAnalysis:
     """Send a user message to the model and parse the response into a site analysis.
 
@@ -160,13 +172,15 @@ def _call_model(
         )
 
 
-def _create_error_message(ai_model: str, system_context: str, user_message:str) -> str:
+def _create_error_message(ai_model: str, system_context: str, user_message: str) -> str:
     return f"Model failed for model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, and user_message={user_message}"
 
 
 def _log_validation_error_messages(err: ValidationError) -> None:
     for error in err.errors():
-        logger.debug(f"Error Type: {error['type']}\nLocation:   {error['loc']}\nFaulty Data: {error['input']}")
+        logger.debug(
+            f"Error Type: {error['type']}\nLocation:   {error['loc']}\nFaulty Data: {error['input']}"
+        )
 
 
 if __name__ == "__main__":

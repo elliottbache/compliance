@@ -35,6 +35,9 @@ instance/
 .idea/
 .DS_Store
 
+### CI ###
+*coverage*
+
 ### my files ###
 AGENTS.md
 *.pkl
