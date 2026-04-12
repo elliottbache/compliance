@@ -1,6 +1,0 @@
-pydantic
-sqlalchemy
-psycopg2-binary
-python-dotenv
-anthropic
-spacy

@@ -9,7 +9,7 @@ from sqlalchemy import MetaData, Table, Column, Integer, String, UniqueConstrain
 from sqlalchemy import select, insert
 from typing import Sequence
 
-from schemas import Site, Certification
+from compliance.schemas import Site, Certification
 
 load_dotenv()
 DB_NAME = getenv("POSTGRES_DB")
@@ -30,9 +30,6 @@ sites_table = Table("sites", meta, autoload_with=engine)
 attachments_table = Table("attachments", meta, autoload_with=engine)
 clients_table = Table("clients", meta, autoload_with=engine)
 regulations_table = Table("regulations", meta, autoload_with=engine)
-
-
-
 
 
 def get_site_history(site_id: int) -> Site | None:

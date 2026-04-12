@@ -36,9 +36,8 @@ instance/
 .DS_Store
 
 ### my files ###
-populate_tables.py
 AGENTS.md
-anthropic_quickstart.py
 *.pkl
 eval_results*
 *Zone.Identifier
+private
