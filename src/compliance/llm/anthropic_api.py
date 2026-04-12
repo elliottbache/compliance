@@ -4,12 +4,14 @@ import pprint
 from datetime import datetime
 
 import anthropic
-from app import get_site_history
+from anthropic.types import Message
 from dotenv import load_dotenv
 from pydantic import ValidationError
-from schemas import Site, SiteAnalysis
 
-MAX_TOKENS = 1000
+from compliance.app import get_site_history
+from compliance.schemas import Site, SiteAnalysis
+
+MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v1.1"
 
 logging.basicConfig(level=logging.DEBUG)
@@ -19,11 +21,9 @@ load_dotenv()
 
 
 def summarize_previous_visits(
-    site_history: Site, *, ai_model: str
+    site_history: Site, *, ai_model: str, case_info: str = ""
 ) -> tuple[bool, str, SiteAnalysis]:
-    """if site_history is None:
-    logger.warning("No site history found.")
-    return False, "", None"""
+    Site.model_validate(site_history)
 
     system_context = """You are assisting with inspection-history analysis.
     
@@ -85,9 +85,18 @@ def summarize_previous_visits(
             user_message=user_message,
             is_retry=is_retry,
         )
+        SiteAnalysis.model_validate(response)
     except ValidationError as e:
         is_retry = True
-        logger.warning(_create_error_message(ai_model, system_context, user_message))
+        logger.warning(
+            _create_error_message(
+                case_info=case_info,
+                ai_model=ai_model,
+                system_context=system_context,
+                user_message=user_message,
+                response=_parse_message(response)
+            )
+        )
         _log_validation_error_messages(e)
 
         # retry with added context
@@ -102,21 +111,29 @@ def summarize_previous_visits(
             )
             SiteAnalysis.model_validate(response)
         except ValidationError as err:
-            logger.error(_create_error_message(ai_model, system_context, user_message))
+
+            logger.error(
+                _create_error_message(
+                    case_info=case_info,
+                    ai_model=ai_model,
+                    system_context=system_context,
+                    user_message=user_message,
+                    response=_parse_message(response)
+                )
+            )
             _log_validation_error_messages(err)
             raise
 
-    Site.model_validate(site_history)
     logger.info(
         f"Timestamp: {datetime.now()}, site id: {site_history.site_id}, "
         f"model: {ai_model}, prompt version: {_DEFAULT_PROMPT_VERSION}, "
         f"retry used: {is_retry}"
     )
     logger.info(f"response: {response}")
-    pprint.pp(response.parsed_output)
+    pprint.pp(_parse_message(response))
     pprint.pp(response)
 
-    return is_retry, _DEFAULT_PROMPT_VERSION, response.parsed_output
+    return is_retry, _DEFAULT_PROMPT_VERSION, SiteAnalysis.model_validate(response)
 
 
 def _call_model(
@@ -126,7 +143,7 @@ def _call_model(
     system_context: str,
     user_message: str,
     is_retry: bool,
-) -> SiteAnalysis:
+) -> Message:
     """Send a user message to the model and parse the response into a site analysis.
 
     Args:
@@ -137,7 +154,7 @@ def _call_model(
         is_retry: Are we calling the model after the first call failed?
 
     Returns:
-        SiteAnalysis: Parsed model response.
+        anthropic.Anthropic: Model response.
 
     Raises:
         anthropic.APIError: If the API request fails.
@@ -146,7 +163,7 @@ def _call_model(
         Exception: If the response cannot be parsed into ``SiteAnalysis``.
     """
     if is_retry:
-        return client.messages.parse(
+        return client.messages.create(
             model=ai_model,
             max_tokens=MAX_TOKENS,
             system=system_context,
@@ -158,7 +175,7 @@ def _call_model(
             ],
         )
     else:
-        return client.messages.parse(
+        return client.messages.create(
             model=ai_model,
             max_tokens=MAX_TOKENS,
             system=system_context,
@@ -168,21 +185,30 @@ def _call_model(
                     "content": user_message,
                 }
             ],
-            output_format=SiteAnalysis,
         )
 
 
-def _create_error_message(ai_model: str, system_context: str, user_message: str) -> str:
-    return f"Model failed for model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, and user_message={user_message}"
+def _parse_message(response: Message) -> str:
+    if response.content and isinstance(response.content[0], dict) and "text" in response.content[0]:
+            return response.content[0].text
+
+    return ""
+
+def _create_error_message(
+    *, case_info: str, ai_model: str, system_context: str, user_message: str, response: str
+) -> str:
+    return f"Model failed for case: {case_info}, model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, \nand user_message={user_message}\nresponse: {response}"
 
 
 def _log_validation_error_messages(err: ValidationError) -> None:
     for error in err.errors():
         logger.debug(
-            f"Error Type: {error['type']}\nLocation:   {error['loc']}\nFaulty Data: {error['input']}"
+            f"Error type: {error['type']}\nLocation:   {error['loc']}\nFaulty data: {error['input']}"
         )
 
 
 if __name__ == "__main__":
     site_history = get_site_history(71)
+    if site_history is None:
+        raise ValueError("site_history is None")
     summarize_previous_visits(site_history, ai_model="claude-haiku-4-5-20251001")  #
