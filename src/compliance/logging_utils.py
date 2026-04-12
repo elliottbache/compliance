@@ -33,6 +33,7 @@ def configure_logging(
     1) A file handler at ``level`` writing to ``<state-dir>/compliance/logs/<node>.log``.
        - On Linux/WSL: ``$XDG_STATE_HOME`` (fallback: ``~/.local/state``)
        - On Windows: ``%LOCALAPPDATA%`` (fallback: ``~/AppData/Local``)
+    This is rotating for non-tutorial.
 
     2) A stderr handler at ``WARNING`` and above.
 
