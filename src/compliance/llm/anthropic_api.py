@@ -4,9 +4,9 @@ import pprint
 from datetime import datetime
 
 import anthropic
-from anthropic.types import Message
+from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 
 from compliance.app import get_site_history
 from compliance.schemas import Site, SiteAnalysis
@@ -85,8 +85,9 @@ def summarize_previous_visits(
             user_message=user_message,
             is_retry=is_retry,
         )
-        SiteAnalysis.model_validate(response)
-    except ValidationError as e:
+        site_analysis = _convert_response_to_site_analysis(response)
+
+    except (json.JSONDecodeError, ValidationError) as e:
         is_retry = True
         logger.warning(
             _create_error_message(
@@ -94,11 +95,12 @@ def summarize_previous_visits(
                 ai_model=ai_model,
                 system_context=system_context,
                 user_message=user_message,
-                response=_parse_message(response)
+                response=_parse_message_to_string(response),
             )
         )
-        _log_validation_error_messages(e)
 
+        if isinstance(e, ValidationError):
+            _log_validation_error_messages(e)
         # retry with added context
         added_context = f"Your previous response did not match the required schema. I got ValidationError: {e}. Return only valid structured output matching SiteAnalysis. Original message:"
         try:
@@ -109,19 +111,19 @@ def summarize_previous_visits(
                 user_message=added_context + user_message,
                 is_retry=is_retry,
             )
-            SiteAnalysis.model_validate(response)
+            site_analysis = _convert_response_to_site_analysis(response)
         except ValidationError as err:
-
             logger.error(
                 _create_error_message(
                     case_info=case_info,
                     ai_model=ai_model,
                     system_context=system_context,
                     user_message=user_message,
-                    response=_parse_message(response)
+                    response=_parse_message_to_string(response),
                 )
             )
-            _log_validation_error_messages(err)
+            if isinstance(e, ValidationError):
+                _log_validation_error_messages(err)
             raise
 
     logger.info(
@@ -129,11 +131,20 @@ def summarize_previous_visits(
         f"model: {ai_model}, prompt version: {_DEFAULT_PROMPT_VERSION}, "
         f"retry used: {is_retry}"
     )
-    logger.info(f"response: {response}")
-    pprint.pp(_parse_message(response))
-    pprint.pp(response)
+    logger.debug(f"response: {_parse_message_to_string(response)}")
 
-    return is_retry, _DEFAULT_PROMPT_VERSION, SiteAnalysis.model_validate(response)
+    return is_retry, _DEFAULT_PROMPT_VERSION, site_analysis
+
+
+def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
+    raw_text = _extract_text_from_response(response)
+    if "```json" in raw_text:
+        clean_text = raw_text.strip().removeprefix("```json").removesuffix(
+            "```").strip()
+    else:
+        clean_text = raw_text
+    data_dict = json.loads(clean_text)
+    return SiteAnalysis.model_validate(data_dict)
 
 
 def _call_model(
@@ -162,6 +173,18 @@ def _call_model(
         anthropic.RateLimitError: If the request is rate-limited.
         Exception: If the response cannot be parsed into ``SiteAnalysis``.
     """
+    props, reqs = _extract_schema_parts(SiteAnalysis)
+    output_config = {
+        "format": {
+            "type": "json_schema",
+            "schema": {
+                "type": "object",
+                "properties": props,
+                "required": reqs,
+                "additionalProperties": False,
+            },
+        }
+    }
     if is_retry:
         return client.messages.create(
             model=ai_model,
@@ -173,6 +196,7 @@ def _call_model(
                     "content": user_message,
                 }
             ],
+            output_config=output_config,
         )
     else:
         return client.messages.create(
@@ -185,17 +209,41 @@ def _call_model(
                     "content": user_message,
                 }
             ],
+            output_config=output_config,
         )
 
 
-def _parse_message(response: Message) -> str:
-    if response.content and isinstance(response.content[0], dict) and "text" in response.content[0]:
-            return response.content[0].text
+def _extract_schema_parts(model_class: type[BaseModel]):
+    """Pydantic V2 method to generate the JSON schema"""
+    schema = model_class.model_json_schema()
 
-    return ""
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+
+    return properties, required
+
+
+def _extract_text_from_response(response: Message) -> str:
+    if (response.content and isinstance(response.content[0], TextBlock)
+    ):
+        return response.content[0].text
+    else:
+        raise ValueError("LLM response does not contain text.")
+
+
+def _parse_message_to_string(response: Message) -> str:
+    return response.content[0].text if (response.content and
+                                        isinstance(response.content[0], TextBlock)
+                                        ) else ""
+
 
 def _create_error_message(
-    *, case_info: str, ai_model: str, system_context: str, user_message: str, response: str
+    *,
+    case_info: str,
+    ai_model: str,
+    system_context: str,
+    user_message: str,
+    response: str,
 ) -> str:
     return f"Model failed for case: {case_info}, model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, \nand user_message={user_message}\nresponse: {response}"
 
