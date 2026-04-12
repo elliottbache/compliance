@@ -8,6 +8,7 @@
       "result": "In Progress",
       "resolution_date": null,
       "reg_title": "Environmental Impact Standards",
+      "reg_description": "This regulation defines the operational requirements for businesses to minimize their ecological footprint and ensure sustainable resource management. ",
       "certifier_org_name": "GreenAudit Org",
       "inspection_date": "2026-03-15",
       "findings": [
@@ -15,7 +16,8 @@
           "finding_id": 110,
           "finding": "Waste management documentation is incomplete.",
           "rule_index": "E.2",
-          "rule_title": "Waste Tracking"
+          "rule_title": "Waste Tracking",
+          "rule_description": "This specific rule mandates the comprehensive documentation and tracing of all industrial and office-generated waste from the point of origin to final disposal or recycling."
         }
       ]
     }

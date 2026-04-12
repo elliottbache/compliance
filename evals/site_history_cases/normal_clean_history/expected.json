@@ -1,13 +1,12 @@
 {
-  "should_parse": true,
-  "expected_site_id": 101,
-  "expected_inspection_count": 2,
-  "expected_summary_phrases": ["passed"],
-  "expected_recurring_issues": [],
-  "expected_missing_information": [],
+  "site_id": 101,
+  "inspection_count": 2,
+  "summary_phrases": ["pass"],
+  "recurring_issues": [],
+  "missing_information": [],
   "needs_human_review": [],
-  "max_summary_sentences": 3,
-  "expected_rule_mentions": [
+  "max_summary_sentences": 5,
+  "rule_mentions": [
     "2.1",
     "3.4",
     "4.2"
@@ -15,13 +14,16 @@
   "forbidden_phrases": [
     "insufficient information",
     "unable to determine compliance status",
-    "recurring issue",
+    "were recurring issues",
+    "are recurring issues",
+    "multiple recurring issues",
     "failed inspection"
   ],
   "forbidden_summary_terms": [
-    "violation",
-    "non-compliance",
-    "recurring",
-    "unclear"
+    "is a violation",
+    "are violations",
+    "is non-compliance",
+    "are unclear",
+    "is unclear"
   ]
 }

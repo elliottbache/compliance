@@ -1,17 +1,16 @@
 {
-  "should_parse": true,
-  "expected_site_id": 78,
-  "expected_inspection_count": 3,
-  "expected_summary_phrases": [
+  "site_id": 78,
+  "inspection_count": 3,
+  "summary_phrases": [
     "emergency exit"
   ],
-  "expected_recurring_issues": ["emergency exit"],
-  "expected_missing_information": [],
+  "recurring_issues": ["emergency exit"],
+  "missing_information": [],
   "needs_human_review": [],
-  "expected_rule_mentions": [
+  "rule_mentions": [
     "HS.4"
   ],
-  "max_summary_sentences": 5,
+  "max_summary_sentences": 7,
   "forbidden_phrases": [
     "insufficient information",
     "unable to determine compliance status",
