@@ -3,6 +3,7 @@ import json
 import logging
 import pprint
 
+from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
@@ -53,7 +54,8 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
     or interpretation boundary, not just "review this".
     - inspection_caveats: limits of the available history/data
     - suggestions: suggestions for preparing for the visit and for 
-    during the visit.  Must be framed as preparation suggestions, not conclusions.
+    during the visit.  Must be framed as preparation suggestions, not conclusions.  Must 
+    be tied to the provided findings/regulations/rules.
     
     General:
     - When describing inspections and certifications, cite the regulation title if available.
@@ -92,14 +94,27 @@ def summarize_previous_visits(site_history: Site, *, ai_model: str) -> tuple[boo
             _log_validation_error_messages(err)
             raise
 
-    logger.debug(f"response: {response}")
+    Site.model_validate(site_history)
+    logger.info(
+        f"Timestamp: {datetime.now()}, site id: {site_history.site_id}, "
+        f"model: {ai_model}, prompt version: {_DEFAULT_PROMPT_VERSION}, "
+        f"retry used: {is_retry}"
+    )
+    logger.info(f"response: {response}")
     pprint.pp(response.parsed_output)
     pprint.pp(response)
 
     return is_retry, _DEFAULT_PROMPT_VERSION, response.parsed_output
 
 
-def _call_model(*, client: anthropic.Anthropic, ai_model: str, system_context: str, user_message: str, is_retry: bool) -> SiteAnalysis:
+def _call_model(
+        *,
+        client: anthropic.Anthropic,
+        ai_model: str,
+        system_context: str,
+        user_message: str,
+        is_retry: bool
+) -> SiteAnalysis:
     """Send a user message to the model and parse the response into a site analysis.
 
     Args:
