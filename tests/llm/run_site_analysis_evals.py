@@ -1,24 +1,24 @@
 import json
 import logging
-import spacy
-import pickle
-
+from collections.abc import Generator
 from pathlib import Path
-from pydantic import ValidationError
-from typing import Generator, Any
+from typing import Any
 
+import spacy
 from anthropic_api import summarize_previous_visits
-from schemas import Site, ModelSummary, SiteAnalysis, SummaryChecks
+from pydantic import ValidationError
+from schemas import ModelSummary, Site, SiteAnalysis, SummaryChecks
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
 _DEFAULT_CASES_DIRECTORY = Path("evals/site_history_cases")
 _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
-_DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
+_DEFAULT_AI_MODEL = (
+    "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
+)
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__
-                           )
+logger = logging.getLogger(__name__)
 # Create a blank English model and add sentencizer
 _nlp = spacy.blank("en")
 _nlp.add_pipe("sentencizer")
@@ -42,9 +42,7 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
     input_filename = _DEFAULT_INPUT_FILE
     expected_filename = _DEFAULT_EXPECTED_FILE
     for case_name in _eval_case_generator(
-        evals_path,
-        input_filename=input_filename,
-        expected_filename=expected_filename
+        evals_path, input_filename=input_filename, expected_filename=expected_filename
     ):
         case_path = evals_path / case_name
         # load each eval case
@@ -56,7 +54,9 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
         # run your current prompt + model call
         eval_results[case_name] = dict()
         try:
-            is_retry, prompt_version, response = summarize_previous_visits(site_history, ai_model=_DEFAULT_AI_MODEL)
+            is_retry, prompt_version, response = summarize_previous_visits(
+                site_history, ai_model=_DEFAULT_AI_MODEL
+            )
 
             # record the prompt version
             eval_results[case_name]["prompt_version"] = prompt_version
@@ -65,7 +65,7 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
             eval_results[case_name]["parse_succeeded"] = True
 
             # record whether the query had to be retried
-            eval_results[case_name]["is_retry"] = True if is_retry else False
+            eval_results[case_name]["is_retry"] = is_retry
 
             # record the parsed result
             eval_results[case_name]["model_results"] = response
@@ -74,9 +74,9 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
             eval_results[case_name]["expected_results"] = expected_results
 
             # run a few deterministic checks
-            eval_results[case_name]["response_checks"] = \
-                _compare_results_to_expected(response, expected_results)
-
+            eval_results[case_name]["response_checks"] = _compare_results_to_expected(
+                response, expected_results
+            )
 
         except ValidationError:
             # record whether structured parse succeeded
@@ -87,8 +87,9 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
 
     _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
 
+
 def _eval_case_generator(
-        evals_path: Path, *, input_filename: Path, expected_filename: Path
+    evals_path: Path, *, input_filename: Path, expected_filename: Path
 ) -> Generator[str, None, None]:
     """Yield directory name for valid evaluation case directories.
 
@@ -105,12 +106,17 @@ def _eval_case_generator(
         tuple[Path, None, None]: Name the valid evaluation case directory.
     """
     for path in evals_path.iterdir():
-        if path.is_dir():
-            if (path / input_filename).exists() and (path / expected_filename).exists():
-                yield path.parts[-1]
+        if (
+            path.is_dir()
+            and (path / input_filename).exists()
+            and (path / expected_filename).exists()
+        ):
+            yield path.parts[-1]
 
 
-def _compare_results_to_expected(resp: SiteAnalysis, exp: ModelSummary) -> SummaryChecks:
+def _compare_results_to_expected(
+    resp: SiteAnalysis, exp: ModelSummary
+) -> SummaryChecks:
     """Compare a model response against the expected summary checks.
 
     Evaluates whether the response matches expected identifiers, counts, phrase
@@ -126,20 +132,27 @@ def _compare_results_to_expected(resp: SiteAnalysis, exp: ModelSummary) -> Summa
     checks = dict()
     checks["is_site_id_correct"] = resp.site_id == exp.site_id
     checks["is_n_inspections_correct"] = resp.inspection_count == exp.inspection_count
-    checks["is_max_summary_sentences"] = \
+    checks["is_max_summary_sentences"] = (
         _count_sentences(resp.summary) <= exp.max_summary_sentences
-    checks["is_summary_phrases"] = _is_strings_in([resp.summary], exp.summary_phrases)
-    checks["is_recurring_issues"] = _is_strings_in(resp.recurring_issues, exp.recurring_issues)
-    checks["is_missing_information"] = _is_strings_in(resp.missing_information, exp.missing_information)
-    checks["is_needs_human_review"] = _is_strings_in(resp.needs_human_review, exp.needs_human_review)
-    response_texts = (
-            [resp.summary]
-            + resp.recurring_issues
-            + resp.missing_information
-            + resp.needs_human_review
-            + resp.inspection_caveats
-            + resp.suggestions
     )
+    checks["is_summary_phrases"] = _is_strings_in([resp.summary], exp.summary_phrases)
+    checks["is_recurring_issues"] = _is_strings_in(
+        resp.recurring_issues, exp.recurring_issues
+    )
+    checks["is_missing_information"] = _is_strings_in(
+        resp.missing_information, exp.missing_information
+    )
+    checks["is_needs_human_review"] = _is_strings_in(
+        resp.needs_human_review, exp.needs_human_review
+    )
+    response_texts = [
+        resp.summary,
+        *resp.recurring_issues,
+        *resp.missing_information,
+        *resp.needs_human_review,
+        *resp.inspection_caveats,
+        *resp.suggestions,
+    ]
     checks["is_rule_mentions"] = all(
         any(rule_mention.lower() in text.lower() for text in response_texts)
         for rule_mention in exp.rule_mentions
@@ -162,11 +175,7 @@ def _count_sentences(text: str) -> int:
 
 def _is_strings_in(resp: list[str], exp: list[str]) -> bool:
     """Check whether each expected string appears in at least one response string."""
-    for ex in exp:
-        if not any(ex.lower() in res.lower() for res in resp):
-            return False
-
-    return True
+    return all(any(ex.lower() in res.lower() for res in resp) for ex in exp)
 
 
 def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
@@ -175,17 +184,29 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
     for case_name in eval_results:
         to_write[case_name] = dict()
         to_write[case_name]["model_name"] = eval_results[case_name]["model_name"]
-        to_write[case_name]["parse_success"] = eval_results[case_name]["parse_succeeded"]
+        to_write[case_name]["parse_success"] = eval_results[case_name][
+            "parse_succeeded"
+        ]
         if not to_write[case_name]["parse_success"]:
             to_write[case_name]["failures"] = ["parse_failed"]
             continue
-        to_write[case_name]["prompt_version"] = eval_results[case_name]["prompt_version"]
+        to_write[case_name]["prompt_version"] = eval_results[case_name][
+            "prompt_version"
+        ]
         to_write[case_name]["is_retry"] = eval_results[case_name]["is_retry"]
-        to_write[case_name]["output_summary"] = eval_results[case_name]["model_results"].summary
-        to_write[case_name]["failures"] = _find_failed_checks(eval_results[case_name]["response_checks"])
+        to_write[case_name]["output_summary"] = eval_results[case_name][
+            "model_results"
+        ].summary
+        to_write[case_name]["failures"] = _find_failed_checks(
+            eval_results[case_name]["response_checks"]
+        )
         if to_write[case_name]["failures"]:
-            to_write[case_name]["model_results"] = eval_results[case_name]["model_results"]
-            to_write[case_name]["expected_results"] = eval_results[case_name]["expected_results"]
+            to_write[case_name]["model_results"] = eval_results[case_name][
+                "model_results"
+            ]
+            to_write[case_name]["expected_results"] = eval_results[case_name][
+                "expected_results"
+            ]
 
         checks = [field_name for field_name in SummaryChecks.model_fields]
         logger.info(
@@ -231,7 +252,7 @@ def _find_failed_checks(checks: SummaryChecks) -> list[str]:
         field_name
         for field_name in SummaryChecks.model_fields
         if (field_name in normal_checks and not getattr(checks, field_name))
-           or (field_name in forbidden_checks and getattr(checks, field_name))
+        or (field_name in forbidden_checks and getattr(checks, field_name))
     ]
 
 

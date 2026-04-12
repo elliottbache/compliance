@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff-check  # check only without -fix
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: ["--check"]  # check-only, no rewrite
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell      # no --write-changes => no rewrite
+        args: ["--toml", "pyproject.toml"]
+        exclude: |
+            (?x)^(
+                docs/_static/|
+                docs/html/|
+                src/include/|
+                build/|
+                dist/|
+                \.venv/|
+                pyproject\.toml
+            )
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        args: ["--config-file=pyproject.toml"]
+        pass_filenames: false
+        language_version: python3.12
+        additional_dependencies: [
+            "requests",
+            "types-requests"
+        ]

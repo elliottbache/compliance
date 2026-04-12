@@ -1,21 +1,18 @@
-from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from os import getenv
-from datetime import date
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field, validate_call, TypeAdapter
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData, Table, Column, Integer, String, UniqueConstraint, ForeignKey, Date, CheckConstraint, ForeignKeyConstraint
-from sqlalchemy import select, insert
-from typing import Sequence
 
-from compliance.schemas import Site, Certification
+from dotenv import load_dotenv
+from sqlalchemy import MetaData, Table, create_engine, select
+
+from compliance.schemas import Certification, Site
 
 load_dotenv()
 DB_NAME = getenv("POSTGRES_DB")
 USER = getenv("POSTGRES_USER")
 PASSWORD = getenv("POSTGRES_PASSWORD")
 HOST = getenv("POSTGRES_HOST")
+if DB_NAME is None or USER is None or PASSWORD is None or HOST is None:
+    raise ValueError(".env value is not being read correctly.")
 DB_URL = "postgresql+psycopg2://" + USER + ":" + PASSWORD + "@" + HOST + "/" + DB_NAME
 
 engine = create_engine(DB_URL)
@@ -51,15 +48,18 @@ def get_site_history(site_id: int) -> Site | None:
     stmt = (
         select(
             certifications_table.c.site_id,
-            certifications_table.c.id.label("cert_id"), certifications_table.c[
-                "result", "resolution_date", "inspection_date"
-            ],
+            certifications_table.c.id.label("cert_id"),
+            certifications_table.c.result,
+            certifications_table.c.resolution_date,
+            certifications_table.c.inspection_date,
             regulations_table.c.title.label("reg_title"),
             regulations_table.c.description.label("reg_description"),
             certifiers_table.c.organization_name.label("certifier_org_name"),
-            findings_table.c.id.label("finding_id"), findings_table.c.finding,
-            rules_table.c.rule_index, rules_table.c.title.label("rule_title"),
-            rules_table.c.description.label("rule_description")
+            findings_table.c.id.label("finding_id"),
+            findings_table.c.finding,
+            rules_table.c.rule_index,
+            rules_table.c.title.label("rule_title"),
+            rules_table.c.description.label("rule_description"),
         )
         .where(certifications_table.c.site_id == site_id)
         .join_from(certifications_table, regulations_table)
@@ -125,9 +125,11 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
 
             # find matching list item in certifications for cert_id
             cert_idx = _find_cert_index(row["cert_id"], site_history["certifications"])
-            if cert_idx == None:
-                raise KeyError(f"Certification list item does not exist: cert_id = "
-                    f"{row['cert_id']} in {site_history['certifications']}")
+            if cert_idx is None:
+                raise KeyError(
+                    f"Certification list item does not exist: cert_id = "
+                    f"{row['cert_id']} in {site_history['certifications']}"
+                )
 
             site_history["certifications"][cert_idx]["findings"].append(
                 _create_findings_dict(row)
@@ -135,30 +137,30 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
 
     site_history["inpsection_count"] = len(site_history["certifications"])
     if site_history["inpsection_count"] > 0:
-        site_history["latest_inspection_date"] = \
-            site_history["certifications"][-1]["inspection_date"]
+        site_history["latest_inspection_date"] = site_history["certifications"][-1][
+            "inspection_date"
+        ]
 
     return Site(**site_history)
 
 
 def _find_cert_index(
-        cert_id, site_history_cert_list: list[Certification]
+    cert_id: int, site_history_cert_list: list[Certification]
 ) -> int | None:
     idx = 0
     while (
-            idx < len(site_history_cert_list) and
-            site_history_cert_list[idx]["cert_id"] != cert_id
+        idx < len(site_history_cert_list)
+        and site_history_cert_list[idx].cert_id != cert_id
     ):
         idx += 1
 
     return idx if idx < len(site_history_cert_list) else None
 
+
 def _create_findings_dict(row: Mapping) -> dict:
     """Builds a dictionary containing the selected finding fields from a row."""
     keys = ["finding_id", "finding", "rule_index", "rule_title", "rule_description"]
     return {k: row[k] for k in keys}
-
-
 
 
 if __name__ == "__main__":
