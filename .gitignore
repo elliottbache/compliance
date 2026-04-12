@@ -41,3 +41,4 @@ AGENTS.md
 anthropic_quickstart.py
 *.pkl
 eval_results*
+*Zone.Identifier
