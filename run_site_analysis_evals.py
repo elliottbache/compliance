@@ -1,4 +1,5 @@
 import json
+import logging
 import spacy
 import pickle
 
@@ -15,6 +16,9 @@ _DEFAULT_CASES_DIRECTORY = Path("evals/site_history_cases")
 _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
 _DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__
+                           )
 # Create a blank English model and add sentencizer
 _nlp = spacy.blank("en")
 _nlp.add_pipe("sentencizer")
@@ -182,6 +186,13 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
         if to_write[case_name]["failures"]:
             to_write[case_name]["model_results"] = eval_results[case_name]["model_results"]
             to_write[case_name]["expected_results"] = eval_results[case_name]["expected_results"]
+
+        checks = [field_name for field_name in SummaryChecks.model_fields]
+        logger.info(
+            f"Case name: {case_name}, failed checks: {to_write[case_name]["failures"]},"
+            f" pass/fail checks: {checks},"
+            f" summary_output: {to_write[case_name]["output_summary"]}"
+        )
 
     # write a results file
     with open(outfile, mode="w") as f:
