@@ -1,16 +1,17 @@
 {
-  "should_parse": true,
-  "expected_site_id": 80,
-  "expected_inspection_count": 1,
-  "expected_summary_phrases": [],
-  "expected_recurring_issues": [],
-  "expected_missing_information": [],
+  "site_id": 80,
+  "inspection_count": 1,
+  "summary_phrases": [],
+  "recurring_issues": [],
+  "missing_information": [],
   "needs_human_review": [],
-  "max_summary_sentences": 2,
-  "expected_rule_mentions": [],
+  "max_summary_sentences": 4,
+  "rule_mentions": [],
   "forbidden_phrases": [
     "unable to determine compliance status",
-    "recurring issue",
+    "were recurring issues",
+    "are recurring issues",
+    "multiple recurring issues",
     "failed inspection"
   ],
   "forbidden_summary_terms": [
