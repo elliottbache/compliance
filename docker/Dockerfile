@@ -9,7 +9,7 @@ COPY . .
 # optional deps
 COPY pyproject.toml README.md ./
 
-# install the project (creates marketflows in PATH)
+# install the project (creates compliance in PATH)
 RUN pip install --no-cache-dir .
 
 # run program
