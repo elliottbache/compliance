@@ -7,8 +7,9 @@ from typing import Any
 import spacy
 from pydantic import ValidationError
 
+from compliance._helpers import validate_llm_references
 from compliance.llm.anthropic_api import summarize_previous_visits
-from compliance.llm.schemas import ExpectedResults, SiteAnalysis, SummaryChecks
+from compliance.llm.schemas import ExpectedResults, ResultChecks, SiteAnalysis
 from compliance.schemas import Site
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
@@ -90,7 +91,7 @@ def run_evals(
 
             # run a few deterministic checks
             eval_results[case]["response_checks"] = _compare_results_to_expected(
-                response, expected_results
+                response, expected_results, site_history
             )
 
         except ValidationError:
@@ -130,8 +131,8 @@ def _eval_case_generator(
 
 
 def _compare_results_to_expected(
-    resp: SiteAnalysis, exp: ExpectedResults
-) -> SummaryChecks:
+    resp: SiteAnalysis, exp: ExpectedResults, site_history: Site
+) -> ResultChecks:
     """Compare a model response against the expected summary checks.
 
     Evaluates whether the response matches expected identifiers, counts, phrase
@@ -142,15 +143,17 @@ def _compare_results_to_expected(
         exp: Expected values and phrases used to evaluate the response.
 
     Returns:
-        SummaryChecks: Validation results for each comparison criterion.
+        ResultChecks: Validation results for each comparison criterion.
     """
     checks = dict()
     checks["is_site_id_correct"] = resp.site_id == exp.site_id
     checks["is_n_inspections_correct"] = resp.inspection_count == exp.inspection_count
     checks["is_max_summary_sentences"] = (
-        _count_sentences(resp.summary) <= exp.max_summary_sentences
+        _count_sentences(resp.executive_summary) <= exp.max_summary_sentences
     )
-    checks["is_summary_phrases"] = _is_strings_in([resp.summary], exp.summary_phrases)
+    checks["is_summary_phrases"] = _is_strings_in(
+        [resp.executive_summary], exp.summary_phrases
+    )
     checks["is_recurring_issues"] = _is_strings_in(
         resp.recurring_issues, exp.recurring_issues
     )
@@ -161,27 +164,38 @@ def _compare_results_to_expected(
         resp.needs_human_review, exp.needs_human_review
     )
     response_texts = [
-        resp.summary,
+        resp.executive_summary,
         *resp.recurring_issues,
         *resp.missing_information,
         *resp.needs_human_review,
-        *resp.inspection_caveats,
         *resp.suggestions,
     ]
     checks["is_rule_mentions"] = all(
         any(rule_mention.lower() in text.lower() for text in response_texts)
         for rule_mention in exp.rule_mentions
     )
+    checks["is_valid_references"] = _is_valid_references(resp, site_history)
+
     checks["is_forbidden_phrases"] = any(
         any(forbidden_phrase.lower() in text.lower() for text in response_texts)
         for forbidden_phrase in exp.forbidden_phrases
     )
     checks["is_forbidden_summary_terms"] = any(
-        forbidden_summary_term.lower() in resp.summary.lower()
+        forbidden_summary_term.lower() in resp.executive_summary.lower()
         for forbidden_summary_term in exp.forbidden_summary_terms
     )
 
-    return SummaryChecks.model_validate(checks)
+    return ResultChecks.model_validate(checks)
+
+
+def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
+    try:
+        validate_llm_references(resp, site_history)
+        return True
+    except ValueError:
+        return False
+    except Exception:
+        raise
 
 
 def _count_sentences(text: str) -> int:
@@ -212,7 +226,7 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
         to_write[case_name]["is_retry"] = eval_results[case_name]["is_retry"]
         to_write[case_name]["output_summary"] = eval_results[case_name][
             "model_results"
-        ].summary
+        ].executive_summary
         to_write[case_name]["failures"] = _find_failed_checks(
             eval_results[case_name]["response_checks"]
         )
@@ -225,7 +239,7 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
             ].model_dump(mode="json")
             failed_cases.append(case_name)
 
-        checks = [field_name for field_name in SummaryChecks.model_fields]
+        checks = [field_name for field_name in ResultChecks.model_fields]
         logger.info(
             f"Case name: {case_name}, failed checks: {to_write[case_name]["failures"]},"
             f" pass/fail checks: {checks},"
@@ -239,7 +253,7 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
         json.dump(to_write, f, indent=4)
 
 
-def _find_failed_checks(checks: SummaryChecks) -> list[str]:
+def _find_failed_checks(checks: ResultChecks) -> list[str]:
     """Return the names of failed summary checks.
 
     Treats standard validation fields as failed when their value is `False` and
@@ -269,7 +283,7 @@ def _find_failed_checks(checks: SummaryChecks) -> list[str]:
 
     return [
         field_name
-        for field_name in SummaryChecks.model_fields
+        for field_name in ResultChecks.model_fields
         if (field_name in normal_checks and not getattr(checks, field_name))
         or (field_name in forbidden_checks and getattr(checks, field_name))
     ]
