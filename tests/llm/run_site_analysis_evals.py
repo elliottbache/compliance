@@ -8,7 +8,8 @@ import spacy
 from pydantic import ValidationError
 
 from compliance.llm.anthropic_api import summarize_previous_visits
-from compliance.schemas import ModelSummary, Site, SiteAnalysis, SummaryChecks
+from compliance.llm.schemas import ExpectedResults, SiteAnalysis, SummaryChecks
+from compliance.schemas import Site
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
@@ -24,7 +25,9 @@ _nlp = spacy.blank("en")
 _nlp.add_pipe("sentencizer")
 
 
-def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
+def run_evals(
+    evals_path: Path = _DEFAULT_CASES_DIRECTORY, *, case_name: str | None = None
+) -> None:
     """Run evaluation cases and collect model parsing and comparison results.
 
     Iterates through evaluation case directories, loads the input and expected
@@ -33,6 +36,9 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
 
     Args:
         evals_path: Directory containing evaluation case subdirectories.
+        case_name: Optional name of a specific case to run. If provided,
+            only this case is evaluated; otherwise, all cases in
+            evals_path are processed.
 
     Returns:
         None
@@ -41,49 +47,58 @@ def run_evals(evals_path: Path = _DEFAULT_CASES_DIRECTORY) -> None:
     eval_results = dict()
     input_filename = _DEFAULT_INPUT_FILE
     expected_filename = _DEFAULT_EXPECTED_FILE
-    for case_name in _eval_case_generator(
-        evals_path, input_filename=input_filename, expected_filename=expected_filename
-    ):
-        case_path = evals_path / case_name
+
+    # if given a case name, only use that case name.  Otherwise, walk through directory.
+    cases = (
+        [case_name]
+        if case_name
+        else _eval_case_generator(
+            evals_path,
+            input_filename=input_filename,
+            expected_filename=expected_filename,
+        )
+    )
+    for case in cases:
+        case_path = evals_path / case
         # load each eval case
         with open(case_path / input_filename) as f:
             site_history = Site.model_validate(json.load(f))
         with open(case_path / expected_filename) as f:
-            expected_results = ModelSummary.model_validate(json.load(f))
+            expected_results = ExpectedResults.model_validate(json.load(f))
 
         # run your current prompt + model call
-        eval_results[case_name] = dict()
+        eval_results[case] = dict()
         try:
             is_retry, prompt_version, response = summarize_previous_visits(
-                site_history, ai_model=_DEFAULT_AI_MODEL, case_info=case_name
+                site_history, ai_model=_DEFAULT_AI_MODEL, case_info=case
             )
 
             # record the prompt version
-            eval_results[case_name]["prompt_version"] = prompt_version
+            eval_results[case]["prompt_version"] = prompt_version
 
             # record whether structured parse succeeded
-            eval_results[case_name]["parse_succeeded"] = True
+            eval_results[case]["parse_succeeded"] = True
 
             # record whether the query had to be retried
-            eval_results[case_name]["is_retry"] = is_retry
+            eval_results[case]["is_retry"] = is_retry
 
             # record the parsed result
-            eval_results[case_name]["model_results"] = response
+            eval_results[case]["model_results"] = response
 
             # record the expected results
-            eval_results[case_name]["expected_results"] = expected_results
+            eval_results[case]["expected_results"] = expected_results
 
             # run a few deterministic checks
-            eval_results[case_name]["response_checks"] = _compare_results_to_expected(
+            eval_results[case]["response_checks"] = _compare_results_to_expected(
                 response, expected_results
             )
 
         except ValidationError:
             # record whether structured parse succeeded
-            eval_results[case_name]["parse_succeeded"] = False
+            eval_results[case]["parse_succeeded"] = False
 
         # record LLM model name
-        eval_results[case_name]["model_name"] = _DEFAULT_AI_MODEL
+        eval_results[case]["model_name"] = _DEFAULT_AI_MODEL
 
     _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
 
@@ -115,7 +130,7 @@ def _eval_case_generator(
 
 
 def _compare_results_to_expected(
-    resp: SiteAnalysis, exp: ModelSummary
+    resp: SiteAnalysis, exp: ExpectedResults
 ) -> SummaryChecks:
     """Compare a model response against the expected summary checks.
 
@@ -265,4 +280,4 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG", node="debug", is_tutorial=False)
     configure_logging(level="INFO", node="info", is_tutorial=False)
-    run_evals()
+    run_evals(case_name="missing_resolution_date")
