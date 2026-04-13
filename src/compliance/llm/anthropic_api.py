@@ -1,6 +1,5 @@
 import json
 import logging
-import pprint
 from datetime import datetime
 
 import anthropic
@@ -137,17 +136,6 @@ def summarize_previous_visits(
     return is_retry, _DEFAULT_PROMPT_VERSION, site_analysis
 
 
-def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
-    raw_text = _extract_text_from_response(response)
-    if "```json" in raw_text:
-        clean_text = raw_text.strip().removeprefix("```json").removesuffix(
-            "```").strip()
-    else:
-        clean_text = raw_text
-    data_dict = json.loads(clean_text)
-    return SiteAnalysis.model_validate(data_dict)
-
-
 def _call_model(
     *,
     client: anthropic.Anthropic,
@@ -197,14 +185,15 @@ def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> transfor
     return transform_schema(schema)
 
 
-def _extract_schema_parts(model_class: type[BaseModel]):
-    """Pydantic V2 method to generate the JSON schema"""
-    schema = model_class.model_json_schema()
-
-    properties = schema.get("properties", {})
-    required = schema.get("required", [])
-
-    return properties, required
+def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
+    raw_text = _extract_text_from_response(response)
+    if "```json" in raw_text:
+        clean_text = raw_text.strip().removeprefix("```json").removesuffix(
+            "```").strip()
+    else:
+        clean_text = raw_text
+    data_dict = json.loads(clean_text)
+    return SiteAnalysis.model_validate(data_dict)
 
 
 def _extract_text_from_response(response: Message) -> str:
@@ -213,12 +202,6 @@ def _extract_text_from_response(response: Message) -> str:
         return response.content[0].text
     else:
         raise ValueError("LLM response does not contain text.")
-
-
-def _parse_message_to_string(response: Message) -> str:
-    return response.content[0].text if (response.content and
-                                        isinstance(response.content[0], TextBlock)
-                                        ) else ""
 
 
 def _create_error_message(
@@ -230,6 +213,12 @@ def _create_error_message(
     response: str,
 ) -> str:
     return f"Model failed for case: {case_info}, model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, \nand user_message={user_message}\nresponse: {response}"
+
+
+def _parse_message_to_string(response: Message) -> str:
+    return response.content[0].text if (response.content and
+                                        isinstance(response.content[0], TextBlock)
+                                        ) else ""
 
 
 def _log_validation_error_messages(err: ValidationError) -> None:
