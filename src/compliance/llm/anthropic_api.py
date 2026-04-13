@@ -4,6 +4,7 @@ import pprint
 from datetime import datetime
 
 import anthropic
+from anthropic import transform_schema
 from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
 from pydantic import ValidationError, BaseModel
@@ -173,44 +174,27 @@ def _call_model(
         anthropic.RateLimitError: If the request is rate-limited.
         Exception: If the response cannot be parsed into ``SiteAnalysis``.
     """
-    props, reqs = _extract_schema_parts(SiteAnalysis)
-    output_config = {
-        "format": {
-            "type": "json_schema",
-            "schema": {
-                "type": "object",
-                "properties": props,
-                "required": reqs,
-                "additionalProperties": False,
-            },
-        }
-    }
-    if is_retry:
-        return client.messages.create(
-            model=ai_model,
-            max_tokens=MAX_TOKENS,
-            system=system_context,
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_message,
-                }
-            ],
-            output_config=output_config,
-        )
-    else:
-        return client.messages.create(
-            model=ai_model,
-            max_tokens=MAX_TOKENS,
-            system=system_context,
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_message,
-                }
-            ],
-            output_config=output_config,
-        )
+    schema = _convert_base_model_to_json_schema(SiteAnalysis)
+    return client.messages.create(
+        model=ai_model,
+        max_tokens=MAX_TOKENS,
+        system=system_context,
+        messages=[
+            {
+                "role": "user",
+                "content": user_message,
+            }
+        ],
+        output_config={
+            "format": {"type": "json_schema", "schema": schema},
+        },
+    )
+
+
+def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> transform_schema:
+    """Pydantic V2 method to generate the JSON schema"""
+    schema = model_class.model_json_schema()
+    return transform_schema(schema)
 
 
 def _extract_schema_parts(model_class: type[BaseModel]):

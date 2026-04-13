@@ -20,4 +20,4 @@ comparison of past certifications while keeping factual retrieval and validation
 ## TODO
 - Add local model option.
 - Add privacy for Anthropic and write guide in README.
-- Fix logging in anthropic_api and run_site_analysis_evals to go to a specific file for lower levels
+- Add function to return differences in regulation since last visit.
