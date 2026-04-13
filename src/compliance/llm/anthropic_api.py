@@ -75,13 +75,13 @@ def summarize_previous_visits(
     on previous visits and regulation and rule descriptions.
     
     Field guidance:
-    - summary: short factual overview
+    - executive_summary: short factual overview
     - recurring_issues: repeated problems supported by the history.  Only repeated issues 
     supported by more than one certification or repeated rule/finding pattern.  Requires
     at least 2 evidence references.
     - missing_information: facts that are absent or unclear.  If a data field has None 
     or null, verify if this makes sense.  Do not place missing information in the 
-    summary.  Do not add things that do not directly affect the validity or confidence
+    executive_summary.  Do not add things that do not directly affect the validity or confidence
     in the certification.
     - needs_human_review: places where a person should verify or interpret.  Be sure to 
     cite the regulation title, rule index and rule title if available.  Should name ambiguity 
@@ -90,7 +90,7 @@ def summarize_previous_visits(
     - suggestions: suggestions for preparing for the visit and for 
     during the visit.  Must be framed as preparation suggestions, not conclusions.  Must 
     be tied to the provided findings/regulations/rules.
-    - For all of these except summary, attach a reference to the piece(s) of evidence.
+    - For all of these except executive_summary, attach a reference to the piece(s) of evidence.
     Attach a reference to the certification and possibly finding, rule, or regulation if they apply.
     
     General:
