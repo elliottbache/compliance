@@ -1,15 +1,17 @@
 import json
 import logging
 from datetime import datetime
+from typing import Any
 
 import anthropic
 from anthropic import transform_schema
 from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
-from pydantic import ValidationError, BaseModel
+from pydantic import BaseModel, ValidationError
 
 from compliance.app import get_site_history
-from compliance.schemas import Site, SiteAnalysis
+from compliance.llm.schemas import SiteAnalysis
+from compliance.schemas import Site
 
 MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v1.1"
@@ -23,9 +25,37 @@ load_dotenv()
 def summarize_previous_visits(
     site_history: Site, *, ai_model: str, case_info: str = ""
 ) -> tuple[bool, str, SiteAnalysis]:
+    """Analyzes site history using an AI model to generate a structured summary.
+
+    This function prepares a prompt containing the site history and specific
+    analytical guidelines, calls an Anthropic AI model, and parses the result into
+    a structured SiteAnalysis object. It includes a single retry mechanism if the
+    initial model output fails JSON validation or schema compliance.
+
+    Args:
+        site_history: A Site object containing the historical data to be analyzed.
+        ai_model: The name/ID of the Anthropic model to use for the analysis.
+        case_info: Optional metadata or identifier for the current case,
+            used primarily for error logging. Defaults to an empty string.
+
+    Returns:
+        A tuple containing:
+            - is_retry (bool): True if the analysis required a second attempt
+              due to a validation error.
+            - prompt_version (str): The version string of the prompt used.
+            - site_analysis (SiteAnalysis): The validated structured output
+              containing the summary, recurring issues, and suggestions.
+
+    Raises:
+        ValidationError: If the model output cannot be parsed into a
+            SiteAnalysis object even after a retry.
+        json.JSONDecodeError: If the model returns invalid JSON that cannot
+            be recovered.
+    """
     Site.model_validate(site_history)
 
-    system_context = """You are assisting with inspection-history analysis.
+    system_context = """You are assisting with inspection-history analysis for an 
+    inspector.
     
     Use only the facts provided.
     Do not invent missing facts.
@@ -41,26 +71,36 @@ def summarize_previous_visits(
     - identify recurring issues only when supported by repeated findings/history
     - list missing information
     - list reasons a human should review
-    - list caveats about interpreting the history
     - make a suggestion of things an inspector should pay attention to during a visit based 
     on previous visits and regulation and rule descriptions.
     
     Field guidance:
     - summary: short factual overview
     - recurring_issues: repeated problems supported by the history.  Only repeated issues 
-    supported by more than one certification or repeated rule/finding pattern.
-    - missing_information: facts that are absent or unclear
+    supported by more than one certification or repeated rule/finding pattern.  Requires
+    at least 2 evidence references.
+    - missing_information: facts that are absent or unclear.  If a data field has None 
+    or null, verify if this makes sense.  Do not place missing information in the 
+    summary.  Do not add things that do not directly affect the validity or confidence
+    in the certification.
     - needs_human_review: places where a person should verify or interpret.  Be sure to 
     cite the regulation title, rule index and rule title if available.  Should name ambiguity 
-    or interpretation boundary, not just "review this".
-    - inspection_caveats: limits of the available history/data
+    or interpretation boundary, not just "review this".  Do not question the validity of
+    the inspector's conclusions.
     - suggestions: suggestions for preparing for the visit and for 
     during the visit.  Must be framed as preparation suggestions, not conclusions.  Must 
     be tied to the provided findings/regulations/rules.
+    - For all of these except summary, attach a reference to the piece(s) of evidence.
+    Attach a reference to the certification and possibly finding, rule, or regulation if they apply.
     
     General:
     - When describing inspections and certifications, cite the regulation title if available.
     - When describing findings, cite the regulation title, rule index and rule title if available.
+    - Maintenance records are not available nor will they ever be.
+    - Corrective actions are also not available.
+    - Issues only need to appear once in recurring_issues, needs_human_review, and 
+    missing_information.  If something appears in one of these, then 
+    the others should not repeat it.  
     
     Site history:
     """
@@ -179,7 +219,7 @@ def _call_model(
     )
 
 
-def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> transform_schema:
+def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> dict[str, Any]:
     """Pydantic V2 method to generate the JSON schema"""
     schema = model_class.model_json_schema()
     return transform_schema(schema)
@@ -188,8 +228,9 @@ def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> transfor
 def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
     raw_text = _extract_text_from_response(response)
     if "```json" in raw_text:
-        clean_text = raw_text.strip().removeprefix("```json").removesuffix(
-            "```").strip()
+        clean_text = (
+            raw_text.strip().removeprefix("```json").removesuffix("```").strip()
+        )
     else:
         clean_text = raw_text
     data_dict = json.loads(clean_text)
@@ -197,8 +238,7 @@ def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
 
 
 def _extract_text_from_response(response: Message) -> str:
-    if (response.content and isinstance(response.content[0], TextBlock)
-    ):
+    if response.content and isinstance(response.content[0], TextBlock):
         return response.content[0].text
     else:
         raise ValueError("LLM response does not contain text.")
@@ -216,9 +256,11 @@ def _create_error_message(
 
 
 def _parse_message_to_string(response: Message) -> str:
-    return response.content[0].text if (response.content and
-                                        isinstance(response.content[0], TextBlock)
-                                        ) else ""
+    return (
+        response.content[0].text
+        if (response.content and isinstance(response.content[0], TextBlock))
+        else ""
+    )
 
 
 def _log_validation_error_messages(err: ValidationError) -> None:
