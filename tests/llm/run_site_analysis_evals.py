@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from compliance._helpers import validate_llm_references
 from compliance.llm.anthropic_api import summarize_previous_visits
-from compliance.llm.schemas import ExpectedResults, ResultChecks, SiteAnalysis
+from compliance.llm.schemas import ExpectedResults, ResultChecks, SiteAnalysis, RecurringIssueItem, MissingInfoItem, HumanReviewItem, SuggestionItem
 from compliance.schemas import Site
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
@@ -151,16 +151,16 @@ def _compare_results_to_expected(
     checks["is_max_summary_sentences"] = (
         _count_sentences(resp.executive_summary) <= exp.max_summary_sentences
     )
-    checks["is_summary_phrases"] = _is_strings_in(
+    checks["is_summary_phrases"] = _is_strings_in_strings(
         [resp.executive_summary], exp.summary_phrases
     )
-    checks["is_recurring_issues"] = _is_strings_in(
+    checks["is_recurring_issues"] = _is_strings_in_items(
         resp.recurring_issues, exp.recurring_issues
     )
-    checks["is_missing_information"] = _is_strings_in(
+    checks["is_missing_information"] = _is_strings_in_items(
         resp.missing_information, exp.missing_information
     )
-    checks["is_needs_human_review"] = _is_strings_in(
+    checks["is_needs_human_review"] = _is_strings_in_items(
         resp.needs_human_review, exp.needs_human_review
     )
     response_texts = [
@@ -202,9 +202,14 @@ def _count_sentences(text: str) -> int:
     return len(list(_nlp(text).sents))
 
 
-def _is_strings_in(resp: list[str], exp: list[str]) -> bool:
+def _is_strings_in_strings(resp: list[str], exp: list[str]) -> bool:
     """Check whether each expected string appears in at least one response string."""
     return all(any(ex.lower() in res.lower() for res in resp) for ex in exp)
+
+
+def _is_strings_in_items(resp: list[RecurringIssueItem | MissingInfoItem | HumanReviewItem | SuggestionItem], exp: list[str]) -> bool:
+    """Check whether each expected string appears in at least one response string."""
+    return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
 
 
 def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:

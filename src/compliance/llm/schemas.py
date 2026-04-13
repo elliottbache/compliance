@@ -16,7 +16,7 @@ class EvidenceRef(BaseModel):
 class RecurringIssueItem(BaseModel):
     """A recurring issue."""
 
-    issue: str
+    item: str
     evidence: list[EvidenceRef] = Field(min_length=2)
     confidence_note: str
 
@@ -32,14 +32,14 @@ class MissingInfoItem(BaseModel):
 class HumanReviewItem(BaseModel):
     """A human review item"""
 
-    reason: str
+    item: str
     evidence: list[EvidenceRef] = Field(min_length=1)
 
 
 class SuggestionItem(BaseModel):
     """A suggestion item"""
 
-    suggestion: str
+    item: str
     basis: str
     evidence: list[EvidenceRef] = Field(min_length=1)
 
