@@ -59,6 +59,12 @@ def _validate_evidence_ref(evidence: EvidenceRef, site_history: Site) -> None:
     if not cert:
         raise ValueError(f"Certification {evidence.cert_id} is not in site history.")
 
+    if evidence.reg_title and cert.reg_title != evidence.reg_title:
+        raise ValueError(
+            f"Wrong regulation title for certification {evidence.cert_id} "
+            f": {evidence.reg_title}."
+        )
+
     if evidence.inspection_date and cert.inspection_date != evidence.inspection_date:
         raise ValueError(
             f"Wrong inspection date for certification {evidence.cert_id} "
