@@ -6,7 +6,7 @@
   "missing_information": [],
   "needs_human_review": [],
   "max_summary_sentences": 9,
-  "rule_mentions": [],
+  "rule_mentions": ["Art.37", "Art.17", "A.10.1", "A.11.1"],
   "forbidden_phrases": [
     "unable to determine compliance status",
     "were recurring issues",

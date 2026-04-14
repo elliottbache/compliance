@@ -14,7 +14,7 @@ from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import Site
 
 MAX_TOKENS = 2500
-_DEFAULT_PROMPT_VERSION = "v1.1"
+_DEFAULT_PROMPT_VERSION = "v1.2"
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -79,10 +79,11 @@ def summarize_previous_visits(
     - recurring_issues: repeated problems supported by the history.  Only repeated issues 
     supported by more than one certification or repeated rule/finding pattern.  Requires
     at least 2 evidence references.
-    - missing_information: facts that are absent or unclear.  If a data field has None 
-    or null, verify if this makes sense.  Do not place missing information in the 
+    - missing_information: facts that are absent or unclear.  If a data field has an 
+    empty list or dict, None or null, verify if this makes sense.  If it doesn't, 
+    missing_information should document it.  Do not place missing information in the 
     executive_summary.  Do not add things that do not directly affect the validity or confidence
-    in the certification.
+    in the certification.  Missing findings should go here.
     - needs_human_review: places where a person should verify or interpret.  Be sure to 
     cite the regulation title, rule index and rule title if available.  Should name ambiguity 
     or interpretation boundary, not just "review this".  Do not question the validity of
@@ -94,13 +95,11 @@ def summarize_previous_visits(
     Attach a reference to the certification and possibly finding, rule, or regulation if they apply.
     
     General:
-    - When describing inspections and certifications, cite the regulation title if available.
-    - When describing findings, cite the regulation title, rule index and rule title if available.
     - Maintenance records are not available nor will they ever be.
     - Corrective actions are also not available.
-    - Issues only need to appear once in recurring_issues, needs_human_review, and 
-    missing_information.  If something appears in one of these, then 
-    the others should not repeat it.  
+    - Resolution dates can acceptably be null if the status is "In progress" or "Fail".
+    They should not be null for "Pass".
+    - Pass grades do not require findings.  Fail grades do.
     
     Site history:
     """
@@ -123,7 +122,6 @@ def summarize_previous_visits(
             ai_model=ai_model,
             system_context=system_context,
             user_message=user_message,
-            is_retry=is_retry,
         )
         site_analysis = _convert_response_to_site_analysis(response)
 
@@ -149,7 +147,6 @@ def summarize_previous_visits(
                 ai_model=ai_model,
                 system_context=system_context,
                 user_message=added_context + user_message,
-                is_retry=is_retry,
             )
             site_analysis = _convert_response_to_site_analysis(response)
         except ValidationError as err:
@@ -182,7 +179,6 @@ def _call_model(
     ai_model: str,
     system_context: str,
     user_message: str,
-    is_retry: bool,
 ) -> Message:
     """Send a user message to the model and parse the response into a site analysis.
 
@@ -191,7 +187,6 @@ def _call_model(
         ai_model: The AI model and version
         system_context: System prompt that defines the model's behavior.
         user_message: End-user message to analyze.
-        is_retry: Are we calling the model after the first call failed?
 
     Returns:
         anthropic.Anthropic: Model response.

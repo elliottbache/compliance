@@ -1,7 +1,7 @@
 {
   "site_id": 79,
   "inspection_count": 1,
-  "summary_phrases": [],
+  "summary_phrases": ["Data Privacy Standard"],
   "recurring_issues": [],
   "missing_information": ["resolution"],
   "needs_human_review": [],

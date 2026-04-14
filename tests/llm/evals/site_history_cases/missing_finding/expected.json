@@ -3,8 +3,8 @@
   "inspection_count": 1,
   "summary_phrases": [],
   "recurring_issues": [],
-  "missing_information": ["finding"],
-  "needs_human_review": ["Operational Security"],
+  "missing_information": ["finding", "Operational Security"],
+  "needs_human_review": [],
   "max_summary_sentences": 5,
   "rule_mentions": [],
   "forbidden_phrases": [

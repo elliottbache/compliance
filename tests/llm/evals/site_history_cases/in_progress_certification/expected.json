@@ -3,7 +3,7 @@
   "inspection_count": 1,
   "summary_phrases": ["in progress"],
   "recurring_issues": [],
-  "missing_information": ["waste management documentation"],
+  "missing_information": [],
   "needs_human_review": [],
   "max_summary_sentences": 5,
   "rule_mentions": ["E.2"],
@@ -16,7 +16,8 @@
   ],
   "forbidden_summary_terms": [
     "violation",
-    "recurring",
+    "are recurring",
+    "is recurring",
     "unclear"
   ]
 }

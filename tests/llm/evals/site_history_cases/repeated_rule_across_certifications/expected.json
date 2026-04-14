@@ -2,7 +2,8 @@
   "site_id": 78,
   "inspection_count": 3,
   "summary_phrases": [
-    "emergency exit"
+    "emergency exit",
+    "Occupational Health"
   ],
   "recurring_issues": ["emergency exit"],
   "missing_information": [],
