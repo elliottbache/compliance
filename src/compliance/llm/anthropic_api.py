@@ -9,7 +9,7 @@ from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
-from compliance.app import get_site_history
+from compliance.db.query_history import get_site_history
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import Site
 
