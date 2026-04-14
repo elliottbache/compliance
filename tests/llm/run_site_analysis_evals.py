@@ -9,7 +9,15 @@ from pydantic import ValidationError
 
 from compliance._helpers import validate_llm_references
 from compliance.llm.anthropic_api import summarize_previous_visits
-from compliance.llm.schemas import ExpectedResults, ResultChecks, SiteAnalysis, RecurringIssueItem, MissingInfoItem, HumanReviewItem, SuggestionItem
+from compliance.llm.schemas import (
+    ExpectedResults,
+    HumanReviewItem,
+    MissingInfoItem,
+    RecurringIssueItem,
+    ResultChecks,
+    SiteAnalysis,
+    SuggestionItem,
+)
 from compliance.schemas import Site
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
@@ -165,16 +173,20 @@ def _compare_results_to_expected(
     )
     response_texts = [
         resp.executive_summary,
-        *resp.recurring_issues,
-        *resp.missing_information,
-        *resp.needs_human_review,
-        *resp.suggestions,
+        *[recurring_issue.item for recurring_issue in resp.recurring_issues],
+        *[missing_info.item for missing_info in resp.missing_information],
+        *[needs_human_rev.item for needs_human_rev in resp.needs_human_review],
+        *[suggestion.item for suggestion in resp.suggestions],
     ]
     checks["is_rule_mentions"] = all(
         any(rule_mention.lower() in text.lower() for text in response_texts)
         for rule_mention in exp.rule_mentions
     )
     checks["is_valid_references"] = _is_valid_references(resp, site_history)
+
+    checks["is_evidence_references"] = _validate_evidence_lengths(
+        resp, exp.evidence_references
+    )
 
     checks["is_forbidden_phrases"] = any(
         any(forbidden_phrase.lower() in text.lower() for text in response_texts)
@@ -188,6 +200,23 @@ def _compare_results_to_expected(
     return ResultChecks.model_validate(checks)
 
 
+def _count_sentences(text: str) -> int:
+    return len(list(_nlp(text).sents))
+
+
+def _is_strings_in_strings(resp: list[str], exp: list[str]) -> bool:
+    """Check whether each expected string appears in at least one response string."""
+    return all(any(ex.lower() in res.lower() for res in resp) for ex in exp)
+
+
+def _is_strings_in_items(
+    resp: list[RecurringIssueItem | MissingInfoItem | HumanReviewItem | SuggestionItem],
+    exp: list[str],
+) -> bool:
+    """Check whether each expected string appears in at least one response string."""
+    return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
+
+
 def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
     try:
         validate_llm_references(resp, site_history)
@@ -198,18 +227,26 @@ def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
         raise
 
 
-def _count_sentences(text: str) -> int:
-    return len(list(_nlp(text).sents))
+def _validate_evidence_lengths(
+    resp: SiteAnalysis, expected_lengths: dict[str, int]
+) -> bool:
+    target_fields = [
+        "recurring_issues",
+        "missing_information",
+        "needs_human_review",
+    ]
+    for field_name in target_fields:
+        # get the list (e.g., resp.recurring_issues)
+        items = getattr(resp, field_name)
+        expected = expected_lengths.get(field_name)
 
+        for _, item in enumerate(items):
+            actual_len = len(item.evidence)
 
-def _is_strings_in_strings(resp: list[str], exp: list[str]) -> bool:
-    """Check whether each expected string appears in at least one response string."""
-    return all(any(ex.lower() in res.lower() for res in resp) for ex in exp)
+            if actual_len != expected:
+                return False
 
-
-def _is_strings_in_items(resp: list[RecurringIssueItem | MissingInfoItem | HumanReviewItem | SuggestionItem], exp: list[str]) -> bool:
-    """Check whether each expected string appears in at least one response string."""
-    return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
+    return True
 
 
 def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
