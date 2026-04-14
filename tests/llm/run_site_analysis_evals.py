@@ -209,7 +209,7 @@ def _is_strings_in_object_list(
     return all(ex.lower() in full_text.lower() for ex in exp)
 
 
-def _create_one_big_string(resp: SiteAnalysis) -> str:
+def _create_one_big_string(obj: Any) -> str:
     """Recursively finds all strings in an object and joins them."""
     found_strings = []
 
@@ -228,7 +228,7 @@ def _create_one_big_string(resp: SiteAnalysis) -> str:
         elif hasattr(current, "__dict__"):
             _walk(vars(current))
 
-    _walk(resp)
+    _walk(obj)
 
     return " ".join(found_strings)
 
