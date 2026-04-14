@@ -7,6 +7,7 @@ class EvidenceRef(BaseModel):
     """The evidence for a model claim."""
 
     cert_id: int
+    reg_title: str
     finding_id: int | None
     rule_index: str | None
     inspection_date: date | None
