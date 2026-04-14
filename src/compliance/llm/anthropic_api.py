@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
 from compliance.db.query_history import get_site_history
-from compliance.llm.schemas import SiteAnalysis
+from compliance.llm.schemas import EvidenceRef, SiteAnalysis
+from compliance.logging_utils import configure_logging
 from compliance.schemas import Site
 
 MAX_TOKENS = 2500
@@ -170,6 +171,9 @@ def summarize_previous_visits(
     )
     logger.debug(f"response: {_parse_message_to_string(response)}")
 
+    markdown_text = _render_site_analysis_markdown(site_analysis)
+    print(markdown_text)
+
     return is_retry, _DEFAULT_PROMPT_VERSION, site_analysis
 
 
@@ -265,7 +269,64 @@ def _log_validation_error_messages(err: ValidationError) -> None:
         )
 
 
+def _render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
+    output_text = "# Site Analysis\n## Executive summary"
+    output_text += "\n" + site_analysis.executive_summary
+    for attr in [
+        "recurring_issues",
+        "missing_information",
+        "needs_human_review",
+        "suggestions",
+    ]:
+        output_text += f"\n## {_beautify_attr_name(attr)}"
+        output_text += _render_site_analysis_attribute(site_analysis, attr)
+
+    return output_text
+
+
+def _beautify_attr_name(attr_name: str) -> str:
+    return attr_name.capitalize().replace("_", " ")
+
+
+def _render_site_analysis_attribute(site_analysis: SiteAnalysis, attr_name: str) -> str:
+    attr = getattr(site_analysis, attr_name, None)
+    if not attr or not isinstance(attr, list):
+        return "\nNone."
+
+    output_text = ""
+    for attr_element in attr:
+        # .item
+        output_text += f"\n### {attr_element.item}"
+        # .???
+        for sub_attr, value in vars(attr_element).items():
+            if sub_attr in ["item", "evidence"]:
+                continue
+            output_text += f"\n#### {_beautify_attr_name(sub_attr)}\n{value}"
+        # .evidence
+        for evidence in attr_element.evidence:
+            output_text += _format_evidence_item_to_markdown(evidence)
+
+    return output_text
+
+
+def _format_evidence_item_to_markdown(
+    evidence: EvidenceRef, *, header_level: str = "####"
+) -> str:
+    output_text = f"\n{header_level} Evidence\n- Certification ID: {evidence.cert_id}\n- Regulation title: {evidence.reg_title}"
+    if evidence.inspection_date:
+        output_text += f"\n- Inspection date: {evidence.inspection_date}"
+    if evidence.finding_id:
+        output_text += f"\n- Finding ID: {evidence.finding_id}"
+    if evidence.rule_index:
+        output_text += f"\n- Rule index: {evidence.rule_index}"
+    output_text += f"\n- Description: {evidence.support_text}"
+
+    return output_text
+
+
 if __name__ == "__main__":
+    configure_logging(level="DEBUG", node="debug", is_tutorial=False)
+
     site_history = get_site_history(71)
     if site_history is None:
         raise ValueError("site_history is None")
