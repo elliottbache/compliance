@@ -74,7 +74,7 @@ class ExpectedResults(BaseModel):
     missing_information: list[str] = Field(default_factory=list)
     needs_human_review: list[str] = Field(default_factory=list)
     rule_mentions: list[str] = Field(default_factory=list)
-    #    evidence_references: bool = True
+    evidence_references: dict[str, int] = Field(default_factory=dict)
     forbidden_phrases: list[str] = Field(default_factory=list)
     forbidden_summary_terms: list[str] = Field(default_factory=list)
 
@@ -90,7 +90,7 @@ class ResultChecks(BaseModel):
     is_missing_information: bool = True
     is_needs_human_review: bool = True
     is_rule_mentions: bool = True
-    #    is_evidence_references: bool = True
+    is_evidence_references: bool = True
     is_valid_references: bool = True
     is_forbidden_phrases: bool = False
     is_forbidden_summary_terms: bool = False
