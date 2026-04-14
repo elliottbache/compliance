@@ -163,30 +163,22 @@ def _compare_results_to_expected(
     checks["is_max_summary_sentences"] = (
         _count_sentences(resp.executive_summary) <= exp.max_summary_sentences
     )
-    checks["is_summary_phrases"] = _is_strings_in_strings(
-        [resp.executive_summary], exp.summary_phrases
+
+    checks["is_summary_phrases"] = all(
+        ex.lower() in resp.executive_summary.lower() for ex in exp.summary_phrases
     )
-    checks["is_recurring_issues"] = _is_strings_in_items(
-        resp.recurring_issues, exp.recurring_issues
-    )
-    checks["is_missing_information"] = _is_strings_in_items(
-        resp.missing_information, exp.missing_information
-    )
-    checks["is_needs_human_review"] = _is_strings_in_items(
-        resp.needs_human_review, exp.needs_human_review
-    )
-    """response_texts = [
-        resp.executive_summary,
-        *[recurring_issue.item for recurring_issue in resp.recurring_issues],
-        *[missing_info.item for missing_info in resp.missing_information],
-        *[needs_human_rev.item for needs_human_rev in resp.needs_human_review],
-        *[suggestion.item for suggestion in resp.suggestions],
-    ]"""
+
+    for attr_name in ["recurring_issues", "missing_information", "needs_human_review"]:
+        checks["is_" + attr_name] = _is_strings_in_object_list(
+            resp=resp, exp=getattr(exp, attr_name, []), attr_name=attr_name
+        )
+
     response_texts = _create_one_big_string(resp)
     checks["is_rule_mentions"] = all(
         rule_mention.lower() in response_texts.lower()
         for rule_mention in exp.rule_mentions
     )
+
     checks["is_valid_references"] = _is_valid_references(resp, site_history)
 
     checks["is_evidence_references"] = _validate_evidence_lengths(resp)
@@ -216,11 +208,20 @@ def _is_strings_in_items(
     resp: list[RecurringIssueItem | MissingInfoItem | HumanReviewItem | SuggestionItem],
     exp: list[str],
 ) -> bool:
-    """Check whether each expected string appears in at least one response string."""
+    """Check whether each expected string appears in at least one response item string."""
     return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
 
 
-def _create_one_big_string(resp: Site) -> str:
+def _is_strings_in_object_list(
+    *, resp: SiteAnalysis, exp: list[str], attr_name: str
+) -> bool:
+    """Check whether each expected string appears somewhere in the SiteAnalysis
+    attribute."""
+    full_text = _create_one_big_string(getattr(resp, attr_name))
+    return all(ex.lower() in full_text.lower() for ex in exp)
+
+
+def _create_one_big_string(resp: SiteAnalysis) -> str:
     """Recursively finds all strings in an object and joins them."""
     found_strings = []
 
@@ -357,6 +358,5 @@ if __name__ == "__main__":
     from compliance.logging_utils import configure_logging
 
     configure_logging(level="DEBUG", node="debug", is_tutorial=False)
-    configure_logging(level="INFO", node="info", is_tutorial=False)
-    # run_evals(case_name="missing_resolution_date")
+    # run_evals(case_name="no_findings")
     run_evals()
