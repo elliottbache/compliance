@@ -148,7 +148,8 @@ def _compare_results_to_expected(
     """Compare a model response against the expected summary checks.
 
     Evaluates whether the response matches expected identifiers, counts, phrase
-    coverage, required rule mentions, and the presence of forbidden content.
+    coverage, required rule mentions, required evidence, and the presence of
+    forbidden content.
 
     Args:
         resp: Parsed model response to validate.
@@ -197,19 +198,6 @@ def _compare_results_to_expected(
 
 def _count_sentences(text: str) -> int:
     return len(list(_nlp(text).sents))
-
-
-def _is_strings_in_strings(resp: list[str], exp: list[str]) -> bool:
-    """Check whether each expected string appears in at least one response string."""
-    return all(any(ex.lower() in res.lower() for res in resp) for ex in exp)
-
-
-def _is_strings_in_items(
-    resp: list[RecurringIssueItem | MissingInfoItem | HumanReviewItem | SuggestionItem],
-    exp: list[str],
-) -> bool:
-    """Check whether each expected string appears in at least one response item string."""
-    return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
 
 
 def _is_strings_in_object_list(
