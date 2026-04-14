@@ -4,7 +4,7 @@ from os import getenv
 from dotenv import load_dotenv
 from sqlalchemy import MetaData, Table, create_engine, select
 
-from compliance.schemas import Certification, Site
+from compliance.schemas import Certification, Finding, Site
 
 load_dotenv()
 DB_NAME = getenv("POSTGRES_DB")
@@ -116,7 +116,9 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
             else:
                 cert_dict["findings"] = []
 
-            site_history["certifications"].append(cert_dict)
+            site_history["certifications"].append(
+                Certification.model_validate(cert_dict)
+            )
 
         # add new dict to findings list
         else:
@@ -131,15 +133,15 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
                     f"{row['cert_id']} in {site_history['certifications']}"
                 )
 
-            site_history["certifications"][cert_idx]["findings"].append(
+            site_history["certifications"][cert_idx].findings.append(
                 _create_findings_dict(row)
             )
 
     site_history["inpsection_count"] = len(site_history["certifications"])
     if site_history["inpsection_count"] > 0:
-        site_history["latest_inspection_date"] = site_history["certifications"][-1][
-            "inspection_date"
-        ]
+        site_history["latest_inspection_date"] = site_history["certifications"][
+            -1
+        ].inspection_date
 
     return Site(**site_history)
 
@@ -157,10 +159,11 @@ def _find_cert_index(
     return idx if idx < len(site_history_cert_list) else None
 
 
-def _create_findings_dict(row: Mapping) -> dict:
+def _create_findings_dict(row: Mapping) -> Finding:
     """Builds a dictionary containing the selected finding fields from a row."""
     keys = ["finding_id", "finding", "rule_index", "rule_title", "rule_description"]
-    return {k: row[k] for k in keys}
+    finding = {k: row[k] for k in keys}
+    return Finding.model_validate(finding)
 
 
 if __name__ == "__main__":
