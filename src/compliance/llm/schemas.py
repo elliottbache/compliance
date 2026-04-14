@@ -75,7 +75,6 @@ class ExpectedResults(BaseModel):
     missing_information: list[str] = Field(default_factory=list)
     needs_human_review: list[str] = Field(default_factory=list)
     rule_mentions: list[str] = Field(default_factory=list)
-    evidence_references: dict[str, int] = Field(default_factory=dict)
     forbidden_phrases: list[str] = Field(default_factory=list)
     forbidden_summary_terms: list[str] = Field(default_factory=list)
 
