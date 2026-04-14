@@ -1,13 +1,10 @@
 {
   "site_id": 77,
   "inspection_count": 2,
-  "summary_phrases": [],
+  "summary_phrases": ["Operational Security"],
   "recurring_issues": [],
   "missing_information": [],
-  "needs_human_review": [
-    "Operational Security",
-    "S.1"
-  ],
+  "needs_human_review": ["S.1"],
   "max_summary_sentences": 5,
   "rule_mentions": ["S.1"],
   "forbidden_phrases": [
