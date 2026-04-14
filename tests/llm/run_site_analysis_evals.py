@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import spacy
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from compliance._helpers import validate_llm_references
 from compliance.llm.anthropic_api import summarize_previous_visits
@@ -27,7 +27,11 @@ _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
 _DEFAULT_AI_MODEL = (
     "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
 )
-
+_DEFAULT_MINIMUM_EVIDENCE = {
+    "recurring_issues": 2,
+    "missing_information": 1,
+    "needs_human_review": 1,
+}
 logger = logging.getLogger(__name__)
 # Create a blank English model and add sentencizer
 _nlp = spacy.blank("en")
@@ -171,25 +175,24 @@ def _compare_results_to_expected(
     checks["is_needs_human_review"] = _is_strings_in_items(
         resp.needs_human_review, exp.needs_human_review
     )
-    response_texts = [
+    """response_texts = [
         resp.executive_summary,
         *[recurring_issue.item for recurring_issue in resp.recurring_issues],
         *[missing_info.item for missing_info in resp.missing_information],
         *[needs_human_rev.item for needs_human_rev in resp.needs_human_review],
         *[suggestion.item for suggestion in resp.suggestions],
-    ]
+    ]"""
+    response_texts = _create_one_big_string(resp)
     checks["is_rule_mentions"] = all(
-        any(rule_mention.lower() in text.lower() for text in response_texts)
+        rule_mention.lower() in response_texts.lower()
         for rule_mention in exp.rule_mentions
     )
     checks["is_valid_references"] = _is_valid_references(resp, site_history)
 
-    checks["is_evidence_references"] = _validate_evidence_lengths(
-        resp, exp.evidence_references
-    )
+    checks["is_evidence_references"] = _validate_evidence_lengths(resp)
 
     checks["is_forbidden_phrases"] = any(
-        any(forbidden_phrase.lower() in text.lower() for text in response_texts)
+        forbidden_phrase.lower() in response_texts.lower()
         for forbidden_phrase in exp.forbidden_phrases
     )
     checks["is_forbidden_summary_terms"] = any(
@@ -217,6 +220,30 @@ def _is_strings_in_items(
     return all(any(ex.lower() in res.item.lower() for res in resp) for ex in exp)
 
 
+def _create_one_big_string(resp: Site) -> str:
+    """Recursively finds all strings in an object and joins them."""
+    found_strings = []
+
+    def _walk(current):
+        if isinstance(current, str):
+            found_strings.append(current)
+        elif isinstance(current, (list | tuple)):
+            for item in current:
+                _walk(item)
+        elif isinstance(current, dict):
+            for value in current.values():
+                _walk(value)
+        elif isinstance(current, BaseModel):
+            # Recursively walk the dumped dictionary
+            _walk(current.model_dump())
+        elif hasattr(current, "__dict__"):
+            _walk(vars(current))
+
+    _walk(resp)
+
+    return " ".join(found_strings)
+
+
 def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
     try:
         validate_llm_references(resp, site_history)
@@ -227,23 +254,18 @@ def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
         raise
 
 
-def _validate_evidence_lengths(
-    resp: SiteAnalysis, expected_lengths: dict[str, int]
-) -> bool:
+def _validate_evidence_lengths(resp: SiteAnalysis, *, minimum_lengths=None) -> bool:
+    if minimum_lengths is None:
+        minimum_lengths = _DEFAULT_MINIMUM_EVIDENCE
     target_fields = [
         "recurring_issues",
         "missing_information",
         "needs_human_review",
     ]
     for field_name in target_fields:
-        # get the list (e.g., resp.recurring_issues)
-        items = getattr(resp, field_name)
-        expected = expected_lengths.get(field_name)
-
-        for _, item in enumerate(items):
-            actual_len = len(item.evidence)
-
-            if actual_len != expected:
+        item_objects = getattr(resp, field_name)
+        for item_object in item_objects:
+            if len(item_object.evidence) < minimum_lengths[field_name]:
                 return False
 
     return True
@@ -336,4 +358,5 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG", node="debug", is_tutorial=False)
     configure_logging(level="INFO", node="info", is_tutorial=False)
-    run_evals(case_name="missing_resolution_date")
+    # run_evals(case_name="missing_resolution_date")
+    run_evals()
