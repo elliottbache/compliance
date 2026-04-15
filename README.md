@@ -21,3 +21,4 @@ comparison of past certifications while keeping factual retrieval and validation
 - Add local model option.
 - Add privacy for Anthropic and write guide in README.
 - Add function to return differences in regulation since last visit.
+- Add stop_reason: "refusal" and stop_reason: "max_tokens" and others to requerying on failure in anthropic_api.py

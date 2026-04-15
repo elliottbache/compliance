@@ -11,12 +11,8 @@ from compliance._helpers import validate_llm_references
 from compliance.llm.anthropic_api import summarize_previous_visits
 from compliance.llm.schemas import (
     ExpectedResults,
-    HumanReviewItem,
-    MissingInfoItem,
-    RecurringIssueItem,
     ResultChecks,
     SiteAnalysis,
-    SuggestionItem,
 )
 from compliance.schemas import Site
 
@@ -347,4 +343,5 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG", node="debug", is_tutorial=False)
     # run_evals(case_name="no_findings")
-    run_evals()
+    run_evals(case_name="repeated_rule_across_certifications")
+    # run_evals()
