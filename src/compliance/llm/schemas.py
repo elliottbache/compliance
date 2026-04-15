@@ -18,8 +18,8 @@ class RecurringIssueItem(BaseModel):
     """A recurring issue."""
 
     item: str
-    evidence: list[EvidenceRef] = Field(min_length=2)
     confidence_note: str
+    evidence: list[EvidenceRef] = Field(min_length=2)
 
 
 class MissingInfoItem(BaseModel):
@@ -55,13 +55,6 @@ class SiteAnalysis(BaseModel):
     missing_information: list[MissingInfoItem]
     needs_human_review: list[HumanReviewItem]
     suggestions: list[SuggestionItem]
-
-
-class UserBrief(BaseModel):
-    headline_summary: str
-    top_recurring_issues: list[str]
-    open_questions: list[str]
-    visit_preparation_points: list[str]
 
 
 class ExpectedResults(BaseModel):
