@@ -1,10 +1,11 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class EvidenceRef(BaseModel):
     """The evidence for a model claim."""
+    model_config = ConfigDict(frozen=True)
 
     cert_id: int
     reg_title: str
@@ -16,6 +17,7 @@ class EvidenceRef(BaseModel):
 
 class RecurringIssueItem(BaseModel):
     """A recurring issue."""
+    model_config = ConfigDict(frozen=True)
 
     item: str
     confidence_note: str
@@ -24,6 +26,7 @@ class RecurringIssueItem(BaseModel):
 
 class MissingInfoItem(BaseModel):
     """A missing item"""
+    model_config = ConfigDict(frozen=True)
 
     item: str
     why_missing_matters: str
@@ -32,6 +35,7 @@ class MissingInfoItem(BaseModel):
 
 class HumanReviewItem(BaseModel):
     """A human review item"""
+    model_config = ConfigDict(frozen=True)
 
     item: str
     evidence: list[EvidenceRef] = Field(min_length=1)
@@ -39,6 +43,7 @@ class HumanReviewItem(BaseModel):
 
 class SuggestionItem(BaseModel):
     """A suggestion item"""
+    model_config = ConfigDict(frozen=True)
 
     item: str
     basis: str
@@ -46,7 +51,8 @@ class SuggestionItem(BaseModel):
 
 
 class SiteAnalysis(BaseModel):
-    """Returned from the model."""
+    """Returned from the model and made immutable."""
+    model_config = ConfigDict(frozen=True)
 
     site_id: int
     inspection_count: int

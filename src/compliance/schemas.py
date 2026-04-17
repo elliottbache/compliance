@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class Finding(BaseModel):
@@ -23,6 +23,8 @@ class Certification(BaseModel):
 
 
 class Site(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     site_id: int
     certifications: list[Certification] = Field(default_factory=list)
     inspection_count: int = Field(default=0)
