@@ -81,6 +81,12 @@ def _validate_evidence_ref(evidence: EvidenceRef, site_history: Site) -> None:
                 f" certification {evidence.cert_id}."
             )
 
+        if not evidence.rule_index:
+            raise ValueError(
+                "If we have a finding, there should be a rule index"
+                " associated to it."
+            )
+
         if evidence.rule_index and evidence.rule_index != finding.rule_index:
             raise ValueError(
                 f"Wrong rule index for finding {evidence.finding_id} "
