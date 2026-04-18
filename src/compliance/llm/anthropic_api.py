@@ -184,22 +184,21 @@ def _call_model(
     system_context: str,
     user_message: str,
 ) -> Message:
-    """Send a user message to the model and parse the response into a site analysis.
+    """Send the prompt to Anthropic and return the raw message response.
 
     Args:
         client: Configured Anthropic client used to send the request.
-        ai_model: The AI model and version
+        ai_model: The model name to use for the request.
         system_context: System prompt that defines the model's behavior.
-        user_message: End-user message to analyze.
+        user_message: User prompt containing the site history to analyze.
 
     Returns:
-        anthropic.Anthropic: Model response.
+        The raw Anthropic message response.
 
     Raises:
         anthropic.APIError: If the API request fails.
         anthropic.APIConnectionError: If the client cannot reach the API.
         anthropic.RateLimitError: If the request is rate-limited.
-        Exception: If the response cannot be parsed into ``SiteAnalysis``.
     """
     schema = _convert_base_model_to_json_schema(SiteAnalysis)
     return client.messages.create(
@@ -219,12 +218,15 @@ def _call_model(
 
 
 def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> dict[str, Any]:
-    """Pydantic V2 method to generate the JSON schema"""
+    """Generate an Anthropic-compatible JSON schema from a Pydantic model."""
+
     schema = model_class.model_json_schema()
     return transform_schema(schema)
 
 
 def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
+    """Parse a model response into a validated SiteAnalysis object."""
+
     raw_text = _extract_text_from_response(response)
     if "```json" in raw_text:
         clean_text = (
@@ -237,6 +239,8 @@ def _convert_response_to_site_analysis(response: Message) -> SiteAnalysis:
 
 
 def _extract_text_from_response(response: Message) -> str:
+    """Return the first text block from a model response."""
+
     if response.content and isinstance(response.content[0], TextBlock):
         return response.content[0].text
     else:
@@ -251,10 +255,18 @@ def _create_error_message(
     user_message: str,
     response: str,
 ) -> str:
-    return f"Model failed for case: {case_info}, model={ai_model} max_tokens={MAX_TOKENS}, system={system_context}, \nand user_message={user_message}\nresponse: {response}"
+    """Build a detailed log message for a failed model response."""
+
+    return (
+        f"Model failed for case: {case_info}, model={ai_model}"
+        f" max_tokens={MAX_TOKENS}, system={system_context},"
+        f" \nand user_message={user_message}\nresponse: {response}"
+    )
 
 
 def _parse_message_to_string(response: Message) -> str:
+    """Return the first response text block as a string, or an empty string."""
+
     return (
         response.content[0].text
         if (response.content and isinstance(response.content[0], TextBlock))
@@ -263,6 +275,8 @@ def _parse_message_to_string(response: Message) -> str:
 
 
 def _log_validation_error_messages(err: ValidationError) -> None:
+    """Log each individual field-level validation error from a ValidationError."""
+
     for error in err.errors():
         logger.debug(
             f"Error type: {error['type']}\nLocation:   {error['loc']}\nFaulty data: {error['input']}"
@@ -270,8 +284,13 @@ def _log_validation_error_messages(err: ValidationError) -> None:
 
 
 def _render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
+    """Render a SiteAnalysis object as a Markdown summary document."""
+
     output_text = "# Site Analysis\n## Executive summary"
-    output_text += "\n" + site_analysis.executive_summary
+    exec_text = (
+        site_analysis.executive_summary if site_analysis.executive_summary else "None."
+    )
+    output_text += "\n" + exec_text
     for attr in [
         "recurring_issues",
         "missing_information",
@@ -285,10 +304,14 @@ def _render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
 
 
 def _beautify_attr_name(attr_name: str) -> str:
+    """Convert an internal attribute name into a display-friendly section label."""
+
     return attr_name.capitalize().replace("_", " ")
 
 
 def _render_site_analysis_attribute(site_analysis: SiteAnalysis, attr_name: str) -> str:
+    """Render one SiteAnalysis list attribute and its evidence as Markdown."""
+
     attr = getattr(site_analysis, attr_name, None)
     if not attr or not isinstance(attr, list):
         return "\nNone."
@@ -312,6 +335,8 @@ def _render_site_analysis_attribute(site_analysis: SiteAnalysis, attr_name: str)
 def _format_evidence_item_to_markdown(
     evidence: EvidenceRef, *, header_level: str = "####"
 ) -> str:
+    """Render a single evidence reference as a Markdown bullet section."""
+
     output_text = f"\n{header_level} Evidence\n- Certification ID: {evidence.cert_id}\n- Regulation title: {evidence.reg_title}"
     if evidence.inspection_date:
         output_text += f"\n- Inspection date: {evidence.inspection_date}"
