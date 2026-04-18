@@ -63,29 +63,72 @@ def site_history_row_factory():
     return _build
 
 
-class TestGetSiteHistory:
-    def test_returns_none_when_query_returns_no_rows(self) -> None:
-        mock_conn = MagicMock()
-        mock_conn.execute.return_value.mappings.return_value.all.return_value = []
+@pytest.fixture
+def db_access_mocks():
+    mock_engine = MagicMock()
+    mock_meta = MagicMock()
+    mock_conn = MagicMock()
 
-        mock_context_manager = MagicMock()
-        mock_context_manager.__enter__.return_value = mock_conn
-        mock_context_manager.__exit__.return_value = None
+    mock_context_manager = MagicMock()
+    mock_context_manager.__enter__.return_value = mock_conn
+    mock_context_manager.__exit__.return_value = None
+    mock_engine.connect.return_value = mock_context_manager
+
+    mock_tables = {
+        "certifications_table": MagicMock(),
+        "regulations_table": MagicMock(),
+        "certifiers_table": MagicMock(),
+        "findings_table": MagicMock(),
+        "rules_table": MagicMock(),
+    }
+
+    mock_stmt = MagicMock()
+    mock_stmt.where.return_value = mock_stmt
+    mock_stmt.join_from.return_value = mock_stmt
+    mock_stmt.order_by.return_value = mock_stmt
+
+    return {
+        "engine": mock_engine,
+        "meta": mock_meta,
+        "conn": mock_conn,
+        "tables": mock_tables,
+        "stmt": mock_stmt,
+    }
+
+
+class TestGetSiteHistory:
+    def test_returns_none_when_query_returns_no_rows(self, db_access_mocks) -> None:
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = []
 
         with (
             patch(
-                "compliance.db.query_history.engine.connect",
-                return_value=mock_context_manager,
-            ),
+                "compliance.db.query_history.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.db.query_history.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.db.query_history.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
             patch("compliance.db.query_history._format_site_history") as mock_format,
         ):
             result = get_site_history(71)
 
         assert result is None
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
         mock_format.assert_not_called()
 
     def test_formats_site_history_when_query_returns_one_row(
-        self, site_history_row_factory
+        self, site_history_row_factory, db_access_mocks
     ) -> None:
         rows = [
             site_history_row_factory(
@@ -102,19 +145,23 @@ class TestGetSiteHistory:
             inspection_count=1,
             latest_inspection_date=None,
         )
-
-        mock_conn = MagicMock()
-        mock_conn.execute.return_value.mappings.return_value.all.return_value = rows
-
-        mock_context_manager = MagicMock()
-        mock_context_manager.__enter__.return_value = mock_conn
-        mock_context_manager.__exit__.return_value = None
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = rows
 
         with (
             patch(
-                "compliance.db.query_history.engine.connect",
-                return_value=mock_context_manager,
-            ),
+                "compliance.db.query_history.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.db.query_history.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.db.query_history.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
             patch(
                 "compliance.db.query_history._format_site_history",
                 return_value=formatted_site,
@@ -123,10 +170,15 @@ class TestGetSiteHistory:
             result = get_site_history(71)
 
         assert result == formatted_site
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
         mock_format.assert_called_once_with(rows)
 
     def test_formats_site_history_when_query_returns_multiple_rows(
-        self, site_history_row_factory
+        self, site_history_row_factory, db_access_mocks
     ) -> None:
         rows = [
             site_history_row_factory(
@@ -152,19 +204,23 @@ class TestGetSiteHistory:
             inspection_count=1,
             latest_inspection_date=None,
         )
-
-        mock_conn = MagicMock()
-        mock_conn.execute.return_value.mappings.return_value.all.return_value = rows
-
-        mock_context_manager = MagicMock()
-        mock_context_manager.__enter__.return_value = mock_conn
-        mock_context_manager.__exit__.return_value = None
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = rows
 
         with (
             patch(
-                "compliance.db.query_history.engine.connect",
-                return_value=mock_context_manager,
-            ),
+                "compliance.db.query_history.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.db.query_history.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.db.query_history.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
             patch(
                 "compliance.db.query_history._format_site_history",
                 return_value=formatted_site,
@@ -173,6 +229,11 @@ class TestGetSiteHistory:
             result = get_site_history(71)
 
         assert result == formatted_site
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
         mock_format.assert_called_once_with(rows)
 
 
