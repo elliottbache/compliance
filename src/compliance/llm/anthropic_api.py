@@ -325,7 +325,7 @@ def _format_evidence_item_to_markdown(
 
 
 if __name__ == "__main__":
-    configure_logging(level="DEBUG", node="debug", is_tutorial=False)
+    configure_logging(level="DEBUG")
 
     site_history = get_site_history(71)
     if site_history is None:
