@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class Finding(BaseModel):
     """Represents a single inspection finding tied to a regulation rule."""
+    model_config = ConfigDict(frozen=True)
+
     finding_id: int
     finding: str
     rule_index: str
@@ -14,6 +16,8 @@ class Finding(BaseModel):
 
 class Certification(BaseModel):
     """Represents one certification record and its associated findings."""
+    model_config = ConfigDict(frozen=True)
+
     cert_id: int
     result: str | None
     resolution_date: date | None
