@@ -341,7 +341,7 @@ def _find_failed_checks(checks: ResultChecks) -> list[str]:
 if __name__ == "__main__":
     from compliance.logging_utils import configure_logging
 
-    configure_logging(level="DEBUG", node="debug", is_tutorial=False)
+    configure_logging(level="DEBUG")
     # run_evals(case_name="no_findings")
     run_evals(case_name="repeated_rule_across_certifications")
     # run_evals()

@@ -24,13 +24,13 @@ from logging.handlers import RotatingFileHandler
 
 
 def configure_logging(
-    *, level: str = "INFO", node: str = "", is_tutorial: bool = False
+    *, level: str = "INFO", is_tutorial: bool = False
 ) -> None:
     """Configure root logging for the application.
 
     This attaches two handlers to the **root** logger:
 
-    1) A file handler at ``level`` writing to ``<state-dir>/compliance/logs/<node>.log``.
+    1) A file handler at ``level`` writing to ``<state-dir>/compliance/logs/compliance.log``.
        - On Linux/WSL: ``$XDG_STATE_HOME`` (fallback: ``~/.local/state``)
        - On Windows: ``%LOCALAPPDATA%`` (fallback: ``~/AppData/Local``)
     This is rotating for non-tutorial.
@@ -42,7 +42,6 @@ def configure_logging(
 
     Args:
         level (str): Logging level name (e.g., ``"DEBUG"``, ``"INFO"``).
-        node (str): Logical node name used for the log filename.
         is_tutorial (bool): If True, use deterministic timestamps and overwrite the log
             file each run.
 
@@ -84,8 +83,7 @@ def configure_logging(
     root.addHandler(err_handler)
 
     # define and create folder for saving log
-    safe_node = _sanitize_node(node) or "compliance"
-    log_file = pathlib.Path(safe_node).with_suffix(".log")
+    log_file = pathlib.Path("compliance").with_suffix(".log")
     fn = _default_log_dir() / log_file
 
     # for tutorial we don't want setup tests to be written to the log file, so we
@@ -101,25 +99,6 @@ def configure_logging(
     _set_formatter(handler, is_tutorial=is_tutorial)
     root.addHandler(handler)
     handler.setLevel(numeric_level)
-
-
-def _sanitize_node(node: str = "") -> str:
-    """Sanitize node name, replacing '/' and '\' before replacing invalid characters."""
-    if not node:
-        return ""
-
-    _ALLOWED_CHARACTERS = re.compile(r"[^a-zA-Z0-9_.-]+")
-
-    # replace / and \ with _
-    node = node.replace("/", "_").replace("\\", "_").strip()
-
-    # replace disallowed characters with _
-    node = _ALLOWED_CHARACTERS.sub("_", node)
-
-    # remove repeated _ and remove leading and trailing special characters
-    node = re.sub(r"_+", "_", node).strip("._-")
-
-    return node
 
 
 def _set_formatter(handler: logging.Handler, *, is_tutorial: bool = False) -> None:
