@@ -4,8 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class EvidenceRef(BaseModel):
-    """The evidence for a model claim."""
-
+    """Represents a citation from site history supporting an LLM claim."""
     model_config = ConfigDict(frozen=True)
 
     cert_id: int
@@ -17,8 +16,7 @@ class EvidenceRef(BaseModel):
 
 
 class RecurringIssueItem(BaseModel):
-    """A recurring issue."""
-
+    """Represents a recurring issue identified across inspections."""
     model_config = ConfigDict(frozen=True)
 
     item: str
@@ -27,8 +25,7 @@ class RecurringIssueItem(BaseModel):
 
 
 class MissingInfoItem(BaseModel):
-    """A missing item"""
-
+    """Represents information the model could not confirm from the record."""
     model_config = ConfigDict(frozen=True)
 
     item: str
@@ -37,8 +34,7 @@ class MissingInfoItem(BaseModel):
 
 
 class HumanReviewItem(BaseModel):
-    """A human review item"""
-
+    """Represents an issue that should be escalated for human review."""
     model_config = ConfigDict(frozen=True)
 
     item: str
@@ -46,8 +42,7 @@ class HumanReviewItem(BaseModel):
 
 
 class SuggestionItem(BaseModel):
-    """A suggestion item"""
-
+    """Represents a suggested next step grounded in historical evidence."""
     model_config = ConfigDict(frozen=True)
 
     item: str
@@ -56,8 +51,7 @@ class SuggestionItem(BaseModel):
 
 
 class SiteAnalysis(BaseModel):
-    """Returned from the model and made immutable."""
-
+    """Represents the structured LLM analysis returned for a site."""
     model_config = ConfigDict(frozen=True)
 
     site_id: int
@@ -70,8 +64,7 @@ class SiteAnalysis(BaseModel):
 
 
 class ExpectedResults(BaseModel):
-    """Expected eval metrics from file."""
-
+    """Represents expected evaluation outcomes loaded from a test fixture."""
     site_id: int
     inspection_count: int
     max_summary_sentences: int
@@ -85,8 +78,7 @@ class ExpectedResults(BaseModel):
 
 
 class ResultChecks(BaseModel):
-    """Eval metrics."""
-
+    """Represents pass/fail checks for a site analysis evaluation."""
     is_site_id_correct: bool
     is_n_inspections_correct: bool
     is_max_summary_sentences: bool
