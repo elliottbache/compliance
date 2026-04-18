@@ -113,13 +113,18 @@ def _set_formatter(handler: logging.Handler, *, is_tutorial: bool = False) -> No
 def _default_log_dir() -> pathlib.Path:
     """Return an OS-appropriate log directory."""
     if os.name == "nt":
-        base = pathlib.Path(
-            os.getenv("LOCALAPPDATA", pathlib.Path.home() / "AppData" / "Local")
+        localappdata = os.getenv("LOCALAPPDATA")
+        base = (
+            pathlib.Path(localappdata)
+            if localappdata is not None
+            else pathlib.Path.home() / "AppData" / "Local"
         )
     else:
-        # Linux / WSL: prefer XDG state dir
-        base = pathlib.Path(
-            os.getenv("XDG_STATE_HOME", pathlib.Path.home() / ".local" / "state")
+        xdg_state_home = os.getenv("XDG_STATE_HOME")
+        base = (
+            pathlib.Path(xdg_state_home)
+            if xdg_state_home is not None
+            else pathlib.Path.home() / ".local" / "state"
         )
 
     log_dir = base / "compliance" / "logs"
