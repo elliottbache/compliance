@@ -1,41 +1,18 @@
 from collections.abc import Mapping, Sequence
-from os import getenv
 
-from dotenv import load_dotenv
-from sqlalchemy import MetaData, Table, create_engine, select
+from sqlalchemy import select
 
+from compliance.db.db_access import get_engine_metadata, get_tables
 from compliance.schemas import Certification, Finding, Site
-
-load_dotenv()
-DB_NAME = getenv("POSTGRES_DB")
-USER = getenv("POSTGRES_USER")
-PASSWORD = getenv("POSTGRES_PASSWORD")
-HOST = getenv("POSTGRES_HOST")
-if DB_NAME is None or USER is None or PASSWORD is None or HOST is None:
-    raise ValueError(".env value is not being read correctly.")
-DB_URL = "postgresql+psycopg2://" + USER + ":" + PASSWORD + "@" + HOST + "/" + DB_NAME
-
-engine = create_engine(DB_URL)
-meta = MetaData()
-
-# reflect tables
-certifiers_table = Table("certifiers", meta, autoload_with=engine)
-findings_table = Table("findings", meta, autoload_with=engine)
-rules_table = Table("rules", meta, autoload_with=engine)
-certifications_table = Table("certifications", meta, autoload_with=engine)
-sites_table = Table("sites", meta, autoload_with=engine)
-attachments_table = Table("attachments", meta, autoload_with=engine)
-clients_table = Table("clients", meta, autoload_with=engine)
-regulations_table = Table("regulations", meta, autoload_with=engine)
 
 
 def get_site_history(site_id: int) -> Site | None:
     """Retrieve the certification history for a site.
 
-    Queries certification records for the given site and joins related
-    regulation, certifier, finding, and rule data. Results are ordered by
-    inspection date and converted into a ``Site`` value. If no records are
-    found, ``None`` is returned.
+    Builds the database connection and reflected table objects needed to query
+    certification records for the given site, joins related regulation,
+    certifier, finding, and rule data, and converts the result into a ``Site``
+    value ordered by inspection date.
 
     Args:
         site_id: Unique identifier of the site whose certification history
@@ -45,6 +22,19 @@ def get_site_history(site_id: int) -> Site | None:
         A formatted site history containing certification and related
         compliance details, or ``None`` if no matching records exist.
     """
+
+    # create engine and metadata
+    engine, meta = get_engine_metadata()
+
+    # reflect existing tables
+    tables_dict = get_tables(engine, meta)
+    certifications_table = tables_dict["certifications_table"]
+    regulations_table = tables_dict["regulations_table"]
+    certifiers_table = tables_dict["certifiers_table"]
+    findings_table = tables_dict["findings_table"]
+    rules_table = tables_dict["rules_table"]
+
+    # perform query
     stmt = (
         select(
             certifications_table.c.site_id,
