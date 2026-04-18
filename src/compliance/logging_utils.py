@@ -18,14 +18,11 @@ test outputs and tutorial logs are reproducible.
 import logging
 import os
 import pathlib
-import re
 import sys
 from logging.handlers import RotatingFileHandler
 
 
-def configure_logging(
-    *, level: str = "INFO", is_tutorial: bool = False
-) -> None:
+def configure_logging(*, level: str = "INFO", is_tutorial: bool = False) -> None:
     """Configure root logging for the application.
 
     This attaches two handlers to the **root** logger:

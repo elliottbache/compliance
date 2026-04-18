@@ -35,15 +35,15 @@ def get_site_history(site_id: int) -> Site | None:
     Queries certification records for the given site and joins related
     regulation, certifier, finding, and rule data. Results are ordered by
     inspection date and converted into a ``Site`` value. If no records are
-    found, an empty ``Site`` is returned.
+    found, ``None`` is returned.
 
     Args:
         site_id: Unique identifier of the site whose certification history
             should be retrieved.
 
     Returns:
-        Site: A formatted site history containing certification and related
-        compliance details, or None if no matching records exist.
+        A formatted site history containing certification and related
+        compliance details, or ``None`` if no matching records exist.
     """
     stmt = (
         select(
@@ -90,9 +90,12 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
         A Site object containing the aggregated site history summary.
 
     Raises:
-        IndexError: If a row refers to a certification that cannot be found in
-            the aggregated certification list.
+        StopIteration: If ``site_history_rows`` is empty.
+        ValueError: If the first row is empty.
+        KeyError: If required row fields are missing or a certification lookup
+            fails unexpectedly during aggregation.
     """
+
     first_row = next(iter(site_history_rows))
     if not first_row:
         raise ValueError(f"First site history row is empty: {site_history_rows}")
@@ -112,7 +115,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
                 "inspection_date": row["inspection_date"],
             }
             if row["finding_id"] is not None:
-                cert_dict["findings"] = [_create_findings_dict(row)]
+                cert_dict["findings"] = [_build_finding(row)]
             else:
                 cert_dict["findings"] = []
 
@@ -134,11 +137,11 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
                 )
 
             site_history["certifications"][cert_idx].findings.append(
-                _create_findings_dict(row)
+                _build_finding(row)
             )
 
-    site_history["inpsection_count"] = len(site_history["certifications"])
-    if site_history["inpsection_count"] > 0:
+    site_history["inspection_count"] = len(site_history["certifications"])
+    if site_history["inspection_count"] > 0:
         site_history["latest_inspection_date"] = site_history["certifications"][
             -1
         ].inspection_date
@@ -149,6 +152,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
 def _find_cert_index(
     cert_id: int, site_history_cert_list: list[Certification]
 ) -> int | None:
+    """Returns the index of the certification with the given cert_id, or None if absent."""
     idx = 0
     while (
         idx < len(site_history_cert_list)
@@ -159,10 +163,18 @@ def _find_cert_index(
     return idx if idx < len(site_history_cert_list) else None
 
 
-def _create_findings_dict(row: Mapping) -> Finding:
-    """Builds a dictionary containing the selected finding fields from a row."""
+def _build_finding(row: Mapping) -> Finding:
+    """Build a Finding from the selected fields in a site history row."""
     keys = ["finding_id", "finding", "rule_index", "rule_title", "rule_description"]
+
+    missing_keys = [key for key in keys if key not in row]
+    if missing_keys:
+        raise KeyError(
+            "Missing finding fields in row: "
+            f"{missing_keys}. Row keys: {sorted(row.keys())}"
+        )
     finding = {k: row[k] for k in keys}
+
     return Finding.model_validate(finding)
 
 
