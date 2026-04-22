@@ -53,7 +53,6 @@ def summarize_previous_visits(
         json.JSONDecodeError: If the model returns invalid JSON that cannot
             be recovered.
     """
-    Site.model_validate(site_history)
 
     system_context = """You are assisting with inspection-history analysis for an 
     inspector.
