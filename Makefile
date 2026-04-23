@@ -32,11 +32,8 @@ all: clean deps install-dev docs lint format typecheck
 	$(ACTIVATE); pytest -q
 
 .PHONY: setup
-setup: clean deps install-dev
-
-.PHONY: deps
-deps:
-	bash install-python-deps.sh
+setup: clean install-dev
+	pre-commit install
 
 .PHONY: ci
 ci: install-dev
