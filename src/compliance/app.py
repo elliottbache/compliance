@@ -3,6 +3,7 @@ from compliance.services.query_history import get_site_history
 
 
 def run_pipeline() -> None:
+    """Run the local site-history analysis demo pipeline."""
     site_history = get_site_history(71)
     print(f"site 71: {site_history}")
     if site_history:

@@ -14,10 +14,14 @@ from compliance.db.db_access import convention
 
 
 class Base(DeclarativeBase):
+    """Base class for SQLAlchemy ORM models."""
+
     metadata = MetaData(naming_convention=convention)
 
 
 class Client(Base):
+    """Represents an organization that owns one or more compliance sites."""
+
     __tablename__ = "clients"
 
     nif: Mapped[str] = mapped_column(String(9), primary_key=True, autoincrement=False)
@@ -32,6 +36,8 @@ class Client(Base):
 
 
 class Site(Base):
+    """Represents a physical site that can receive compliance certifications."""
+
     __tablename__ = "sites"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -50,6 +56,8 @@ class Site(Base):
 
 
 class Certifier(Base):
+    """Represents an organization that performs compliance certifications."""
+
     __tablename__ = "certifiers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -61,6 +69,8 @@ class Certifier(Base):
 
 
 class Regulation(Base):
+    """Represents a regulation that defines compliance requirements."""
+
     __tablename__ = "regulations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -77,6 +87,8 @@ class Regulation(Base):
 
 
 class Rule(Base):
+    """Represents an individual rule within a regulation."""
+
     __tablename__ = "rules"
     __table_args__ = (
         UniqueConstraint(
@@ -99,6 +111,8 @@ class Rule(Base):
 
 
 class Certification(Base):
+    """Represents one site certification against a regulation."""
+
     __tablename__ = "certifications"
     __table_args__ = (
         CheckConstraint("result IN ('Pass', 'Fail')", name="result_check"),
@@ -130,6 +144,8 @@ class Certification(Base):
 
 
 class Attachment(Base):
+    """Represents a file attached to a certification record."""
+
     __tablename__ = "attachments"
     __table_args__ = (
         UniqueConstraint(
@@ -150,6 +166,8 @@ class Attachment(Base):
 
 
 class Finding(Base):
+    """Represents a compliance finding tied to a certification and rule."""
+
     __tablename__ = "findings"
     __table_args__ = (
         UniqueConstraint(
@@ -169,6 +187,8 @@ class Finding(Base):
 
 
 class FindingAttachment(Base):
+    """Links findings to supporting attachments within one certification."""
+
     __tablename__ = "finding_attachments"
     __table_args__ = (
         ForeignKeyConstraint(
