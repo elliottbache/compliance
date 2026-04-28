@@ -104,18 +104,20 @@ class TestGetSiteHistory:
 
         with (
             patch(
-                "compliance.db.query_history.get_engine_metadata",
+                "compliance.services.query_history.get_engine_metadata",
                 return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
             ) as mock_get_engine_metadata,
             patch(
-                "compliance.db.query_history.get_tables",
+                "compliance.services.query_history.get_tables",
                 return_value=db_access_mocks["tables"],
             ) as mock_get_tables,
             patch(
-                "compliance.db.query_history.select",
+                "compliance.services.query_history.select",
                 return_value=db_access_mocks["stmt"],
             ) as mock_select,
-            patch("compliance.db.query_history._format_site_history") as mock_format,
+            patch(
+                "compliance.services.query_history._format_site_history"
+            ) as mock_format,
         ):
             result = get_site_history(71)
 
@@ -151,19 +153,19 @@ class TestGetSiteHistory:
 
         with (
             patch(
-                "compliance.db.query_history.get_engine_metadata",
+                "compliance.services.query_history.get_engine_metadata",
                 return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
             ) as mock_get_engine_metadata,
             patch(
-                "compliance.db.query_history.get_tables",
+                "compliance.services.query_history.get_tables",
                 return_value=db_access_mocks["tables"],
             ) as mock_get_tables,
             patch(
-                "compliance.db.query_history.select",
+                "compliance.services.query_history.select",
                 return_value=db_access_mocks["stmt"],
             ) as mock_select,
             patch(
-                "compliance.db.query_history._format_site_history",
+                "compliance.services.query_history._format_site_history",
                 return_value=formatted_site,
             ) as mock_format,
         ):
@@ -210,19 +212,19 @@ class TestGetSiteHistory:
 
         with (
             patch(
-                "compliance.db.query_history.get_engine_metadata",
+                "compliance.services.query_history.get_engine_metadata",
                 return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
             ) as mock_get_engine_metadata,
             patch(
-                "compliance.db.query_history.get_tables",
+                "compliance.services.query_history.get_tables",
                 return_value=db_access_mocks["tables"],
             ) as mock_get_tables,
             patch(
-                "compliance.db.query_history.select",
+                "compliance.services.query_history.select",
                 return_value=db_access_mocks["stmt"],
             ) as mock_select,
             patch(
-                "compliance.db.query_history._format_site_history",
+                "compliance.services.query_history._format_site_history",
                 return_value=formatted_site,
             ) as mock_format,
         ):
