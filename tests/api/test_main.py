@@ -38,7 +38,7 @@ class TestGetSiteByIdRoute:
 
         result = main_module.get_site_by_id_route(12, fake_session)
 
-        assert result is site
+        assert result == main_module.SiteOutput.model_validate(site)
 
     def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
         def fake_get_site_by_id(site_id, session):
