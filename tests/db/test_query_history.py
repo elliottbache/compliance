@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from compliance.db.query_history import (
+from compliance.schemas import Certification, Finding, Site
+from compliance.services.query_history import (
     _build_finding,
     _find_cert_index,
     _format_site_history,
     get_site_history,
 )
-from compliance.schemas import Certification, Finding, Site
 
 
 @pytest.fixture
