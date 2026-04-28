@@ -1,0 +1,62 @@
+from importlib import import_module
+from types import SimpleNamespace
+
+import pytest
+from fastapi import HTTPException
+
+
+@pytest.fixture
+def main_module(monkeypatch):
+    monkeypatch.setenv("POSTGRES_DB", "test_db")
+    monkeypatch.setenv("POSTGRES_USER", "test_user")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
+    monkeypatch.setenv("POSTGRES_HOST", "localhost")
+
+    return import_module("compliance.api.main")
+
+
+class TestGetSiteByIdRoute:
+    def test_returns_site_when_found(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        site = SimpleNamespace(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return site
+
+        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+
+        result = main_module.get_site_by_id_route(12, fake_session)
+
+        assert result is site
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        def fake_get_site_by_id(site_id, session):
+            return None
+
+        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.get_site_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 999"
+
+    def test_registers_site_output_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}"
+        )
+
+        assert route.response_model is main_module.SiteOutput
