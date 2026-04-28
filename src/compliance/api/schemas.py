@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SiteOutput(BaseModel):
+    """Public API response shape for a site record."""
+
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
@@ -17,6 +19,8 @@ class SiteOutput(BaseModel):
 
 
 class CertificationOutput(BaseModel):
+    """Public API response shape for a certification record."""
+
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int

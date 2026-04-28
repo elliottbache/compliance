@@ -27,11 +27,13 @@ metadata = MetaData(naming_convention=convention)
 
 
 def get_db() -> Generator:
+    """Yield a request-scoped database session for FastAPI dependencies."""
     with Session(engine) as session:
         yield session
 
 
 def get_engine_metadata() -> tuple[Engine, MetaData]:
+    """Create a SQLAlchemy engine and metadata object for database queries."""
     engine = create_engine(DB_URL)
     meta = MetaData()
 
