@@ -21,7 +21,7 @@ dependencies = [
   "sqlalchemy",
   "psycopg2-binary",
   "python-dotenv",
-  "fastapi[standard]",
+  "fastapi",
 ]
 
 # Optional extras for dev tools
