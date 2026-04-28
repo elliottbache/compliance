@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import SiteOutput
+from compliance.api.schemas import CertificationOutput, SiteOutput
 from compliance.db.db_access import get_db
-from compliance.services.query_db import get_site_by_id
+from compliance.services.query_db import get_certification_by_id, get_site_by_id
 
 app = FastAPI()
 
@@ -48,13 +48,27 @@ include the main factual fields only
 do not embed full nested history yet"""
 
 
-"""@app.get("/certifications/{certification_id}")
+@app.get("/certifications/{certification_id}")
 def get_certification_by_id_route(
     certification_id: int, session: SessionDep
 ) -> CertificationOutput:
+    """Return one certification by ID.
+
+    Args:
+        certification_id: Unique identifier for the certification to retrieve.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Certification details serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If no certification exists for the requested ID.
+    """
     certification = get_certification_by_id(certification_id, session)
     if certification is None:
-        raise HTTPException(f"No certification for this id: {certificaion_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No certification for this id found: {certification_id}",
+        )
 
-    return certification
-"""
+    return CertificationOutput.model_validate(certification)

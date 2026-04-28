@@ -1,3 +1,4 @@
+from datetime import date
 from importlib import import_module
 from types import SimpleNamespace
 
@@ -60,3 +61,59 @@ class TestGetSiteByIdRoute:
         )
 
         assert route.response_model is main_module.SiteOutput
+
+
+class TestGetCertificationByIdRoute:
+    def test_returns_certification_when_found(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        certification = SimpleNamespace(
+            id=42,
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=None,
+        )
+
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 42
+            assert session is fake_session
+            return certification
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        result = main_module.get_certification_by_id_route(42, fake_session)
+
+        assert result == main_module.CertificationOutput.model_validate(certification)
+
+    def test_returns_404_when_certification_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_certification_by_id(certification_id, session):
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.get_certification_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No certification for this id found: 999"
+
+    def test_registers_certification_output_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/certifications/{certification_id}"
+        )
+
+        assert route.response_model is main_module.CertificationOutput
