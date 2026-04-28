@@ -1,6 +1,34 @@
+import contextlib
 from unittest.mock import MagicMock, call, patch
 
-from compliance.db.db_access import get_engine_metadata, get_tables
+from compliance.db.db_access import get_db, get_engine_metadata, get_tables
+
+
+class TestGetDb:
+    def test_yields_session_created_with_module_engine(self) -> None:
+        mock_engine = MagicMock()
+        mock_session = MagicMock()
+        mock_session_context = MagicMock()
+        mock_session_context.__enter__.return_value = mock_session
+        mock_session_context.__exit__.return_value = None
+
+        with (
+            patch("compliance.db.db_access.engine", mock_engine),
+            patch(
+                "compliance.db.db_access.Session",
+                return_value=mock_session_context,
+            ) as mock_session_class,
+        ):
+            db_generator = get_db()
+            result = next(db_generator)
+
+            assert result is mock_session
+            mock_session_class.assert_called_once_with(mock_engine)
+
+            with contextlib.suppress(StopIteration):
+                next(db_generator)
+
+        mock_session_context.__exit__.assert_called_once()
 
 
 class TestGetEngineMetadata:
