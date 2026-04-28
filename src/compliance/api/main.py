@@ -1,3 +1,5 @@
+"""FastAPI application entrypoint for compliance API routes."""
+
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -15,6 +17,18 @@ SessionDep = Annotated[Session, Depends(get_db)]
 
 @app.get("/sites/{site_id}")
 def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOutput:
+    """Return one site by ID.
+
+    Args:
+        site_id: Unique identifier for the site to retrieve.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Site details serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If no site exists for the requested ID.
+    """
     site = get_site_by_id(site_id, session)
     if site is None:
         raise HTTPException(
