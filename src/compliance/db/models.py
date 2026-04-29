@@ -7,8 +7,9 @@ from sqlalchemy import (
     MetaData,
     String,
     UniqueConstraint,
+    and_,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, foreign, mapped_column, relationship
 
 from compliance.db.db_access import convention
 
@@ -141,6 +142,12 @@ class Certification(Base):
     certification_finding_rel: Mapped[list["Finding"]] = relationship(
         back_populates="finding_certification_rel"
     )
+    certification_finding_attachment_rel: Mapped[list["FindingAttachment"]] = (
+        relationship(
+            back_populates="finding_attachment_certification_rel",
+            overlaps="attachment_finding_attachment_rel,finding_finding_attachment_rel",
+        )
+    )
 
 
 class Attachment(Base):
@@ -163,6 +170,15 @@ class Attachment(Base):
     attachment_certification_rel: Mapped["Certification"] = relationship(
         back_populates="certification_attachment_rel"
     )
+    attachment_finding_attachment_rel: Mapped[list["FindingAttachment"]] = relationship(
+        "FindingAttachment",
+        primaryjoin=lambda: and_(
+            Attachment.id == foreign(FindingAttachment.attachment_id),
+            Attachment.certification_id == foreign(FindingAttachment.certification_id),
+        ),
+        back_populates="finding_attachment_attachment_rel",
+        viewonly=True,
+    )
 
 
 class Finding(Base):
@@ -184,6 +200,15 @@ class Finding(Base):
         back_populates="certification_finding_rel"
     )
     finding_rule_rel: Mapped["Rule"] = relationship(back_populates="rule_finding_rel")
+    finding_finding_attachment_rel: Mapped[list["FindingAttachment"]] = relationship(
+        "FindingAttachment",
+        primaryjoin=lambda: and_(
+            Finding.id == foreign(FindingAttachment.finding_id),
+            Finding.certification_id == foreign(FindingAttachment.certification_id),
+        ),
+        back_populates="finding_attachment_finding_rel",
+        viewonly=True,
+    )
 
 
 class FindingAttachment(Base):
@@ -205,4 +230,29 @@ class FindingAttachment(Base):
 
     finding_id: Mapped[int] = mapped_column(primary_key=True)
     attachment_id: Mapped[int] = mapped_column(primary_key=True)
-    certification_id: Mapped[int]
+    certification_id: Mapped[int] = mapped_column(
+        ForeignKey("certifications.id"), primary_key=True
+    )
+
+    finding_attachment_certification_rel: Mapped["Certification"] = relationship(
+        back_populates="certification_finding_attachment_rel",
+        overlaps="attachment_finding_attachment_rel,finding_finding_attachment_rel",
+    )
+    finding_attachment_attachment_rel: Mapped["Attachment"] = relationship(
+        "Attachment",
+        primaryjoin=lambda: and_(
+            foreign(FindingAttachment.attachment_id) == Attachment.id,
+            foreign(FindingAttachment.certification_id) == Attachment.certification_id,
+        ),
+        back_populates="attachment_finding_attachment_rel",
+        viewonly=True,
+    )
+    finding_attachment_finding_rel: Mapped["Finding"] = relationship(
+        "Finding",
+        primaryjoin=lambda: and_(
+            foreign(FindingAttachment.finding_id) == Finding.id,
+            foreign(FindingAttachment.certification_id) == Finding.certification_id,
+        ),
+        back_populates="finding_finding_attachment_rel",
+        viewonly=True,
+    )

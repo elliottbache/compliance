@@ -5,11 +5,12 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import CertificationOutput, SiteOutput
+from compliance.api.schemas import CertificationOutput, SiteAttachments, SiteOutput
 from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
     get_certification_by_id,
+    get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
 )
@@ -91,3 +92,30 @@ def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHisto
         )
 
     return SiteHistory.model_validate(site_history)
+
+
+@app.get("/sites/{site_id}/attachments")
+def get_site_attachments_by_id_route(
+    site_id: int, session: SessionDep
+) -> SiteAttachments:
+    """Return attachment details for one site by ID.
+
+    Args:
+        site_id: Unique identifier for the site whose attachments should be
+            retrieved.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Site attachments serialized with certification, regulation, and finding
+        context.
+
+    Raises:
+        HTTPException: If no attachments exist for the requested site.
+    """
+    site_attachments = get_site_attachments_by_id(site_id, session)
+    if site_attachments is None:
+        raise HTTPException(
+            status_code=404, detail=f"No attachments found for site {site_id}"
+        )
+
+    return SiteAttachments.model_validate(site_attachments)

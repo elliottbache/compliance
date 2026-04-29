@@ -2,6 +2,8 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from compliance.schemas import FindingHistory
+
 
 class SiteOutput(BaseModel):
     """Public API response shape for a site record."""
@@ -30,3 +32,31 @@ class CertificationOutput(BaseModel):
     result: str | None
     inspection_date: date | None
     resolution_date: date | None
+
+
+class AttachmentWithContextOutput(BaseModel):
+    """Public API response shape for an attachment record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    file_type: str
+    file_path: str
+    description: str | None
+    uploaded_at: date
+
+    certification_id: int
+    inspection_date: date | None
+    regulation_id: int
+    regulation_title: str
+
+    finding_links: list[FindingHistory] = Field(default_factory=list)
+
+
+class SiteAttachments(BaseModel):
+    """Public API response shape for a site's attachments record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    site_id: int
+    attachments: list[AttachmentWithContextOutput]
