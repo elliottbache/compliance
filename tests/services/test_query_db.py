@@ -7,12 +7,10 @@ from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import ClientInfo
 from compliance.db.models import Certification, Client, Site
-from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services.query_db import (
     _build_finding_history_from_site_attachments,
     _build_finding_history_from_site_history,
-    _find_attachment_index,
-    _find_cert_index,
     _format_site_attachments,
     _format_site_history,
     get_certification_by_id,
@@ -241,34 +239,23 @@ class TestFormatSiteHistory:
             2,
         ]
 
-
-class TestFindCertIndex:
-    def test_returns_matching_certification_index(self) -> None:
-        certifications = [
-            CertificationHistory(
-                cert_id=100,
-                result="Pass",
-                resolution_date=None,
-                reg_title="USDA Organic",
-                reg_description="Organic certification",
-                certifier_org_name="Org A",
-                inspection_date=None,
-            ),
-            CertificationHistory(
+    def test_groups_certifications_by_id_without_reordering(self) -> None:
+        rows = [
+            site_history_row(cert_id=200, finding_id=2, finding="Second cert finding"),
+            site_history_row(cert_id=100, finding_id=1, finding="First cert finding"),
+            site_history_row(
                 cert_id=200,
-                result="Fail",
-                resolution_date=None,
-                reg_title="USDA Organic",
-                reg_description="Organic certification",
-                certifier_org_name="Org B",
-                inspection_date=None,
+                finding_id=3,
+                finding="Another second cert finding",
             ),
         ]
 
-        assert _find_cert_index(200, certifications) == 1
+        result = _format_site_history(rows)
 
-    def test_returns_none_when_certification_is_absent(self) -> None:
-        assert _find_cert_index(100, []) is None
+        assert [cert.cert_id for cert in result.certifications] == [200, 100]
+        assert [
+            finding.finding_id for finding in result.certifications[0].findings
+        ] == [2, 3]
 
 
 class TestBuildFindingHistoryFromSiteHistory:
@@ -351,6 +338,36 @@ class TestFormatSiteAttachments:
             finding.finding_id for finding in result.attachments[0].finding_links
         ] == [1, 2]
 
+    def test_groups_attachments_by_id_without_reordering(self) -> None:
+        second_attachment = SimpleNamespace(
+            id=60,
+            file_type="pdf",
+            file_path="dummy/second.pdf",
+            description="Second attachment",
+            uploaded_at=date(2026, 4, 4),
+            certification_id=100,
+        )
+        rows = [
+            site_attachment_row(Attachment=second_attachment),
+            site_attachment_row(),
+            site_attachment_row(
+                Attachment=second_attachment,
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_site_attachments(rows)
+
+        assert [attachment.id for attachment in result.attachments] == [60, 50]
+        assert [
+            finding.finding_id for finding in result.attachments[0].finding_links
+        ] == [1, 2]
+
     def test_raises_stop_iteration_when_rows_are_empty(self) -> None:
         with pytest.raises(StopIteration):
             _format_site_attachments([])
@@ -358,13 +375,3 @@ class TestFormatSiteAttachments:
     def test_raises_value_error_when_first_row_is_empty(self) -> None:
         with pytest.raises(ValueError, match="First attachment row is empty"):
             _format_site_attachments([{}])
-
-
-class TestFindAttachmentIndex:
-    def test_returns_matching_attachment_index(self) -> None:
-        attachments = [{"id": 10}, {"id": 20}]
-
-        assert _find_attachment_index(20, attachments) == 1
-
-    def test_returns_none_when_attachment_is_absent(self) -> None:
-        assert _find_attachment_index(20, [{"id": 10}]) is None
