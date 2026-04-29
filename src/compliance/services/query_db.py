@@ -10,6 +10,7 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Certifier,
+    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -121,11 +122,11 @@ def post_new_client(client: ClientInfo, session: Session) -> ClientInfo | None:
         session: Database session used to add and commit the client.
 
     Returns:
-        The created client ORM object, or ``None`` if an integrity conflict
+        The client arg object, or ``None`` if an integrity conflict
         prevents the insert.
     """
     client_dict = client.model_dump()
-    new_client = ClientInfo(**client_dict)
+    new_client = Client(**client_dict)
     try:
         session.add(new_client)
         session.commit()
@@ -133,7 +134,7 @@ def post_new_client(client: ClientInfo, session: Session) -> ClientInfo | None:
         session.rollback()
         return None
 
-    return new_client
+    return client
 
 
 def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
