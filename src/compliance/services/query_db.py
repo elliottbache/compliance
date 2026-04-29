@@ -1,12 +1,16 @@
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from compliance.api.schemas import SiteAttachments
 from compliance.db.models import (
+    Attachment,
     Certification,
     Certifier,
     Finding,
+    FindingAttachment,
     Regulation,
     Rule,
     Site,
@@ -72,6 +76,42 @@ def get_site_history_by_id(site_id: int, session: Session) -> SiteHistory | None
     return _format_site_history(results)
 
 
+def get_site_attachments_by_id(
+    site_id: int, session: Session
+) -> SiteAttachments | None:
+    """Retrieve attachment records for a site with certification and finding context.
+
+    Args:
+        site_id: Unique identifier of the site whose attachments should be
+            retrieved.
+        session: Database session used to execute the attachment query.
+
+    Returns:
+        A formatted attachment collection for the site, or ``None`` if no
+        matching attachment records exist.
+    """
+    stmt = (
+        select(
+            Attachment,
+            Certification,
+            Regulation,
+            FindingAttachment,
+            Finding,
+            Rule,
+        )
+        .where(Certification.site_id == site_id)
+        .join(Attachment.attachment_certification_rel)
+        .join(Certification.certification_regulation_rel)
+        .join(Attachment.attachment_finding_attachment_rel)
+        .join(FindingAttachment.finding_attachment_finding_rel)
+        .join(Finding.finding_rule_rel)
+    )
+    results = session.execute(stmt).mappings().all()
+    if not results:
+        return None
+    return _format_site_attachments(results)
+
+
 def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
     """Aggregate site history rows into a certification-oriented structure.
 
@@ -112,7 +152,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
                 "inspection_date": row["inspection_date"],
             }
             if row["finding_id"] is not None:
-                cert_dict["findings"] = [_build_finding(row)]
+                cert_dict["findings"] = [_build_finding_history_from_site_history(row)]
             else:
                 cert_dict["findings"] = []
 
@@ -134,7 +174,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
                 )
 
             site_history["certifications"][cert_idx].findings.append(
-                _build_finding(row)
+                _build_finding_history_from_site_history(row)
             )
 
     site_history["inspection_count"] = len(site_history["certifications"])
@@ -160,7 +200,7 @@ def _find_cert_index(
     return idx if idx < len(site_history_cert_list) else None
 
 
-def _build_finding(row: Mapping) -> FindingHistory:
+def _build_finding_history_from_site_history(row: Mapping) -> FindingHistory:
     """Build a Finding from the selected fields in a site history row."""
     keys = ["finding_id", "finding", "rule_index", "rule_title", "rule_description"]
 
@@ -175,6 +215,108 @@ def _build_finding(row: Mapping) -> FindingHistory:
     return FindingHistory.model_validate(finding)
 
 
+def _format_site_attachments(
+    site_attachment_list: Sequence[Mapping],
+) -> SiteAttachments:
+    """Aggregate attachment query rows into a site-level attachment response.
+
+    Groups rows by attachment and collects linked findings under each attachment
+    so repeated attachment rows do not produce duplicate attachment records.
+
+    Args:
+        site_attachment_list: Rows from the site attachment query containing
+            attachment, certification, regulation, finding, link, and rule
+            objects.
+
+    Returns:
+        A site attachment response containing unique attachments and their
+        finding links.
+
+    Raises:
+        StopIteration: If ``site_attachment_list`` is empty.
+        ValueError: If the first attachment row is empty.
+    """
+
+    first_row = next(iter(site_attachment_list))
+    if not first_row:
+        raise ValueError(f"First attachment row is empty: {site_attachment_list}")
+
+    attachment_ids = set()
+    site_attachments = {
+        "site_id": first_row["Certification"].site_id,
+        "attachments": list(),
+    }
+    for row in site_attachment_list:
+        if row["Attachment"].id not in attachment_ids:
+            attachment_ids.add(row["Attachment"].id)
+
+            # add new dict with attachment data
+            attachment_dict = {
+                "id": row["Attachment"].id,
+                "file_type": row["Attachment"].file_type,
+                "file_path": row["Attachment"].file_path,
+                "description": row["Attachment"].description,
+                "uploaded_at": row["Attachment"].uploaded_at,
+                "certification_id": row["Attachment"].certification_id,
+                "inspection_date": row["Certification"].inspection_date,
+                "regulation_id": row["Certification"].regulation_id,
+                "regulation_title": row["Regulation"].title,
+                "finding_links": [_build_finding_history_from_site_attachments(row)],
+            }
+            site_attachments["attachments"].append(attachment_dict)
+
+        else:
+            idx = _find_attachment_index(
+                row["Attachment"].id, site_attachments["attachments"]
+            )
+            site_attachments["attachments"][idx]["finding_links"].append(
+                _build_finding_history_from_site_attachments(row)
+            )
+
+    return SiteAttachments(**site_attachments)
+
+
+def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:
+    """Build finding history from a site-attachments query row."""
+    field_sources = {
+        "finding_id": ("Finding", "id"),
+        "finding": ("Finding", "finding"),
+        "rule_index": ("Rule", "rule_index"),
+        "rule_title": ("Rule", "title"),
+        "rule_description": ("Rule", "description"),
+    }
+    missing_keys = [
+        field_name
+        for field_name, (row_key, attr_name) in field_sources.items()
+        if row_key not in row or not hasattr(row[row_key], attr_name)
+    ]
+    if missing_keys:
+        raise KeyError(
+            "Missing finding history fields in site attachment row: "
+            f"{missing_keys}. Row keys: {sorted(row.keys())}"
+        )
+
+    finding_history = {
+        field_name: getattr(row[row_key], attr_name)
+        for field_name, (row_key, attr_name) in field_sources.items()
+    }
+    return FindingHistory.model_validate(finding_history)
+
+
+def _find_attachment_index(
+    attachment_id: int, site_attachment_list: list[dict[str, Any]]
+) -> int | None:
+    """Returns the index of the attachment with the given attachment_id, or None if absent."""
+    idx = 0
+    while (
+        idx < len(site_attachment_list)
+        and site_attachment_list[idx]["id"] != attachment_id
+    ):
+        idx += 1
+
+    return idx if idx < len(site_attachment_list) else None
+
+
 if __name__ == "__main__":
 
     from compliance.db.db_access import get_db
@@ -182,3 +324,6 @@ if __name__ == "__main__":
     session = get_db()
 
     print(f"\nsite 71: {get_site_history_by_id(71, next(iter(session)))}")
+
+    session = get_db()
+    print(f"\nsite 71: {get_site_attachments_by_id(71, next(iter(session)))}")

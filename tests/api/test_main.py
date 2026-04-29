@@ -170,3 +170,56 @@ class TestGetSiteHistoryByIdRoute:
         )
 
         assert route.response_model is main_module.SiteHistory
+
+
+class TestGetSiteAttachmentsByIdRoute:
+    def test_returns_site_attachments_when_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        fake_session = object()
+        site_attachments = main_module.SiteAttachments(
+            site_id=12,
+            attachments=[],
+        )
+
+        def fake_get_site_attachments_by_id(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return site_attachments
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_attachments_by_id",
+            fake_get_site_attachments_by_id,
+        )
+
+        result = main_module.get_site_attachments_by_id_route(12, fake_session)
+
+        assert result == site_attachments
+
+    def test_returns_404_when_site_attachments_are_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_attachments_by_id(site_id, session):
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_attachments_by_id",
+            fake_get_site_attachments_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.get_site_attachments_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No attachments found for site 999"
+
+    def test_registers_site_attachments_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/attachments"
+        )
+
+        assert route.response_model is main_module.SiteAttachments

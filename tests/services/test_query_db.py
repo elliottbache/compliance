@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -6,10 +7,14 @@ import pytest
 from compliance.db.models import Certification, Site
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.query_db import (
-    _build_finding,
+    _build_finding_history_from_site_attachments,
+    _build_finding_history_from_site_history,
+    _find_attachment_index,
     _find_cert_index,
+    _format_site_attachments,
     _format_site_history,
     get_certification_by_id,
+    get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
 )
@@ -30,6 +35,41 @@ def site_history_row(**overrides):
         "rule_index": "7 CFR 205.201",
         "rule_title": "Organic plan",
         "rule_description": "Producer must maintain an organic system plan.",
+    }
+    row.update(overrides)
+    return row
+
+
+def site_attachment_row(**overrides):
+    row = {
+        "Attachment": SimpleNamespace(
+            id=50,
+            file_type="pdf",
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=date(2026, 4, 3),
+            certification_id=100,
+        ),
+        "Certification": SimpleNamespace(
+            site_id=71,
+            id=100,
+            regulation_id=5,
+            inspection_date=date(2026, 4, 1),
+        ),
+        "Regulation": SimpleNamespace(
+            id=5,
+            title="USDA Organic",
+        ),
+        "Finding": SimpleNamespace(
+            id=1,
+            finding="Missing document",
+        ),
+        "FindingAttachment": MagicMock(),
+        "Rule": SimpleNamespace(
+            rule_index="7 CFR 205.201",
+            title="Organic plan",
+            description="Producer must maintain an organic system plan.",
+        ),
     }
     row.update(overrides)
     return row
@@ -106,6 +146,27 @@ class TestGetSiteHistoryById:
         assert result == _format_site_history(rows)
 
 
+class TestGetSiteAttachmentsById:
+    def test_returns_none_when_query_returns_no_rows(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        result = get_site_attachments_by_id(71, session)
+
+        session.execute.assert_called_once()
+        assert result is None
+
+    def test_formats_site_attachments_when_query_returns_rows(self) -> None:
+        rows = [site_attachment_row()]
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = rows
+
+        result = get_site_attachments_by_id(71, session)
+
+        session.execute.assert_called_once()
+        assert result == _format_site_attachments(rows)
+
+
 class TestFormatSiteHistory:
     def test_creates_site_history_with_certification_and_finding(self) -> None:
         result = _format_site_history([site_history_row()])
@@ -165,9 +226,9 @@ class TestFindCertIndex:
         assert _find_cert_index(100, []) is None
 
 
-class TestBuildFinding:
+class TestBuildFindingHistoryFromSiteHistory:
     def test_builds_finding_history_from_row(self) -> None:
-        result = _build_finding(site_history_row())
+        result = _build_finding_history_from_site_history(site_history_row())
 
         assert isinstance(result, FindingHistory)
         assert result.finding_id == 1
@@ -178,4 +239,87 @@ class TestBuildFinding:
         del row["rule_description"]
 
         with pytest.raises(KeyError, match="Missing finding fields"):
-            _build_finding(row)
+            _build_finding_history_from_site_history(row)
+
+
+class TestBuildFindingHistoryFromSiteAttachments:
+    def test_builds_finding_history_from_nested_row_objects(self) -> None:
+        result = _build_finding_history_from_site_attachments(site_attachment_row())
+
+        assert result == FindingHistory(
+            finding_id=1,
+            finding="Missing document",
+            rule_index="7 CFR 205.201",
+            rule_title="Organic plan",
+            rule_description="Producer must maintain an organic system plan.",
+        )
+
+    def test_raises_key_error_when_required_row_object_is_missing(self) -> None:
+        row = site_attachment_row()
+        del row["Rule"]
+
+        with pytest.raises(KeyError, match="Missing finding history fields"):
+            _build_finding_history_from_site_attachments(row)
+
+    def test_raises_key_error_when_required_finding_history_field_is_missing(
+        self,
+    ) -> None:
+        row = site_attachment_row(
+            Rule=SimpleNamespace(
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+            )
+        )
+
+        with pytest.raises(KeyError, match="rule_description"):
+            _build_finding_history_from_site_attachments(row)
+
+
+class TestFormatSiteAttachments:
+    def test_creates_site_attachments_with_finding_link(self) -> None:
+        result = _format_site_attachments([site_attachment_row()])
+
+        assert result.site_id == 71
+        assert len(result.attachments) == 1
+        assert result.attachments[0].id == 50
+        assert result.attachments[0].regulation_title == "USDA Organic"
+        assert len(result.attachments[0].finding_links) == 1
+        assert result.attachments[0].finding_links[0].finding_id == 1
+
+    def test_groups_multiple_findings_under_same_attachment(self) -> None:
+        rows = [
+            site_attachment_row(),
+            site_attachment_row(
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_site_attachments(rows)
+
+        assert len(result.attachments) == 1
+        assert [
+            finding.finding_id for finding in result.attachments[0].finding_links
+        ] == [1, 2]
+
+    def test_raises_stop_iteration_when_rows_are_empty(self) -> None:
+        with pytest.raises(StopIteration):
+            _format_site_attachments([])
+
+    def test_raises_value_error_when_first_row_is_empty(self) -> None:
+        with pytest.raises(ValueError, match="First attachment row is empty"):
+            _format_site_attachments([{}])
+
+
+class TestFindAttachmentIndex:
+    def test_returns_matching_attachment_index(self) -> None:
+        attachments = [{"id": 10}, {"id": 20}]
+
+        assert _find_attachment_index(20, attachments) == 1
+
+    def test_returns_none_when_attachment_is_absent(self) -> None:
+        assert _find_attachment_index(20, [{"id": 10}]) is None
