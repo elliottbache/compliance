@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from compliance.schemas import Certification, Finding, Site
+from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.query_history import (
     _build_finding,
     _find_cert_index,
@@ -24,8 +24,8 @@ def certification_factory():
         certifier_org_name: str = "Certifier",
         inspection_date: date | None = date(2024, 1, 10),
         findings=None,
-    ) -> Certification:
-        return Certification(
+    ) -> CertificationHistory:
+        return CertificationHistory(
             cert_id=cert_id,
             result=result,
             resolution_date=resolution_date,
@@ -141,7 +141,7 @@ class TestGetSiteHistory:
                 rule_description=None,
             )
         ]
-        formatted_site = Site(
+        formatted_site = SiteHistory(
             site_id=71,
             certifications=[],
             inspection_count=1,
@@ -200,7 +200,7 @@ class TestGetSiteHistory:
                 rule_description="Rule description B",
             ),
         ]
-        formatted_site = Site(
+        formatted_site = SiteHistory(
             site_id=71,
             certifications=[],
             inspection_count=1,
@@ -411,7 +411,7 @@ class TestBuildFinding:
 
         result = _build_finding(row)
 
-        assert isinstance(result, Finding)
+        assert isinstance(result, FindingHistory)
         assert result.finding_id == 1
         assert result.finding == "Issue A"
         assert result.rule_index == "7 CFR 205.201"

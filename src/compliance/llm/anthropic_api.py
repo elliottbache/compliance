@@ -11,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
 from compliance.logging_utils import configure_logging
-from compliance.schemas import Site
+from compliance.schemas import SiteHistory
 from compliance.services.query_history import get_site_history
 
 MAX_TOKENS = 2500
@@ -24,7 +24,7 @@ load_dotenv()
 
 
 def summarize_previous_visits(
-    site_history: Site, *, ai_model: str, case_info: str = ""
+    site_history: SiteHistory, *, ai_model: str, case_info: str = ""
 ) -> tuple[bool, str, SiteAnalysis]:
     """Analyzes site history using an AI model to generate a structured summary.
 
