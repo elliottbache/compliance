@@ -122,8 +122,9 @@ def post_new_client(client: ClientInfo, session: Session) -> Client | None:
         session: Database session used to add and commit the client.
 
     Returns:
-        The client arg object, or ``None`` if an integrity conflict
+        The created Client ORM object, or ``None`` if an integrity conflict
         prevents the insert.
+
     """
     client_dict = client.model_dump()
     new_client = Client(**client_dict)
