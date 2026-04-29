@@ -163,45 +163,29 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
     if not first_row:
         raise ValueError(f"First site history row is empty: {site_history_rows}")
 
+    certifications_by_id: dict[int, CertificationHistory] = {}
     site_history = {"site_id": first_row["site_id"], "certifications": list()}
     for row in site_history_rows:
-        # add new dict to certifications dict with cert_id as key
-        cert_idx = _find_cert_index(row["cert_id"], site_history["certifications"])
-        if cert_idx is None:
+        cert_id = row["cert_id"]
+        certification = certifications_by_id.get(cert_id)
+
+        if certification is None:
             cert_dict = {
-                "cert_id": row["cert_id"],
+                "cert_id": cert_id,
                 "result": row["result"],
                 "resolution_date": row["resolution_date"],
                 "reg_title": row["reg_title"],
                 "reg_description": row["reg_description"],
                 "certifier_org_name": row["certifier_org_name"],
                 "inspection_date": row["inspection_date"],
+                "findings": [],
             }
-            if row["finding_id"] is not None:
-                cert_dict["findings"] = [_build_finding_history_from_site_history(row)]
-            else:
-                cert_dict["findings"] = []
+            certification = CertificationHistory.model_validate(cert_dict)
+            certifications_by_id[cert_id] = certification
+            site_history["certifications"].append(certification)
 
-            site_history["certifications"].append(
-                CertificationHistory.model_validate(cert_dict)
-            )
-
-        # add new dict to findings list
-        else:
-            if row["finding_id"] is None:
-                continue
-
-            # find matching list item in certifications for cert_id
-            cert_idx = _find_cert_index(row["cert_id"], site_history["certifications"])
-            if cert_idx is None:
-                raise KeyError(
-                    f"Certification list item does not exist: cert_id = "
-                    f"{row['cert_id']} in {site_history['certifications']}"
-                )
-
-            site_history["certifications"][cert_idx].findings.append(
-                _build_finding_history_from_site_history(row)
-            )
+        if row["finding_id"] is not None:
+            certification.findings.append(_build_finding_history_from_site_history(row))
 
     site_history["inspection_count"] = len(site_history["certifications"])
     if site_history["inspection_count"] > 0:
@@ -210,20 +194,6 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
         ].inspection_date
 
     return SiteHistory(**site_history)
-
-
-def _find_cert_index(
-    cert_id: int, site_history_cert_list: list[CertificationHistory]
-) -> int | None:
-    """Returns the index of the certification with the given cert_id, or None if absent."""
-    idx = 0
-    while (
-        idx < len(site_history_cert_list)
-        and site_history_cert_list[idx].cert_id != cert_id
-    ):
-        idx += 1
-
-    return idx if idx < len(site_history_cert_list) else None
 
 
 def _build_finding_history_from_site_history(row: Mapping) -> FindingHistory:
@@ -267,23 +237,18 @@ def _format_site_attachments(
     if not first_row:
         raise ValueError(f"First attachment row is empty: {site_attachment_list}")
 
-    attachment_ids = set()
+    attachments_by_id: dict[int, dict[str, Any]] = {}
     site_attachments = {
         "site_id": first_row["Certification"].site_id,
         "attachments": list(),
     }
     for row in site_attachment_list:
-        if row["Finding"] is not None:
-            finding_links = [_build_finding_history_from_site_attachments(row)]
-        else:
-            finding_links = []
+        attachment_id = row["Attachment"].id
+        attachment_dict = attachments_by_id.get(attachment_id)
 
-        if row["Attachment"].id not in attachment_ids:
-            attachment_ids.add(row["Attachment"].id)
-
-            # add new dict with attachment data
+        if attachment_dict is None:
             attachment_dict = {
-                "id": row["Attachment"].id,
+                "id": attachment_id,
                 "file_type": row["Attachment"].file_type,
                 "file_path": row["Attachment"].file_path,
                 "description": row["Attachment"].description,
@@ -292,22 +257,15 @@ def _format_site_attachments(
                 "inspection_date": row["Certification"].inspection_date,
                 "regulation_id": row["Certification"].regulation_id,
                 "regulation_title": row["Regulation"].title,
-                "finding_links": finding_links,
+                "finding_links": [],
             }
+            attachments_by_id[attachment_id] = attachment_dict
             site_attachments["attachments"].append(attachment_dict)
 
-        else:
-            idx = _find_attachment_index(
-                row["Attachment"].id, site_attachments["attachments"]
+        if row["Finding"] is not None:
+            attachment_dict["finding_links"].append(
+                _build_finding_history_from_site_attachments(row)
             )
-            if idx is None:
-                raise LookupError(
-                    f"Attachment with id {row['Attachment'].id} is not found in site_attachments."
-                )
-            if row["Finding"] is not None:
-                site_attachments["attachments"][idx]["finding_links"].append(
-                    _build_finding_history_from_site_attachments(row)
-                )
 
     return SiteAttachments(**site_attachments)
 
@@ -337,20 +295,6 @@ def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory
         for field_name, (row_key, attr_name) in field_sources.items()
     }
     return FindingHistory.model_validate(finding_history)
-
-
-def _find_attachment_index(
-    attachment_id: int, site_attachment_list: list[dict[str, Any]]
-) -> int | None:
-    """Returns the index of the attachment with the given attachment_id, or None if absent."""
-    idx = 0
-    while (
-        idx < len(site_attachment_list)
-        and site_attachment_list[idx]["id"] != attachment_id
-    ):
-        idx += 1
-
-    return idx if idx < len(site_attachment_list) else None
 
 
 if __name__ == "__main__":
