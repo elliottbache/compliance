@@ -3,7 +3,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
+from compliance.api.schemas import ClientInfo
 from compliance.db.models import Certification, Site
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.query_db import (
@@ -17,6 +19,7 @@ from compliance.services.query_db import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
+    post_new_client,
 )
 
 
@@ -165,6 +168,44 @@ class TestGetSiteAttachmentsById:
 
         session.execute.assert_called_once()
         assert result == _format_site_attachments(rows)
+
+
+class TestPostNewClient:
+    def test_adds_and_commits_new_client(self) -> None:
+        session = MagicMock()
+        client = ClientInfo(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        result = post_new_client(client, session)
+
+        assert isinstance(result, ClientInfo)
+        assert result.nif == "A1234567B"
+        session.add.assert_called_once_with(result)
+        session.commit.assert_called_once_with()
+        session.rollback.assert_not_called()
+
+    def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
+        session = MagicMock()
+        session.commit.side_effect = IntegrityError("insert failed", {}, None)
+        client = ClientInfo(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        result = post_new_client(client, session)
+
+        assert result is None
+        session.add.assert_called_once()
+        session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
 
 
 class TestFormatSiteHistory:

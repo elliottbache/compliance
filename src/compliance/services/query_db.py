@@ -2,9 +2,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import SiteAttachments
+from compliance.api.schemas import ClientInfo, SiteAttachments
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -110,6 +111,29 @@ def get_site_attachments_by_id(
     if not results:
         return None
     return _format_site_attachments(results)
+
+
+def post_new_client(client: ClientInfo, session: Session) -> ClientInfo | None:
+    """Persist a new client record.
+
+    Args:
+        client: Client data validated by the API layer.
+        session: Database session used to add and commit the client.
+
+    Returns:
+        The created client ORM object, or ``None`` if an integrity conflict
+        prevents the insert.
+    """
+    client_dict = client.model_dump()
+    new_client = ClientInfo(**client_dict)
+    try:
+        session.add(new_client)
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        return None
+
+    return new_client
 
 
 def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:

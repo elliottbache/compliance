@@ -5,7 +5,12 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import CertificationOutput, SiteAttachments, SiteOutput
+from compliance.api.schemas import (
+    CertificationOutput,
+    ClientInfo,
+    SiteAttachments,
+    SiteOutput,
+)
 from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
@@ -13,6 +18,7 @@ from compliance.services.query_db import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
+    post_new_client,
 )
 
 app = FastAPI()
@@ -119,3 +125,25 @@ def get_site_attachments_by_id_route(
         )
 
     return SiteAttachments.model_validate(site_attachments)
+
+
+@app.post("/clients", status_code=201)
+def post_new_client_route(client: ClientInfo, session: SessionDep) -> ClientInfo:
+    """Create a new client record.
+
+    Args:
+        client: Client details supplied in the request body.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Created client details serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If the client cannot be created, such as when it
+            conflicts with an existing record.
+    """
+    new_client = post_new_client(client, session)
+    if new_client is None:
+        raise HTTPException(status_code=409, detail=f"Client was not added: {client}.")
+
+    return ClientInfo.model_validate(new_client)
