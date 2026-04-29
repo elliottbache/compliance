@@ -223,3 +223,60 @@ class TestGetSiteAttachmentsByIdRoute:
         )
 
         assert route.response_model is main_module.SiteAttachments
+
+
+class TestPostNewClientRoute:
+    def test_returns_created_client(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        client = main_module.ClientInfo(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        def fake_post_new_client(client_info, session):
+            assert client_info is client
+            assert session is fake_session
+            return client
+
+        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+
+        result = main_module.post_new_client_route(client, fake_session)
+
+        assert result == client
+
+    def test_returns_409_when_client_is_not_created(
+        self, main_module, monkeypatch
+    ) -> None:
+        client = main_module.ClientInfo(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        def fake_post_new_client(client_info, session):
+            return None
+
+        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.post_new_client_route(client, object())
+
+        assert exc_info.value.status_code == 409
+        assert "Client was not added" in exc_info.value.detail
+
+    def test_registers_client_response_model_and_created_status(
+        self, main_module
+    ) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/clients"
+        )
+
+        assert route.response_model is main_module.ClientInfo
+        assert route.status_code == 201

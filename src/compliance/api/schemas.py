@@ -60,3 +60,15 @@ class SiteAttachments(BaseModel):
 
     site_id: int
     attachments: list[AttachmentWithContextOutput]
+
+
+class ClientInfo(BaseModel):
+    """Public API input shape for a new client record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    nif: str = Field(min_length=9, max_length=9)
+    company_name: str | None
+    contact_name: str
+    email: str | None
+    telephone: int | None
