@@ -114,7 +114,7 @@ def get_site_attachments_by_id(
     return _format_site_attachments(results)
 
 
-def post_new_client(client: ClientInfo, session: Session) -> ClientInfo | None:
+def post_new_client(client: ClientInfo, session: Session) -> Client | None:
     """Persist a new client record.
 
     Args:
@@ -134,7 +134,7 @@ def post_new_client(client: ClientInfo, session: Session) -> ClientInfo | None:
         session.rollback()
         return None
 
-    return client
+    return new_client
 
 
 def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
