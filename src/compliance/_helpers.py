@@ -1,8 +1,10 @@
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
-from compliance.schemas import Site
+from compliance.schemas import SiteHistory
 
 
-def validate_llm_references(site_analysis: SiteAnalysis, site_history: Site) -> None:
+def validate_llm_references(
+    site_analysis: SiteAnalysis, site_history: SiteHistory
+) -> None:
     """Validates all evidence references within a SiteAnalysis against site history.
 
     Iterates through specific analysis categories (recurring issues, missing
@@ -33,7 +35,7 @@ def validate_llm_references(site_analysis: SiteAnalysis, site_history: Site) -> 
                 _validate_evidence_ref(evidence, site_history)
 
 
-def _validate_evidence_ref(evidence: EvidenceRef, site_history: Site) -> None:
+def _validate_evidence_ref(evidence: EvidenceRef, site_history: SiteHistory) -> None:
     """Verifies a single evidence reference against historical records.
 
     Performs a cascading check to ensure the certification ID exists,

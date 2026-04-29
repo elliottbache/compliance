@@ -3,10 +3,10 @@ from collections.abc import Mapping, Sequence
 from sqlalchemy import select
 
 from compliance.db.db_access import get_engine_metadata, get_tables
-from compliance.schemas import Certification, Finding, Site
+from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 
 
-def get_site_history(site_id: int) -> Site | None:
+def get_site_history(site_id: int) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
     Builds the database connection and reflected table objects needed to query
@@ -65,7 +65,7 @@ def get_site_history(site_id: int) -> Site | None:
         return _format_site_history(results)
 
 
-def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
+def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
     """Aggregate site history rows into a certification-oriented structure.
 
     Groups rows by certification and collects related findings under each
@@ -110,7 +110,7 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
                 cert_dict["findings"] = []
 
             site_history["certifications"].append(
-                Certification.model_validate(cert_dict)
+                CertificationHistory.model_validate(cert_dict)
             )
 
         # add new dict to findings list
@@ -136,11 +136,11 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> Site:
             -1
         ].inspection_date
 
-    return Site(**site_history)
+    return SiteHistory(**site_history)
 
 
 def _find_cert_index(
-    cert_id: int, site_history_cert_list: list[Certification]
+    cert_id: int, site_history_cert_list: list[CertificationHistory]
 ) -> int | None:
     """Returns the index of the certification with the given cert_id, or None if absent."""
     idx = 0
@@ -153,7 +153,7 @@ def _find_cert_index(
     return idx if idx < len(site_history_cert_list) else None
 
 
-def _build_finding(row: Mapping) -> Finding:
+def _build_finding(row: Mapping) -> FindingHistory:
     """Build a Finding from the selected fields in a site history row."""
     keys = ["finding_id", "finding", "rule_index", "rule_title", "rule_description"]
 
@@ -165,7 +165,7 @@ def _build_finding(row: Mapping) -> Finding:
         )
     finding = {k: row[k] for k in keys}
 
-    return Finding.model_validate(finding)
+    return FindingHistory.model_validate(finding)
 
 
 if __name__ == "__main__":

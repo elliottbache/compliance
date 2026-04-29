@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from compliance.api.schemas import CertificationOutput, SiteOutput
 from compliance.db.db_access import get_db
-from compliance.services.query_db import get_certification_by_id, get_site_by_id
+from compliance.schemas import SiteHistory
+from compliance.services.query_db import (
+    get_certification_by_id,
+    get_site_by_id,
+    get_site_history_by_id,
+)
 
 app = FastAPI()
 
@@ -38,16 +43,6 @@ def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOutput:
     return SiteOutput.model_validate(site)
 
 
-"""Exercise 4 — Add GET /certifications/{certification_id}
-
-Return one certification.
-
-Good practice:
-
-include the main factual fields only
-do not embed full nested history yet"""
-
-
 @app.get("/certifications/{certification_id}")
 def get_certification_by_id_route(
     certification_id: int, session: SessionDep
@@ -72,3 +67,27 @@ def get_certification_by_id_route(
         )
 
     return CertificationOutput.model_validate(certification)
+
+
+@app.get("/sites/{site_id}/history")
+def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHistory:
+    """Return certification history for one site by ID.
+
+    Args:
+        site_id: Unique identifier for the site whose history should be retrieved.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Site history serialized with certification and finding details.
+
+    Raises:
+        HTTPException: If no certification history exists for the requested site.
+    """
+    site_history = get_site_history_by_id(site_id, session)
+    if site_history is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No site history found for this id: {site_id}",
+        )
+
+    return SiteHistory.model_validate(site_history)

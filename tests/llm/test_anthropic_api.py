@@ -29,7 +29,7 @@ from compliance.llm.schemas import (
     SiteAnalysis,
     SuggestionItem,
 )
-from compliance.schemas import Certification, Finding, Site
+from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 
 
 @pytest.fixture
@@ -66,13 +66,13 @@ def evidence_ref_factory():
 
 
 @pytest.fixture
-def site_history() -> Site:
-    return Site(
+def site_history() -> SiteHistory:
+    return SiteHistory(
         site_id=71,
         inspection_count=1,
         latest_inspection_date=date(2024, 1, 10),
         certifications=[
-            Certification(
+            CertificationHistory(
                 cert_id=100,
                 result="pass",
                 resolution_date=date(2024, 1, 20),
@@ -81,7 +81,7 @@ def site_history() -> Site:
                 certifier_org_name="Org A",
                 inspection_date=date(2024, 1, 10),
                 findings=[
-                    Finding(
+                    FindingHistory(
                         finding_id=1,
                         finding="Issue A",
                         rule_index="7 CFR 205.201",

@@ -3,7 +3,7 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class Finding(BaseModel):
+class FindingHistory(BaseModel):
     """Represents a single inspection finding tied to a regulation rule."""
 
     model_config = ConfigDict(frozen=True)
@@ -15,7 +15,7 @@ class Finding(BaseModel):
     rule_description: str
 
 
-class Certification(BaseModel):
+class CertificationHistory(BaseModel):
     """Represents one certification record and its associated findings."""
 
     model_config = ConfigDict(frozen=True)
@@ -27,15 +27,15 @@ class Certification(BaseModel):
     reg_description: str
     certifier_org_name: str
     inspection_date: date | None
-    findings: list[Finding] = Field(default_factory=list)
+    findings: list[FindingHistory] = Field(default_factory=list)
 
 
-class Site(BaseModel):
+class SiteHistory(BaseModel):
     """Represents a site's certification history and inspection summary."""
 
     model_config = ConfigDict(frozen=True)
 
     site_id: int
-    certifications: list[Certification] = Field(default_factory=list)
+    certifications: list[CertificationHistory] = Field(default_factory=list)
     inspection_count: int = Field(default=0)
     latest_inspection_date: date | None
