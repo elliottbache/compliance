@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import ClientInfo
-from compliance.db.models import Certification, Site
+from compliance.db.models import Certification, Client, Site
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.query_db import (
     _build_finding_history_from_site_attachments,
@@ -181,13 +181,17 @@ class TestPostNewClient:
             telephone=123456789,
         )
 
-        result = post_new_client(client, session)
+        post_new_client(client, session)
 
-        assert isinstance(result, ClientInfo)
-        assert result.nif == "A1234567B"
-        session.add.assert_called_once_with(result)
-        session.commit.assert_called_once_with()
-        session.rollback.assert_not_called()
+        session.add.assert_called_once()
+        added_client = session.add.call_args.args[0]
+
+        assert isinstance(added_client, Client)
+        assert added_client.nif == "A1234567B"
+        assert added_client.company_name == "Acme Compliance"
+        assert added_client.contact_name == "Ada Lovelace"
+        assert added_client.email == "ada@example.com"
+        assert added_client.telephone == 123456789
 
     def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
         session = MagicMock()
