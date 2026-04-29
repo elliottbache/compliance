@@ -102,9 +102,9 @@ def get_site_attachments_by_id(
         .where(Certification.site_id == site_id)
         .join(Attachment.attachment_certification_rel)
         .join(Certification.certification_regulation_rel)
-        .join(Attachment.attachment_finding_attachment_rel)
-        .join(FindingAttachment.finding_attachment_finding_rel)
-        .join(Finding.finding_rule_rel)
+        .outerjoin(Attachment.attachment_finding_attachment_rel)
+        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
+        .outerjoin(Finding.finding_rule_rel)
     )
     results = session.execute(stmt).mappings().all()
     if not results:
@@ -247,6 +247,11 @@ def _format_site_attachments(
         "attachments": list(),
     }
     for row in site_attachment_list:
+        if row["Finding"] is not None:
+            finding_links = [_build_finding_history_from_site_attachments(row)]
+        else:
+            finding_links = []
+
         if row["Attachment"].id not in attachment_ids:
             attachment_ids.add(row["Attachment"].id)
 
@@ -261,7 +266,7 @@ def _format_site_attachments(
                 "inspection_date": row["Certification"].inspection_date,
                 "regulation_id": row["Certification"].regulation_id,
                 "regulation_title": row["Regulation"].title,
-                "finding_links": [_build_finding_history_from_site_attachments(row)],
+                "finding_links": finding_links,
             }
             site_attachments["attachments"].append(attachment_dict)
 
@@ -269,9 +274,14 @@ def _format_site_attachments(
             idx = _find_attachment_index(
                 row["Attachment"].id, site_attachments["attachments"]
             )
-            site_attachments["attachments"][idx]["finding_links"].append(
-                _build_finding_history_from_site_attachments(row)
-            )
+            if idx is None:
+                raise LookupError(
+                    f"Attachment with id {row['Attachment'].id} is not found in site_attachments."
+                )
+            if row["Finding"] is not None:
+                site_attachments["attachments"][idx]["finding_links"].append(
+                    _build_finding_history_from_site_attachments(row)
+                )
 
     return SiteAttachments(**site_attachments)
 
