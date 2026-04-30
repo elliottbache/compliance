@@ -38,4 +38,4 @@ class SiteHistory(BaseModel):
     site_id: int
     certifications: list[CertificationHistory] = Field(default_factory=list)
     inspection_count: int = Field(default=0)
-    latest_inspection_date: date | None
+    latest_inspection_date: date | None = None
