@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import ClientInfo
+from compliance.api.schemas import ClientInOut
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services.query_db import (
@@ -147,7 +147,7 @@ class TestGetSiteHistoryById:
         assert result == _format_site_history(rows)
 
 
-class TestGetSiteAttachmentsById:
+class TestGetSiteAttachmentsOutById:
     def test_returns_none_when_query_returns_no_rows(self) -> None:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
@@ -171,7 +171,7 @@ class TestGetSiteAttachmentsById:
 class TestPostNewClient:
     def test_adds_and_commits_new_client(self) -> None:
         session = MagicMock()
-        client = ClientInfo(
+        client = ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -194,7 +194,7 @@ class TestPostNewClient:
     def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
-        client = ClientInfo(
+        client = ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -274,7 +274,7 @@ class TestBuildFindingHistoryFromSiteHistory:
             _build_finding_history_from_site_history(row)
 
 
-class TestBuildFindingHistoryFromSiteAttachments:
+class TestBuildFindingHistoryFromSiteAttachmentsOut:
     def test_builds_finding_history_from_nested_row_objects(self) -> None:
         result = _build_finding_history_from_site_attachments(site_attachment_row())
 
@@ -307,7 +307,7 @@ class TestBuildFindingHistoryFromSiteAttachments:
             _build_finding_history_from_site_attachments(row)
 
 
-class TestFormatSiteAttachments:
+class TestFormatSiteAttachmentsOut:
     def test_creates_site_attachments_with_finding_link(self) -> None:
         result = _format_site_attachments([site_attachment_row()])
 

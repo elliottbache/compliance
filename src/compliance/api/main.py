@@ -6,10 +6,10 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
-    CertificationOutput,
-    ClientInfo,
-    SiteAttachments,
-    SiteOutput,
+    CertificationOut,
+    ClientInOut,
+    SiteAttachmentsOut,
+    SiteOut,
 )
 from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
@@ -28,7 +28,7 @@ SessionDep = Annotated[Session, Depends(get_db)]
 
 
 @app.get("/sites/{site_id}")
-def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOutput:
+def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOut:
     """Return one site by ID.
 
     Args:
@@ -47,13 +47,13 @@ def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOutput:
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
-    return SiteOutput.model_validate(site)
+    return SiteOut.model_validate(site)
 
 
 @app.get("/certifications/{certification_id}")
 def get_certification_by_id_route(
     certification_id: int, session: SessionDep
-) -> CertificationOutput:
+) -> CertificationOut:
     """Return one certification by ID.
 
     Args:
@@ -73,7 +73,7 @@ def get_certification_by_id_route(
             detail=f"No certification for this id found: {certification_id}",
         )
 
-    return CertificationOutput.model_validate(certification)
+    return CertificationOut.model_validate(certification)
 
 
 @app.get("/sites/{site_id}/history")
@@ -103,7 +103,7 @@ def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHisto
 @app.get("/sites/{site_id}/attachments")
 def get_site_attachments_by_id_route(
     site_id: int, session: SessionDep
-) -> SiteAttachments:
+) -> SiteAttachmentsOut:
     """Return attachment details for one site by ID.
 
     Args:
@@ -124,11 +124,11 @@ def get_site_attachments_by_id_route(
             status_code=404, detail=f"No attachments found for site {site_id}"
         )
 
-    return SiteAttachments.model_validate(site_attachments)
+    return SiteAttachmentsOut.model_validate(site_attachments)
 
 
 @app.post("/clients", status_code=201)
-def post_new_client_route(client: ClientInfo, session: SessionDep) -> ClientInfo:
+def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInOut:
     """Create a new client record.
 
     Args:
@@ -146,4 +146,4 @@ def post_new_client_route(client: ClientInfo, session: SessionDep) -> ClientInfo
     if new_client is None:
         raise HTTPException(status_code=409, detail=f"Client was not added: {client}.")
 
-    return ClientInfo.model_validate(new_client)
+    return ClientInOut.model_validate(new_client)

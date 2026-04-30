@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import ClientInfo, SiteAttachments
+from compliance.api.schemas import ClientInOut, SiteAttachmentsOut
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -80,7 +80,7 @@ def get_site_history_by_id(site_id: int, session: Session) -> SiteHistory | None
 
 def get_site_attachments_by_id(
     site_id: int, session: Session
-) -> SiteAttachments | None:
+) -> SiteAttachmentsOut | None:
     """Retrieve attachment records for a site with certification and finding context.
 
     Args:
@@ -114,7 +114,7 @@ def get_site_attachments_by_id(
     return _format_site_attachments(results)
 
 
-def post_new_client(client: ClientInfo, session: Session) -> Client | None:
+def post_new_client(client: ClientInOut, session: Session) -> Client | None:
     """Persist a new client record.
 
     Args:
@@ -213,7 +213,7 @@ def _build_finding_history_from_site_history(row: Mapping) -> FindingHistory:
 
 def _format_site_attachments(
     site_attachment_list: Sequence[Mapping],
-) -> SiteAttachments:
+) -> SiteAttachmentsOut:
     """Aggregate attachment query rows into a site-level attachment response.
 
     Groups rows by attachment and collects linked findings under each attachment
@@ -267,7 +267,7 @@ def _format_site_attachments(
                 _build_finding_history_from_site_attachments(row)
             )
 
-    return SiteAttachments(**site_attachments)
+    return SiteAttachmentsOut(**site_attachments)
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:

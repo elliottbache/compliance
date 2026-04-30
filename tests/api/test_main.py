@@ -39,7 +39,7 @@ class TestGetSiteByIdRoute:
 
         result = main_module.get_site_by_id_route(12, fake_session)
 
-        assert result == main_module.SiteOutput.model_validate(site)
+        assert result == main_module.SiteOut.model_validate(site)
 
     def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
         def fake_get_site_by_id(site_id, session):
@@ -60,7 +60,7 @@ class TestGetSiteByIdRoute:
             if getattr(route, "path", None) == "/sites/{site_id}"
         )
 
-        assert route.response_model is main_module.SiteOutput
+        assert route.response_model is main_module.SiteOut
 
 
 class TestGetCertificationByIdRoute:
@@ -89,7 +89,7 @@ class TestGetCertificationByIdRoute:
 
         result = main_module.get_certification_by_id_route(42, fake_session)
 
-        assert result == main_module.CertificationOutput.model_validate(certification)
+        assert result == main_module.CertificationOut.model_validate(certification)
 
     def test_returns_404_when_certification_is_not_found(
         self, main_module, monkeypatch
@@ -116,7 +116,7 @@ class TestGetCertificationByIdRoute:
             if getattr(route, "path", None) == "/certifications/{certification_id}"
         )
 
-        assert route.response_model is main_module.CertificationOutput
+        assert route.response_model is main_module.CertificationOut
 
 
 class TestGetSiteHistoryByIdRoute:
@@ -172,12 +172,12 @@ class TestGetSiteHistoryByIdRoute:
         assert route.response_model is main_module.SiteHistory
 
 
-class TestGetSiteAttachmentsByIdRoute:
+class TestGetSiteAttachmentsOutByIdRoute:
     def test_returns_site_attachments_when_found(
         self, main_module, monkeypatch
     ) -> None:
         fake_session = object()
-        site_attachments = main_module.SiteAttachments(
+        site_attachments = main_module.SiteAttachmentsOut(
             site_id=12,
             attachments=[],
         )
@@ -222,13 +222,13 @@ class TestGetSiteAttachmentsByIdRoute:
             if getattr(route, "path", None) == "/sites/{site_id}/attachments"
         )
 
-        assert route.response_model is main_module.SiteAttachments
+        assert route.response_model is main_module.SiteAttachmentsOut
 
 
 class TestPostNewClientRoute:
     def test_returns_created_client(self, main_module, monkeypatch) -> None:
         fake_session = object()
-        client = main_module.ClientInfo(
+        client = main_module.ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -250,7 +250,7 @@ class TestPostNewClientRoute:
     def test_returns_409_when_client_is_not_created(
         self, main_module, monkeypatch
     ) -> None:
-        client = main_module.ClientInfo(
+        client = main_module.ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -278,5 +278,5 @@ class TestPostNewClientRoute:
             if getattr(route, "path", None) == "/clients"
         )
 
-        assert route.response_model is main_module.ClientInfo
+        assert route.response_model is main_module.ClientInOut
         assert route.status_code == 201
