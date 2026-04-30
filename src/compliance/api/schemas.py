@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from compliance.schemas import FindingHistory
 
 
-class SiteOutput(BaseModel):
+class SiteOut(BaseModel):
     """Public API response shape for a site record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
@@ -20,7 +20,7 @@ class SiteOutput(BaseModel):
     address_info: str | None
 
 
-class CertificationOutput(BaseModel):
+class CertificationOut(BaseModel):
     """Public API response shape for a certification record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
@@ -34,7 +34,7 @@ class CertificationOutput(BaseModel):
     resolution_date: date | None
 
 
-class AttachmentWithContextOutput(BaseModel):
+class AttachmentWithContextOut(BaseModel):
     """Public API response shape for an attachment record."""
 
     model_config = ConfigDict(frozen=True)
@@ -53,16 +53,16 @@ class AttachmentWithContextOutput(BaseModel):
     finding_links: list[FindingHistory] = Field(default_factory=list)
 
 
-class SiteAttachments(BaseModel):
+class SiteAttachmentsOut(BaseModel):
     """Public API response shape for a site's attachments record."""
 
     model_config = ConfigDict(frozen=True)
 
     site_id: int
-    attachments: list[AttachmentWithContextOutput]
+    attachments: list[AttachmentWithContextOut]
 
 
-class ClientInfo(BaseModel):
+class ClientInOut(BaseModel):
     """Public API input shape for a new client record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
