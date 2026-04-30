@@ -76,8 +76,8 @@ class Regulation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(80), unique=True)
-    description: Mapped[str | None]
-    published_date: Mapped[date | None]
+    description: Mapped[str]
+    published_date: Mapped[date]
 
     regulation_rule_rel: Mapped[list["Rule"]] = relationship(
         back_populates="rule_regulation_rel"
@@ -101,7 +101,7 @@ class Rule(Base):
     regulation_id: Mapped[int] = mapped_column(ForeignKey("regulations.id"))
     rule_index: Mapped[str] = mapped_column(String(10))
     title: Mapped[str | None] = mapped_column(String(80))
-    description: Mapped[str | None]
+    description: Mapped[str]
 
     rule_regulation_rel: Mapped["Regulation"] = relationship(
         back_populates="regulation_rule_rel"
