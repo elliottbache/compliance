@@ -130,7 +130,7 @@ class TestGetCertificationsBySiteId:
             expected_certifications
         )
 
-        result = get_certifications_by_site_id(12, session)
+        result = get_certifications_by_site_id(12, session, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == expected_certifications
@@ -139,7 +139,7 @@ class TestGetCertificationsBySiteId:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        result = get_certifications_by_site_id(999, session)
+        result = get_certifications_by_site_id(999, session, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == []
@@ -150,12 +150,25 @@ class TestGetCertificationsBySiteId:
             MagicMock(spec=Certification)
         ]
 
-        get_certifications_by_site_id(12, session)
+        get_certifications_by_site_id(12, session, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifications.resolution_date DESC, certifications.id" in str(
             stmt
         )
+
+    def test_applies_limit_and_offset_to_query(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = [
+            MagicMock(spec=Certification)
+        ]
+
+        get_certifications_by_site_id(12, session, limit=10, offset=20)
+
+        stmt = session.execute.call_args.args[0]
+        statement_text = str(stmt)
+        assert "LIMIT" in statement_text
+        assert "OFFSET" in statement_text
 
 
 class TestGetSiteHistoryById:

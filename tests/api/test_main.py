@@ -143,9 +143,11 @@ class TestGetCertificationsBySiteIdRoute:
             ),
         ]
 
-        def fake_get_certifications_by_site_id(site_id, session):
+        def fake_get_certifications_by_site_id(site_id, session, limit, offset):
             assert site_id == 12
             assert session is fake_session
+            assert limit is None
+            assert offset == 0
             return certifications
 
         monkeypatch.setattr(
@@ -161,10 +163,32 @@ class TestGetCertificationsBySiteIdRoute:
             for certification in certifications
         ]
 
+    def test_passes_limit_and_offset_to_service(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+
+        def fake_get_certifications_by_site_id(site_id, session, limit, offset):
+            assert site_id == 12
+            assert session is fake_session
+            assert limit == 10
+            assert offset == 20
+            return []
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certifications_by_site_id",
+            fake_get_certifications_by_site_id,
+        )
+
+        result = main_module.get_certifications_by_site_id_route(
+            12, fake_session, limit=10, offset=20
+        )
+
+        assert result == []
+
     def test_returns_empty_list_when_site_has_no_certifications(
         self, main_module, monkeypatch
     ) -> None:
-        def fake_get_certifications_by_site_id(site_id, session):
+        def fake_get_certifications_by_site_id(site_id, session, limit, offset):
             return []
 
         monkeypatch.setattr(
