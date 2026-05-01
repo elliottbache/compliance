@@ -119,6 +119,74 @@ class TestGetCertificationByIdRoute:
         assert route.response_model is main_module.CertificationOut
 
 
+class TestGetCertificationsBySiteIdRoute:
+    def test_returns_certifications_for_site(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        certifications = [
+            SimpleNamespace(
+                id=42,
+                certifier_id=7,
+                regulation_id=3,
+                site_id=12,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=date(2026, 4, 15),
+            ),
+            SimpleNamespace(
+                id=43,
+                certifier_id=8,
+                regulation_id=3,
+                site_id=12,
+                result="Fail",
+                inspection_date=date(2026, 5, 1),
+                resolution_date=None,
+            ),
+        ]
+
+        def fake_get_certifications_by_site_id(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return certifications
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certifications_by_site_id",
+            fake_get_certifications_by_site_id,
+        )
+
+        result = main_module.get_certifications_by_site_id_route(12, fake_session)
+
+        assert result == [
+            main_module.CertificationOut.model_validate(certification)
+            for certification in certifications
+        ]
+
+    def test_returns_empty_list_when_site_has_no_certifications(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_certifications_by_site_id(site_id, session):
+            return []
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certifications_by_site_id",
+            fake_get_certifications_by_site_id,
+        )
+
+        result = main_module.get_certifications_by_site_id_route(999, object())
+
+        assert result == []
+
+    def test_registers_certification_list_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/certifications"
+        )
+
+        assert route.response_model == list[main_module.CertificationOut]
+
+
 class TestGetSiteHistoryByIdRoute:
     def test_returns_site_history_when_found(self, main_module, monkeypatch) -> None:
         fake_session = object()

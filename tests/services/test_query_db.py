@@ -14,6 +14,7 @@ from compliance.services.query_db import (
     _format_site_attachments,
     _format_site_history,
     get_certification_by_id,
+    get_certifications_by_site_id,
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
@@ -116,6 +117,45 @@ class TestGetCertificationById:
 
         session.get.assert_called_once_with(Certification, 999)
         assert result is None
+
+
+class TestGetCertificationsBySiteId:
+    def test_returns_certifications_for_site(self) -> None:
+        session = MagicMock()
+        expected_certifications = [
+            MagicMock(spec=Certification),
+            MagicMock(spec=Certification),
+        ]
+        session.execute.return_value.scalars.return_value.all.return_value = (
+            expected_certifications
+        )
+
+        result = get_certifications_by_site_id(12, session)
+
+        session.execute.assert_called_once()
+        assert result == expected_certifications
+
+    def test_returns_empty_list_when_site_has_no_certifications(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        result = get_certifications_by_site_id(999, session)
+
+        session.execute.assert_called_once()
+        assert result == []
+
+    def test_orders_certifications_by_resolution_date_desc_then_id(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = [
+            MagicMock(spec=Certification)
+        ]
+
+        get_certifications_by_site_id(12, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "ORDER BY certifications.resolution_date DESC, certifications.id" in str(
+            stmt
+        )
 
 
 class TestGetSiteHistoryById:
