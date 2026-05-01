@@ -5,12 +5,14 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import ClientInOut
+from compliance.api.schemas import ClientInOut, FindingOut
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services.query_db import (
     _build_finding_history_from_site_attachments,
     _build_finding_history_from_site_history,
+    _build_finding_out,
+    _format_findings,
     _format_site_attachments,
     _format_site_history,
     get_certification_by_id,
@@ -68,6 +70,31 @@ def site_attachment_row(**overrides):
         ),
         "FindingAttachment": MagicMock(),
         "Rule": SimpleNamespace(
+            rule_index="7 CFR 205.201",
+            title="Organic plan",
+            description="Producer must maintain an organic system plan.",
+        ),
+    }
+    row.update(overrides)
+    return row
+
+
+def finding_row(**overrides):
+    row = {
+        "Finding": SimpleNamespace(
+            id=1,
+            finding="Missing document",
+        ),
+        "Certification": SimpleNamespace(
+            id=100,
+            site_id=71,
+            resolution_date=date(2026, 4, 15),
+        ),
+        "Regulation": SimpleNamespace(
+            title="USDA Organic",
+        ),
+        "Rule": SimpleNamespace(
+            id=5,
             rule_index="7 CFR 205.201",
             title="Organic plan",
             description="Producer must maintain an organic system plan.",
@@ -358,6 +385,98 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
 
         with pytest.raises(KeyError, match="rule_description"):
             _build_finding_history_from_site_attachments(row)
+
+
+class TestFormatFindings:
+    def test_formats_finding_rows(self) -> None:
+        rows = [
+            finding_row(),
+            finding_row(
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    id=6,
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_findings(rows)
+
+        assert result == [
+            FindingOut(
+                finding_id=1,
+                finding="Missing document",
+                site_id=71,
+                certification_id=100,
+                certification_title="USDA Organic",
+                certification_resolution_date=date(2026, 4, 15),
+                rule_id=5,
+                rule_index="7 CFR 205.201",
+                rule_title="Organic plan",
+                rule_description="Producer must maintain an organic system plan.",
+            ),
+            FindingOut(
+                finding_id=2,
+                finding="Incomplete record",
+                site_id=71,
+                certification_id=100,
+                certification_title="USDA Organic",
+                certification_resolution_date=date(2026, 4, 15),
+                rule_id=6,
+                rule_index="7 CFR 205.202",
+                rule_title="Land requirements",
+                rule_description="Land must meet organic requirements.",
+            ),
+        ]
+
+    def test_returns_empty_list_when_rows_are_empty(self) -> None:
+        assert _format_findings([]) == []
+
+
+class TestBuildFindingOut:
+    def test_builds_finding_output_from_nested_row_objects(self) -> None:
+        result = _build_finding_out(finding_row())
+
+        assert result == FindingOut(
+            finding_id=1,
+            finding="Missing document",
+            site_id=71,
+            certification_id=100,
+            certification_title="USDA Organic",
+            certification_resolution_date=date(2026, 4, 15),
+            rule_id=5,
+            rule_index="7 CFR 205.201",
+            rule_title="Organic plan",
+            rule_description="Producer must maintain an organic system plan.",
+        )
+
+    def test_raises_key_error_when_required_row_object_is_missing(self) -> None:
+        row = finding_row()
+        del row["Certification"]
+
+        with pytest.raises(KeyError, match="Missing finding output fields"):
+            _build_finding_out(row)
+
+    def test_raises_key_error_when_regulation_is_missing(self) -> None:
+        row = finding_row()
+        del row["Regulation"]
+
+        with pytest.raises(KeyError, match="certification_title"):
+            _build_finding_out(row)
+
+    def test_raises_key_error_when_required_rule_field_is_missing(self) -> None:
+        row = finding_row(
+            Rule=SimpleNamespace(
+                id=5,
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+            )
+        )
+
+        with pytest.raises(KeyError, match="rule_description"):
+            _build_finding_out(row)
 
 
 class TestFormatSiteAttachmentsOut:

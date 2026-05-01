@@ -72,3 +72,20 @@ class ClientInOut(BaseModel):
     contact_name: str
     email: str | None
     telephone: int | None
+
+
+class FindingOut(BaseModel):
+    """Public API output shape for a finding record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    finding_id: int
+    finding: str
+    site_id: int
+    certification_id: int
+    certification_title: str
+    certification_resolution_date: date
+    rule_id: int
+    rule_index: str
+    rule_title: str | None
+    rule_description: str
