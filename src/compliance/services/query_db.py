@@ -114,6 +114,28 @@ def get_site_attachments_by_id(
     return _format_site_attachments(results)
 
 
+def get_certifications_by_site_id(
+    site_id: int, session: Session
+) -> list[Certification]:
+    """Retrieve certifications for one site ordered by latest resolution date.
+
+    Args:
+        site_id: Unique identifier of the site whose certifications should be
+            retrieved.
+        session: Database session used to execute the certification query.
+
+    Returns:
+        A list of certification ORM objects ordered by resolution date
+        descending and then ID, or [] if no matching certifications exist.
+    """
+    stmt = (
+        select(Certification)
+        .where(Certification.site_id == site_id)
+        .order_by(Certification.resolution_date.desc(), Certification.id)
+    )
+    return list(session.execute(stmt).scalars().all())
+
+
 def post_new_client(client: ClientInOut, session: Session) -> Client | None:
     """Persist a new client record.
 

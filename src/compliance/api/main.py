@@ -15,6 +15,7 @@ from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
     get_certification_by_id,
+    get_certifications_by_site_id,
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
@@ -147,3 +148,23 @@ def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInO
         raise HTTPException(status_code=409, detail=f"Client was not added: {client}.")
 
     return ClientInOut.model_validate(new_client)
+
+
+@app.get("/certifications")
+def get_certifications_by_site_id_route(
+    site_id: int, session: SessionDep
+) -> list[CertificationOut]:
+    """Return certifications for one site.
+
+    Args:
+        site_id: Unique identifier for the site whose certifications should be
+            retrieved.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Certifications serialized with the public API response schema or [] if no
+        certifications were found for this site_id.
+    """
+    results = get_certifications_by_site_id(site_id, session)
+
+    return [CertificationOut.model_validate(row) for row in results]
