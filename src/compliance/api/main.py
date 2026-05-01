@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from compliance.api.schemas import (
     CertificationOut,
     ClientInOut,
+    FindingOut,
     SiteAttachmentsOut,
     SiteOut,
 )
@@ -16,6 +17,7 @@ from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
     get_certification_by_id,
     get_certifications_by_site_id,
+    get_findings,
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
@@ -172,3 +174,26 @@ def get_certifications_by_site_id_route(
     results = get_certifications_by_site_id(site_id, session, limit, offset)
 
     return [CertificationOut.model_validate(row) for row in results]
+
+
+@app.get("/findings")
+def get_findings_route(
+    session: SessionDep,
+    site_id: int | None = None,
+    rule_id: int | None = None,
+    open_only: bool = False,
+) -> list[FindingOut]:
+    """Return findings with optional filters.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        site_id: Optional site identifier used to limit findings to one site.
+        rule_id: Optional rule identifier used to limit findings to one rule.
+        open_only: When true, only return findings whose certification has no
+            resolution date.
+
+    Returns:
+        Finding records serialized with certification, regulation, and rule
+        context.
+    """
+    return get_findings(session, site_id, rule_id, open_only)
