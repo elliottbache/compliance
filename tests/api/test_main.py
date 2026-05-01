@@ -100,6 +100,29 @@ def site_history_factory():
     return _site_history
 
 
+@pytest.fixture
+def certifications_factory():
+    def _certifications(count=1, **overrides):
+        certifications = []
+        for i in range(count):
+            # Base data for a single certification
+            cert = SimpleNamespace(
+                id=100 + i,
+                certifier_id=200,
+                regulation_id=300,
+                site_id=12,
+                result="Certified",
+                inspection_date=date(2023, 10, 15),
+                resolution_date=date(2023, 10, 20),
+            )
+            # Apply overrides to every item in the list
+            cert.__dict__.update(**overrides)
+            certifications.append(cert)
+        return certifications
+
+    return _certifications
+
+
 def site_history_row(**overrides):
     row = {
         "site_id": 71,
@@ -283,6 +306,74 @@ class TestGetCertificationByIdRoute:
 
 
 class TestGetCertificationsBySiteIdRoute:
+    # TestClient
+    def test_client_returns_certifications_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, certifications_factory
+    ):
+
+        def fake_get_certifications_by_site_id(site_id, session, limit, offset):
+            assert site_id == 12
+            assert session is mock_db
+            return certifications_factory(2)
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certifications_by_site_id",
+            fake_get_certifications_by_site_id,
+        )
+
+        response = client.get("/certifications?site_id=12")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": 100,
+                "certifier_id": 200,
+                "regulation_id": 300,
+                "site_id": 12,
+                "result": "Certified",
+                "inspection_date": "2023-10-15",
+                "resolution_date": "2023-10-20",
+            },
+            {
+                "id": 101,
+                "certifier_id": 200,
+                "regulation_id": 300,
+                "site_id": 12,
+                "result": "Certified",
+                "inspection_date": "2023-10-15",
+                "resolution_date": "2023-10-20",
+            },
+        ]
+
+    def test_client_returns_empty_list_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        fake_site = []
+
+        def fake_get_certifications_by_site_id(site_id, session, limit, offset):
+            assert site_id == 999
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certifications_by_site_id",
+            fake_get_certifications_by_site_id,
+        )
+
+        response = client.get("/certifications?site_id=999")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+
+        response = client.get("/certifications?site_id=not-an-int")
+
+        assert response.status_code == 422
+
+    # unittests
     def test_returns_certifications_for_site(self, main_module, monkeypatch) -> None:
         fake_session = object()
         certifications = [
@@ -375,7 +466,6 @@ class TestGetCertificationsBySiteIdRoute:
 
 
 class TestGetSiteHistoryByIdRoute:
-
     # TestClient
     def test_client_returns_site_history_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_history_factory
