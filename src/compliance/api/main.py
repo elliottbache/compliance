@@ -152,7 +152,7 @@ def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInO
 
 @app.get("/certifications")
 def get_certifications_by_site_id_route(
-    site_id: int, session: SessionDep
+    site_id: int, session: SessionDep, limit: int | None = None, offset: int = 0
 ) -> list[CertificationOut]:
     """Return certifications for one site.
 
@@ -160,11 +160,15 @@ def get_certifications_by_site_id_route(
         site_id: Unique identifier for the site whose certifications should be
             retrieved.
         session: Database session provided by FastAPI dependency injection.
+        limit: Maximum number of certifications to return. If omitted, all
+            matching certifications are returned.
+        offset: Number of matching certifications to skip before returning
+            results.
 
     Returns:
         Certifications serialized with the public API response schema or [] if no
         certifications were found for this site_id.
     """
-    results = get_certifications_by_site_id(site_id, session)
+    results = get_certifications_by_site_id(site_id, session, limit, offset)
 
     return [CertificationOut.model_validate(row) for row in results]

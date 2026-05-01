@@ -115,7 +115,7 @@ def get_site_attachments_by_id(
 
 
 def get_certifications_by_site_id(
-    site_id: int, session: Session
+    site_id: int, session: Session, limit: int | None, offset: int
 ) -> list[Certification]:
     """Retrieve certifications for one site ordered by latest resolution date.
 
@@ -123,6 +123,10 @@ def get_certifications_by_site_id(
         site_id: Unique identifier of the site whose certifications should be
             retrieved.
         session: Database session used to execute the certification query.
+        limit: Maximum number of certifications to return. If ``None``, all
+            matching certifications are returned.
+        offset: Number of matching certifications to skip before returning
+            results.
 
     Returns:
         A list of certification ORM objects ordered by resolution date
@@ -132,6 +136,8 @@ def get_certifications_by_site_id(
         select(Certification)
         .where(Certification.site_id == site_id)
         .order_by(Certification.resolution_date.desc(), Certification.id)
+        .limit(limit)
+        .offset(offset)
     )
     return list(session.execute(stmt).scalars().all())
 
