@@ -40,6 +40,7 @@ dev = [
   "codespell==2.4.1",
   "pytest-cov",
   "spacy",
+  "httpx",
 ]
 
 [project.scripts]

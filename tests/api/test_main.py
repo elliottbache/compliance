@@ -1,9 +1,11 @@
 from datetime import date
 from importlib import import_module
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -16,7 +18,102 @@ def main_module(monkeypatch):
     return import_module("compliance.api.main")
 
 
+@pytest.fixture
+def client(main_module):
+    return TestClient(main_module.app)
+
+
+@pytest.fixture
+def mock_db(main_module):
+    mock = MagicMock()
+
+    def _get_db():
+        yield mock
+
+    main_module.app.dependency_overrides[main_module.get_db] = _get_db
+    yield mock
+    main_module.app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def site_factory():
+    def _site(**overrides):
+        site = SimpleNamespace(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+        site.__dict__.update(**overrides)
+        return site
+
+    return _site
+
+
 class TestGetSiteByIdRoute:
+    # TestClient
+    def test_client_returns_site_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_factory
+    ):
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_factory()
+
+        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/12")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "id": 12,
+            "nif": "A1234567B",
+            "city": "Madrid",
+            "postal_code": 28013,
+            "street": "Gran Via",
+            "street_number": None,
+            "suite": None,
+            "address_info": "Main entrance",
+        }
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        fake_site = None
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/999")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site for this id found: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(
+        self, main_module, client, mock_db, monkeypatch, site_factory
+    ):
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_factory()
+
+        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/not-an-int")
+
+        assert response.status_code == 422
+
+    # unittests
     def test_returns_site_when_found(self, main_module, monkeypatch) -> None:
         fake_session = object()
         site = SimpleNamespace(

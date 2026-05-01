@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
@@ -154,7 +154,10 @@ def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInO
 
 @app.get("/certifications")
 def get_certifications_by_site_id_route(
-    site_id: int, session: SessionDep, limit: int | None = None, offset: int = 0
+    site_id: int,
+    session: SessionDep,
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CertificationOut]:
     """Return certifications for one site.
 
