@@ -7,6 +7,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+
 
 @pytest.fixture
 def main_module(monkeypatch):
@@ -52,6 +54,70 @@ def site_factory():
         return site
 
     return _site
+
+
+@pytest.fixture
+def site_history_factory():
+    def _site_history(**overrides):
+        site_history = SiteHistory(
+            site_id=101,
+            inspection_count=2,
+            latest_inspection_date=date(2023, 11, 5),
+            certifications=[
+                CertificationHistory(
+                    cert_id=5001,
+                    result="Certified",
+                    resolution_date=date(2023, 10, 20),
+                    reg_title="Fire Safety 2023",
+                    reg_description="Standard fire safety regulations for commercial buildings.",
+                    certifier_org_name="SafeCheck Inc.",
+                    inspection_date=date(2023, 10, 15),
+                    findings=[
+                        FindingHistory(
+                            finding_id=901,
+                            finding="Extinguisher pressure low",
+                            rule_index="FS-101",
+                            rule_title="Equipment Maintenance",
+                            rule_description="Extinguishers must be within safe pressure limits.",
+                        )
+                    ],
+                ),
+                CertificationHistory(
+                    cert_id=5002,
+                    result=None,
+                    resolution_date=None,
+                    reg_title="Electrical Safety",
+                    reg_description="General electrical standards.",
+                    certifier_org_name="VoltGuard",
+                    inspection_date=date(2023, 11, 5),
+                    findings=[],
+                ),
+            ],
+        )
+        site_history.__dict__.update(**overrides)
+        return site_history
+
+    return _site_history
+
+
+def site_history_row(**overrides):
+    row = {
+        "site_id": 71,
+        "cert_id": 100,
+        "result": "Pass",
+        "resolution_date": None,
+        "reg_title": "USDA Organic",
+        "reg_description": "Organic certification",
+        "certifier_org_name": "Org A",
+        "inspection_date": date(2026, 4, 1),
+        "finding_id": 1,
+        "finding": "Missing document",
+        "rule_index": "7 CFR 205.201",
+        "rule_title": "Organic plan",
+        "rule_description": "Producer must maintain an organic system plan.",
+    }
+    row.update(overrides)
+    return row
 
 
 class TestGetSiteByIdRoute:
@@ -309,6 +375,97 @@ class TestGetCertificationsBySiteIdRoute:
 
 
 class TestGetSiteHistoryByIdRoute:
+
+    # TestClient
+    def test_client_returns_site_history_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_history_factory
+    ):
+
+        def fake_get_site_history_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_history_factory()
+
+        monkeypatch.setattr(
+            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+        )
+
+        response = client.get("/sites/12/history")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "site_id": 101,
+            "certifications": [
+                {
+                    "cert_id": 5001,
+                    "result": "Certified",
+                    "resolution_date": "2023-10-20",
+                    "reg_title": "Fire Safety 2023",
+                    "reg_description": "Standard fire safety regulations for commercial buildings.",
+                    "certifier_org_name": "SafeCheck Inc.",
+                    "inspection_date": "2023-10-15",
+                    "findings": [
+                        {
+                            "finding_id": 901,
+                            "finding": "Extinguisher pressure low",
+                            "rule_index": "FS-101",
+                            "rule_title": "Equipment Maintenance",
+                            "rule_description": "Extinguishers must be within safe pressure limits.",
+                        }
+                    ],
+                },
+                {
+                    "cert_id": 5002,
+                    "result": None,
+                    "resolution_date": None,
+                    "reg_title": "Electrical Safety",
+                    "reg_description": "General electrical standards.",
+                    "certifier_org_name": "VoltGuard",
+                    "inspection_date": "2023-11-05",
+                    "findings": [],
+                },
+            ],
+            "inspection_count": 2,
+            "latest_inspection_date": "2023-11-05",
+        }
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        fake_site = None
+
+        def fake_get_site_history_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(
+            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+        )
+
+        response = client.get("/sites/999/history")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site history found for this id: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(
+        self, main_module, client, mock_db, monkeypatch, site_history_factory
+    ):
+
+        def fake_get_site_history_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_history_factory()
+
+        monkeypatch.setattr(
+            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+        )
+
+        response = client.get("/sites/not-an-int/history")
+
+        assert response.status_code == 422
+
+    # unittests
     def test_returns_site_history_when_found(self, main_module, monkeypatch) -> None:
         fake_session = object()
         site_history = main_module.SiteHistory(
