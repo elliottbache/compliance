@@ -123,6 +123,22 @@ def certifications_factory():
     return _certifications
 
 
+@pytest.fixture
+def client_factory():
+    def _client(**overrides):
+        client = SimpleNamespace(
+            nif="A1234567B",
+            company_name="Acme Corp",
+            contact_name="John Doe",
+            email="john.doe@acme.com",
+            telephone=5550123,
+        )
+        client.__dict__.update(**overrides)
+        return client
+
+    return _client
+
+
 def site_history_row(**overrides):
     row = {
         "site_id": 71,
@@ -662,6 +678,54 @@ class TestGetSiteAttachmentsOutByIdRoute:
 
 
 class TestPostNewClientRoute:
+    # TestClient
+    def test_client_returns_client_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, client_factory
+    ):
+
+        def fake_post_new_client(client, session):
+            assert client.nif == "A1234567B"
+            assert client.company_name == "Acme Corp"
+            assert session is mock_db
+            return client_factory()
+
+        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+
+        response = client.post("/clients", json=vars(client_factory()))
+
+        assert response.status_code == 201
+        assert response.json() == {
+            "nif": "A1234567B",
+            "company_name": "Acme Corp",
+            "contact_name": "John Doe",
+            "email": "john.doe@acme.com",
+            "telephone": 5550123,
+        }
+
+    def test_client_returns_409_when_client_already_exists(
+        self, main_module, client, mock_db, monkeypatch, client_factory
+    ):
+        fake_site = None
+
+        def fake_post_new_client(client, session):
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+
+        response = client.post("/clients", json=vars(client_factory()))
+
+        assert response.status_code == 409
+        assert response.json()["detail"].startswith("Client was not added: ")
+
+    def test_client_returns_422_when_client_is_invalid(
+        self, main_module, client, mock_db, monkeypatch, client_factory
+    ):
+        response = client.post("/clients", json=vars(client_factory(nif=12)))
+
+        assert response.status_code == 422
+
+    # unittests
     def test_returns_created_client(self, main_module, monkeypatch) -> None:
         fake_session = object()
         client = main_module.ClientInOut(
