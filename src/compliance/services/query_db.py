@@ -5,7 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from compliance.api.schemas import ClientInOut, FindingOut, SiteAttachmentsOut
+from compliance.api.schemas import (
+    AttachmentWithContextOut,
+    CertificationAttachmentsOut,
+    ClientInOut,
+    FindingOut,
+    SiteAttachmentsOut,
+)
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -142,6 +148,58 @@ def get_certifications_by_site_id(
     return list(session.execute(stmt).scalars().all())
 
 
+def get_certification_attachments_by_id(
+    certification_id: int, session: Session
+) -> CertificationAttachmentsOut | None:
+    """Retrieve attachment records for one certification.
+
+    Checks that the certification exists before querying its attachments so a
+    missing certification can be distinguished from an existing certification
+    with no attachment records.
+
+    Args:
+        certification_id: Unique identifier of the certification whose
+            attachments should be retrieved.
+        session: Database session used to check the certification and execute
+            the attachment query.
+
+    Returns:
+        A formatted attachment collection for the certification, an empty
+        attachment collection if the certification exists without attachments,
+        or ``None`` if no matching certification exists.
+    """
+    # check if certification exists
+    certification = session.get(Certification, certification_id)
+    if certification is None:
+        return None
+
+    # get attachments for certification
+    stmt = (
+        select(
+            Attachment,
+            Certification,
+            Regulation,
+            FindingAttachment,
+            Finding,
+            Rule,
+        )
+        .where(Certification.id == certification_id)
+        .join(Attachment.attachment_certification_rel)
+        .join(Certification.certification_regulation_rel)
+        .outerjoin(Attachment.attachment_finding_attachment_rel)
+        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
+        .outerjoin(Finding.finding_rule_rel)
+        .order_by(Attachment.id, Finding.id)
+    )
+    results = session.execute(stmt).mappings().all()
+    if results == []:
+        return CertificationAttachmentsOut.model_validate(
+            {"certification_id": certification_id, "attachments": []}
+        )
+    else:
+        return _format_certification_attachments(results)
+
+
 def get_findings(
     session: Session, site_id: int | None, rule_id: int | None, open_only: bool
 ) -> list[FindingOut]:
@@ -179,6 +237,39 @@ def get_findings(
     results = session.execute(stmt).mappings().all()
 
     return _format_findings(results)
+
+
+def get_attachment_by_id(
+    attachment_id: int, session: Session
+) -> AttachmentWithContextOut | None:
+    """Retrieve one attachment with certification, regulation, and finding context.
+
+    Args:
+        attachment_id: Unique identifier of the attachment to retrieve.
+        session: Database session used to execute the attachment query.
+
+    Returns:
+        A formatted attachment response containing certification, regulation,
+        and linked finding context, or ``None`` if no matching attachment exists.
+    """
+    stmt = (
+        select(
+            Attachment,
+            Certification,
+            Regulation,
+            FindingAttachment,
+            Finding,
+            Rule,
+        )
+        .where(Attachment.id == attachment_id)
+        .join(Attachment.attachment_certification_rel)
+        .join(Certification.certification_regulation_rel)
+        .outerjoin(Attachment.attachment_finding_attachment_rel)
+        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
+        .outerjoin(Finding.finding_rule_rel)
+    )
+    rows = session.execute(stmt).mappings().all()
+    return None if not rows else _format_attachment(rows)
 
 
 def post_new_client(client: ClientInOut, session: Session) -> Client | None:
@@ -300,20 +391,107 @@ def _format_site_attachments(
         ValueError: If the first attachment row is empty.
     """
 
-    first_row = next(iter(site_attachment_list))
+    it = iter(site_attachment_list)
+    try:
+        first_row = next(it)
+    except StopIteration:
+        raise StopIteration("site_attachment_list is empty") from None
+
     if not first_row:
         raise ValueError(f"First attachment row is empty: {site_attachment_list}")
 
-    attachments_by_id: dict[int, dict[str, Any]] = {}
-    site_attachments = {
-        "site_id": first_row["Certification"].site_id,
-        "attachments": list(),
-    }
+    # 1. Group all rows by their Attachment ID
+    rows_by_attachment: dict[int, list[Mapping]] = {}
     for row in site_attachment_list:
-        attachment_id = row["Attachment"].id
-        attachment_dict = attachments_by_id.get(attachment_id)
+        aid = row["Attachment"].id
+        if aid not in rows_by_attachment:
+            rows_by_attachment[aid] = []
+        rows_by_attachment[aid].append(row)
 
-        if attachment_dict is None:
+    # 2. Process each group using the single-attachment formatter
+    # We maintain the order of appearance by iterating over the original list
+    # or just use the grouped values.
+    formatted_attachments = [
+        _format_attachment(rows) for rows in rows_by_attachment.values()
+    ]
+
+    return SiteAttachmentsOut(
+        site_id=first_row["Certification"].site_id, attachments=formatted_attachments
+    )
+
+
+def _format_certification_attachments(
+    certification_attachment_list: Sequence[Mapping],
+) -> CertificationAttachmentsOut:
+    """Aggregate attachment query rows into a certification-level response.
+
+    Groups rows by attachment and collects linked findings under each
+    attachment so repeated attachment rows do not produce duplicate attachment
+    records.
+
+    Args:
+        certification_attachment_list: Rows from the certification attachment
+            query containing attachment, certification, regulation, finding,
+            link, and rule objects.
+
+    Returns:
+        A certification attachment response containing unique attachments and
+        their finding links.
+
+    Raises:
+        StopIteration: If ``certification_attachment_list`` is empty.
+        ValueError: If the first attachment row is empty.
+    """
+
+    it = iter(certification_attachment_list)
+    try:
+        first_row = next(it)
+    except StopIteration:
+        raise StopIteration("certification_attachment_list is empty") from None
+
+    if not first_row:
+        raise ValueError(
+            f"First attachment row is empty: {certification_attachment_list}"
+        )
+
+    # 1. Group all rows by their Attachment ID
+    rows_by_attachment: dict[int, list[Mapping]] = {}
+    for row in certification_attachment_list:
+        aid = row["Attachment"].id
+        if aid not in rows_by_attachment:
+            rows_by_attachment[aid] = []
+        rows_by_attachment[aid].append(row)
+
+    # 2. Process each group using the single-attachment formatter
+    # We maintain the order of appearance by iterating over the original list
+    # or just use the grouped values.
+    formatted_attachments = [
+        _format_attachment(rows) for rows in rows_by_attachment.values()
+    ]
+
+    return CertificationAttachmentsOut(
+        certification_id=first_row["Certification"].id,
+        attachments=formatted_attachments,
+    )
+
+
+def _format_attachment(
+    rows: Sequence[Mapping],
+) -> AttachmentWithContextOut:
+    """Aggregate query rows for a single attachment into an attachment response.
+
+    Args:
+        rows: Rows for one attachment containing attachment, certification,
+            regulation, finding-link, finding, and rule objects.
+
+    Returns:
+        A single attachment response with linked findings collected under
+        ``finding_links``.
+    """
+    attachment_dict: dict[str, Any] = dict()
+    for row in rows:
+        attachment_id = row["Attachment"].id
+        if not attachment_dict:
             attachment_dict = {
                 "id": attachment_id,
                 "file_type": row["Attachment"].file_type,
@@ -326,15 +504,13 @@ def _format_site_attachments(
                 "regulation_title": row["Regulation"].title,
                 "finding_links": [],
             }
-            attachments_by_id[attachment_id] = attachment_dict
-            site_attachments["attachments"].append(attachment_dict)
 
         if row["Finding"] is not None:
             attachment_dict["finding_links"].append(
                 _build_finding_history_from_site_attachments(row)
             )
 
-    return SiteAttachmentsOut(**site_attachments)
+    return AttachmentWithContextOut(**attachment_dict)
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:
@@ -414,7 +590,6 @@ def _build_finding_out(row: Mapping) -> FindingOut:
 
 
 if __name__ == "__main__":
-
     from compliance.db.db_access import get_db
 
     session = get_db()

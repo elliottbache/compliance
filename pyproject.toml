@@ -22,6 +22,7 @@ dependencies = [
   "psycopg2-binary",
   "python-dotenv",
   "fastapi",
+  "python-multipart",
 ]
 
 # Optional extras for dev tools

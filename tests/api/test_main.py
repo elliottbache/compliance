@@ -139,6 +139,40 @@ def client_record_factory():
     return _client_record
 
 
+@pytest.fixture
+def attachment_factory():
+    def _attachment(**overrides):
+        attachment = {
+            "id": 50,
+            "file_type": "pdf",
+            "file_path": "dummy/evidence.pdf",
+            "description": "Inspection evidence",
+            "uploaded_at": date(2026, 4, 3),
+            "certification_id": 100,
+            "inspection_date": date(2026, 4, 1),
+            "regulation_id": 5,
+            "regulation_title": "USDA Organic",
+            "finding_links": [],
+        }
+        attachment.update(overrides)
+        return attachment
+
+    return _attachment
+
+
+@pytest.fixture
+def certification_attachments_factory(attachment_factory):
+    def _certification_attachments(**overrides):
+        certification_attachments = {
+            "certification_id": 100,
+            "attachments": [attachment_factory()],
+        }
+        certification_attachments.update(overrides)
+        return certification_attachments
+
+    return _certification_attachments
+
+
 def site_history_row(**overrides):
     row = {
         "site_id": 71,
@@ -164,7 +198,6 @@ class TestGetSiteByIdRoute:
     def test_client_returns_site_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_factory
     ):
-
         def fake_get_site_by_id(site_id, session):
             assert site_id == 12
             assert session is mock_db
@@ -206,7 +239,6 @@ class TestGetSiteByIdRoute:
     def test_client_returns_422_when_site_id_is_not_an_int(
         self, main_module, client, mock_db, monkeypatch, site_factory
     ):
-
         def fake_get_site_by_id(site_id, session):
             assert site_id == 12
             assert session is mock_db
@@ -326,7 +358,6 @@ class TestGetCertificationsBySiteIdRoute:
     def test_client_returns_certifications_json_when_found(
         self, main_module, client, mock_db, monkeypatch, certifications_factory
     ):
-
         def fake_get_certifications_by_site_id(site_id, session, limit, offset):
             assert site_id == 12
             assert session is mock_db
@@ -384,7 +415,6 @@ class TestGetCertificationsBySiteIdRoute:
         assert response.json() == []
 
     def test_client_returns_422_when_site_id_is_not_an_int(self, client):
-
         response = client.get("/certifications?site_id=not-an-int")
 
         assert response.status_code == 422
@@ -486,7 +516,6 @@ class TestGetSiteHistoryByIdRoute:
     def test_client_returns_site_history_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_history_factory
     ):
-
         def fake_get_site_history_by_id(site_id, session):
             assert site_id == 12
             assert session is mock_db
@@ -557,7 +586,6 @@ class TestGetSiteHistoryByIdRoute:
     def test_client_returns_422_when_site_id_is_not_an_int(
         self, main_module, client, mock_db, monkeypatch, site_history_factory
     ):
-
         def fake_get_site_history_by_id(site_id, session):
             assert site_id == 12
             assert session is mock_db
@@ -677,12 +705,296 @@ class TestGetSiteAttachmentsOutByIdRoute:
         assert route.response_model is main_module.SiteAttachmentsOut
 
 
+class TestGetCertificationAttachmentsByIdRoute:
+    def test_client_returns_certification_attachments_json_when_found(
+        self,
+        main_module,
+        client,
+        mock_db,
+        monkeypatch,
+        certification_attachments_factory,
+    ):
+        def fake_get_certification_attachments_by_id(certification_id, session):
+            assert certification_id == 100
+            assert session is mock_db
+            return certification_attachments_factory()
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        response = client.get("/certifications/100/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "certification_id": 100,
+            "attachments": [
+                {
+                    "id": 50,
+                    "file_type": "pdf",
+                    "file_path": "dummy/evidence.pdf",
+                    "description": "Inspection evidence",
+                    "uploaded_at": "2026-04-03",
+                    "certification_id": 100,
+                    "inspection_date": "2026-04-01",
+                    "regulation_id": 5,
+                    "regulation_title": "USDA Organic",
+                    "finding_links": [],
+                }
+            ],
+        }
+
+    def test_client_returns_empty_attachment_list_when_certification_has_none(
+        self,
+        main_module,
+        client,
+        mock_db,
+        monkeypatch,
+        certification_attachments_factory,
+    ):
+        def fake_get_certification_attachments_by_id(certification_id, session):
+            assert certification_id == 100
+            assert session is mock_db
+            return certification_attachments_factory(attachments=[])
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        response = client.get("/certifications/100/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == {"certification_id": 100, "attachments": []}
+
+    def test_client_returns_404_when_certification_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_certification_attachments_by_id(certification_id, session):
+            assert certification_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        response = client.get("/certifications/999/attachments")
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "detail": "No attachments found for certification 999"
+        }
+
+    def test_client_returns_422_when_certification_id_is_not_an_int(self, client):
+        response = client.get("/certifications/not-an-int/attachments")
+
+        assert response.status_code == 422
+
+    def test_returns_certification_attachments_when_found(
+        self,
+        main_module,
+        monkeypatch,
+        certification_attachments_factory,
+    ) -> None:
+        fake_session = object()
+
+        def fake_get_certification_attachments_by_id(certification_id, session):
+            assert certification_id == 100
+            assert session is fake_session
+            return certification_attachments_factory()
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        result = main_module.get_certification_attachments_by_id_route(
+            100, fake_session
+        )
+
+        assert result == main_module.CertificationAttachmentsOut.model_validate(
+            certification_attachments_factory()
+        )
+
+    def test_returns_404_when_certification_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_certification_attachments_by_id(certification_id, session):
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.get_certification_attachments_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No attachments found for certification 999"
+
+    def test_registers_certification_attachments_response_model(
+        self, main_module
+    ) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None)
+            == "/certifications/{certification_id}/attachments"
+        )
+
+        assert route.response_model is main_module.CertificationAttachmentsOut
+
+
+class TestGetAttachmentByIdRoute:
+    def test_client_returns_attachment_without_findings(
+        self, main_module, client, mock_db, monkeypatch, attachment_factory
+    ):
+        def fake_get_attachment_by_id(attachment_id, session):
+            assert attachment_id == 50
+            assert session is mock_db
+            return attachment_factory()
+
+        monkeypatch.setattr(
+            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+        )
+
+        response = client.get("/attachments/50")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "id": 50,
+            "file_type": "pdf",
+            "file_path": "dummy/evidence.pdf",
+            "description": "Inspection evidence",
+            "uploaded_at": "2026-04-03",
+            "certification_id": 100,
+            "inspection_date": "2026-04-01",
+            "regulation_id": 5,
+            "regulation_title": "USDA Organic",
+            "finding_links": [],
+        }
+
+    def test_client_returns_attachment_with_two_findings(
+        self, main_module, client, mock_db, monkeypatch, attachment_factory
+    ):
+        def fake_get_attachment_by_id(attachment_id, session):
+            assert attachment_id == 50
+            assert session is mock_db
+            return attachment_factory(
+                finding_links=[
+                    {
+                        "finding_id": 1,
+                        "finding": "Missing document",
+                        "rule_index": "7 CFR 205.201",
+                        "rule_title": "Organic plan",
+                        "rule_description": "Producer must maintain an organic system plan.",
+                    },
+                    {
+                        "finding_id": 2,
+                        "finding": "Incomplete record",
+                        "rule_index": "7 CFR 205.202",
+                        "rule_title": "Land requirements",
+                        "rule_description": "Land must meet organic requirements.",
+                    },
+                ]
+            )
+
+        monkeypatch.setattr(
+            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+        )
+
+        response = client.get("/attachments/50")
+
+        assert response.status_code == 200
+        assert [
+            finding["finding_id"] for finding in response.json()["finding_links"]
+        ] == [
+            1,
+            2,
+        ]
+
+    def test_client_returns_404_when_attachment_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_attachment_by_id(attachment_id, session):
+            assert attachment_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+        )
+
+        response = client.get("/attachments/999")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Attachment 999 not found."}
+
+    def test_client_returns_422_when_attachment_id_is_not_an_int(self, client):
+        response = client.get("/attachments/not-an-int")
+
+        assert response.status_code == 422
+
+    def test_returns_attachment_when_found(
+        self, main_module, monkeypatch, attachment_factory
+    ) -> None:
+        fake_session = object()
+
+        def fake_get_attachment_by_id(attachment_id, session):
+            assert attachment_id == 50
+            assert session is fake_session
+            return attachment_factory()
+
+        monkeypatch.setattr(
+            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+        )
+
+        result = main_module.get_attachment_by_id_route(50, fake_session)
+
+        assert result == main_module.AttachmentWithContextOut.model_validate(
+            attachment_factory()
+        )
+
+    def test_returns_404_when_attachment_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_attachment_by_id(attachment_id, session):
+            return None
+
+        monkeypatch.setattr(
+            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.get_attachment_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Attachment 999 not found."
+
+    def test_registers_attachment_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/attachments/{attachment_id}"
+        )
+
+        assert route.response_model is main_module.AttachmentWithContextOut
+
+
 class TestPostNewClientRoute:
     # TestClient
     def test_client_returns_client_json_when_found(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
-
         def fake_post_new_client(client_record, session):
             assert client_record.nif == "A1234567B"
             assert client_record.company_name == "Acme Corp"
