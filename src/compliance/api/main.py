@@ -6,6 +6,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    AttachmentWithContextOut,
+    CertificationAttachmentsOut,
     CertificationOut,
     ClientInOut,
     FindingOut,
@@ -15,6 +17,8 @@ from compliance.api.schemas import (
 from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
+    get_attachment_by_id,
+    get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications_by_site_id,
     get_findings,
@@ -77,6 +81,36 @@ def get_certification_by_id_route(
         )
 
     return CertificationOut.model_validate(certification)
+
+
+@app.get("/certifications/{certification_id}/attachments")
+def get_certification_attachments_by_id_route(
+    certification_id: int, session: SessionDep
+) -> CertificationAttachmentsOut:
+    """Return attachment details for one certification by ID.
+
+    Args:
+        certification_id: Unique identifier for the certification whose
+            attachments should be retrieved.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Certification attachments serialized with certification, regulation,
+        and linked finding context.
+
+    Raises:
+        HTTPException: If no certification exists for the requested ID.
+    """
+    certification_attachments = get_certification_attachments_by_id(
+        certification_id, session
+    )
+    if certification_attachments is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No attachments found for certification {certification_id}",
+        )
+
+    return CertificationAttachmentsOut.model_validate(certification_attachments)
 
 
 @app.get("/sites/{site_id}/history")
@@ -200,3 +234,29 @@ def get_findings_route(
         context.
     """
     return get_findings(session, site_id, rule_id, open_only)
+
+
+@app.get("/attachments/{attachment_id}")
+def get_attachment_by_id_route(
+    attachment_id: int, session: SessionDep
+) -> AttachmentWithContextOut:
+    """Return one attachment with certification, regulation, and finding context.
+
+    Args:
+        attachment_id: Unique identifier for the attachment to retrieve.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Attachment details serialized with certification, regulation, and
+        linked finding context.
+
+    Raises:
+        HTTPException: If no attachment exists for the requested ID.
+    """
+    result = get_attachment_by_id(attachment_id, session)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment {attachment_id} not found."
+        )
+
+    return AttachmentWithContextOut.model_validate(result)

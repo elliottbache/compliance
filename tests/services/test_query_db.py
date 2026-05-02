@@ -5,16 +5,25 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import ClientInOut, FindingOut
+from compliance.api.schemas import (
+    AttachmentWithContextOut,
+    CertificationAttachmentsOut,
+    ClientInOut,
+    FindingOut,
+)
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services.query_db import (
     _build_finding_history_from_site_attachments,
     _build_finding_history_from_site_history,
     _build_finding_out,
+    _format_attachment,
+    _format_certification_attachments,
     _format_findings,
     _format_site_attachments,
     _format_site_history,
+    get_attachment_by_id,
+    get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications_by_site_id,
     get_site_attachments_by_id,
@@ -248,6 +257,77 @@ class TestGetSiteAttachmentsOutById:
         assert result == _format_site_attachments(rows)
 
 
+class TestGetAttachmentById:
+    def test_returns_none_when_query_returns_no_rows(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        result = get_attachment_by_id(50, session)
+
+        session.execute.assert_called_once()
+        assert result is None
+
+    def test_formats_attachment_when_query_returns_rows(self) -> None:
+        rows = [site_attachment_row()]
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = rows
+
+        result = get_attachment_by_id(50, session)
+
+        session.execute.assert_called_once()
+        assert result == _format_attachment(rows)
+
+
+class TestGetCertificationAttachmentsById:
+    def test_returns_none_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = get_certification_attachments_by_id(100, session)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.execute.assert_not_called()
+        assert result is None
+
+    def test_returns_empty_attachment_list_when_certification_has_no_attachments(
+        self,
+    ) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Certification)
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        result = get_certification_attachments_by_id(100, session)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.execute.assert_called_once()
+        assert result == CertificationAttachmentsOut(
+            certification_id=100,
+            attachments=[],
+        )
+
+    def test_formats_certification_attachments_when_query_returns_rows(self) -> None:
+        rows = [site_attachment_row()]
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Certification)
+        session.execute.return_value.mappings.return_value.all.return_value = rows
+
+        result = get_certification_attachments_by_id(100, session)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.execute.assert_called_once()
+        assert result == _format_certification_attachments(rows)
+
+    def test_orders_attachments_by_attachment_id_then_finding_id(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Certification)
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_certification_attachments_by_id(100, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "ORDER BY attachments.id, findings.id" in str(stmt)
+
+
 class TestPostNewClient:
     def test_adds_and_commits_new_client(self) -> None:
         session = MagicMock()
@@ -479,6 +559,48 @@ class TestBuildFindingOut:
             _build_finding_out(row)
 
 
+class TestFormatAttachment:
+    def test_creates_attachment_without_finding_links(self) -> None:
+        rows = [site_attachment_row(Finding=None, Rule=None)]
+
+        result = _format_attachment(rows)
+
+        assert result == AttachmentWithContextOut(
+            id=50,
+            file_type="pdf",
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=date(2026, 4, 3),
+            certification_id=100,
+            inspection_date=date(2026, 4, 1),
+            regulation_id=5,
+            regulation_title="USDA Organic",
+            finding_links=[],
+        )
+
+    def test_collects_two_finding_links_for_attachment(self) -> None:
+        rows = [
+            site_attachment_row(),
+            site_attachment_row(
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_attachment(rows)
+
+        assert result.id == 50
+        assert [finding.finding_id for finding in result.finding_links] == [1, 2]
+        assert [finding.rule_index for finding in result.finding_links] == [
+            "7 CFR 205.201",
+            "7 CFR 205.202",
+        ]
+
+
 class TestFormatSiteAttachmentsOut:
     def test_creates_site_attachments_with_finding_link(self) -> None:
         result = _format_site_attachments([site_attachment_row()])
@@ -547,3 +669,73 @@ class TestFormatSiteAttachmentsOut:
     def test_raises_value_error_when_first_row_is_empty(self) -> None:
         with pytest.raises(ValueError, match="First attachment row is empty"):
             _format_site_attachments([{}])
+
+
+class TestFormatCertificationAttachmentsOut:
+    def test_creates_certification_attachments_with_finding_link(self) -> None:
+        result = _format_certification_attachments([site_attachment_row()])
+
+        assert result.certification_id == 100
+        assert len(result.attachments) == 1
+        assert result.attachments[0].id == 50
+        assert result.attachments[0].regulation_title == "USDA Organic"
+        assert len(result.attachments[0].finding_links) == 1
+        assert result.attachments[0].finding_links[0].finding_id == 1
+
+    def test_groups_multiple_findings_under_same_attachment(self) -> None:
+        rows = [
+            site_attachment_row(),
+            site_attachment_row(
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_certification_attachments(rows)
+
+        assert len(result.attachments) == 1
+        assert [
+            finding.finding_id for finding in result.attachments[0].finding_links
+        ] == [1, 2]
+
+    def test_groups_attachments_by_id_without_reordering(self) -> None:
+        second_attachment = SimpleNamespace(
+            id=60,
+            file_type="pdf",
+            file_path="dummy/second.pdf",
+            description="Second attachment",
+            uploaded_at=date(2026, 4, 4),
+            certification_id=100,
+        )
+        rows = [
+            site_attachment_row(Attachment=second_attachment),
+            site_attachment_row(),
+            site_attachment_row(
+                Attachment=second_attachment,
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_certification_attachments(rows)
+
+        assert [attachment.id for attachment in result.attachments] == [60, 50]
+        assert [
+            finding.finding_id for finding in result.attachments[0].finding_links
+        ] == [1, 2]
+
+    def test_raises_stop_iteration_when_rows_are_empty(self) -> None:
+        with pytest.raises(StopIteration):
+            _format_certification_attachments([])
+
+    def test_raises_value_error_when_first_row_is_empty(self) -> None:
+        with pytest.raises(ValueError, match="First attachment row is empty"):
+            _format_certification_attachments([{}])
