@@ -83,14 +83,18 @@ def configure_logging(*, level: str = "INFO", is_tutorial: bool = False) -> None
     log_file = pathlib.Path("compliance").with_suffix(".log")
     fn = _default_log_dir() / log_file
 
-    # for tutorial we don't want setup tests to be written to the log file, so we
-    # use write mode and only keep the last written log
-    if is_tutorial:
-        handler = logging.FileHandler(filename=fn, mode="w")
-    else:
-        handler = RotatingFileHandler(
-            filename=fn, mode="a", maxBytes=50 * 1024 * 1024, backupCount=2
-        )
+    try:
+        # for tutorial we don't want setup tests to be written to the log file,
+        # so we use write mode and only keep the last written log
+        if is_tutorial:
+            handler = logging.FileHandler(filename=fn, mode="w")
+        else:
+            handler = RotatingFileHandler(
+                filename=fn, mode="a", maxBytes=50 * 1024 * 1024, backupCount=2
+            )
+    except OSError as exc:
+        root.warning("Could not configure file logging at %s: %s", fn, exc)
+        return
 
     # create debug handler (all messages)
     _set_formatter(handler, is_tutorial=is_tutorial)
