@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from httpx import Request
 
 from compliance.llm.schemas import (
     EvidenceRef,
@@ -1021,6 +1022,49 @@ class TestCreateSiteAnalysis:
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site 999 not found."
+
+    @pytest.mark.parametrize(
+        "exception_factory",
+        [
+            lambda main_module: main_module.APIError(
+                "API unavailable",
+                request=Request("POST", "https://api.anthropic.com"),
+                body=None,
+            ),
+            lambda main_module: main_module.ValidationError.from_exception_data(
+                "SiteAnalysis",
+                [{"type": "missing", "loc": ("site_id",), "input": {}}],
+            ),
+            lambda main_module: main_module.JSONDecodeError("Invalid JSON", "{", 0),
+        ],
+    )
+    def test_returns_502_when_ai_analysis_fails(
+        self, main_module, monkeypatch, site_history_factory, exception_factory
+    ) -> None:
+        site_history = site_history_factory()
+
+        def fake_get_site_history_by_id(site_id, session):
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            raise exception_factory(main_module)
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_history_by_id",
+            fake_get_site_history_by_id,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module._create_site_analysis(101, object())
+
+        assert exc_info.value.status_code == 502
+        assert exc_info.value.detail == "AI analysis failed for site 101."
 
     def test_returns_502_when_analysis_references_invalid_evidence(
         self, main_module, monkeypatch, site_history_factory, site_analysis_factory
