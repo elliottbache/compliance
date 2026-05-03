@@ -19,7 +19,7 @@ from compliance.llm.anthropic_api import (
     _log_validation_error_messages,
     _parse_message_to_string,
     _render_site_analysis_attribute,
-    _render_site_analysis_markdown,
+    render_site_analysis_markdown,
     summarize_previous_visits,
 )
 from compliance.llm.schemas import (
@@ -399,7 +399,7 @@ class TestRenderSiteAnalysisMarkdown:
     def test_renders_full_markdown_document(self, site_analysis_factory) -> None:
         site_analysis = site_analysis_factory()
 
-        result = _render_site_analysis_markdown(site_analysis)
+        result = render_site_analysis_markdown(site_analysis)
 
         assert result.startswith(
             "# Site Analysis\n## Executive summary\nShort summary."
@@ -412,7 +412,7 @@ class TestRenderSiteAnalysisMarkdown:
     def test_renders_empty_executive_summary(self, site_analysis_factory) -> None:
         site_analysis = site_analysis_factory(executive_summary="")
 
-        result = _render_site_analysis_markdown(site_analysis)
+        result = render_site_analysis_markdown(site_analysis)
 
         assert result.startswith(
             "# Site Analysis\n## Executive summary\nNone.\n## Recurring issues"
@@ -421,7 +421,7 @@ class TestRenderSiteAnalysisMarkdown:
     def test_renders_sections_in_expected_order(self, site_analysis_factory) -> None:
         site_analysis = site_analysis_factory()
 
-        result = _render_site_analysis_markdown(site_analysis)
+        result = render_site_analysis_markdown(site_analysis)
 
         recurring_idx = result.index("## Recurring issues")
         missing_idx = result.index("## Missing information")
@@ -439,7 +439,7 @@ class TestRenderSiteAnalysisMarkdown:
             "compliance.llm.anthropic_api._render_site_analysis_attribute",
             return_value="\nRendered section",
         ) as mock_render_attr:
-            result = _render_site_analysis_markdown(site_analysis)
+            result = render_site_analysis_markdown(site_analysis)
 
         assert mock_render_attr.call_count == 4
         mock_render_attr.assert_any_call(site_analysis, "recurring_issues")

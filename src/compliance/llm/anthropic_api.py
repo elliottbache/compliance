@@ -174,6 +174,26 @@ def summarize_previous_visits(
     return is_retry, _DEFAULT_PROMPT_VERSION, site_analysis
 
 
+def render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
+    """Render a SiteAnalysis object as a Markdown summary document."""
+
+    output_text = "# Site Analysis\n## Executive summary"
+    exec_text = (
+        site_analysis.executive_summary if site_analysis.executive_summary else "None."
+    )
+    output_text += "\n" + exec_text
+    for attr in [
+        "recurring_issues",
+        "missing_information",
+        "needs_human_review",
+        "suggestions",
+    ]:
+        output_text += f"\n## {_beautify_attr_name(attr)}"
+        output_text += _render_site_analysis_attribute(site_analysis, attr)
+
+    return output_text
+
+
 def _call_model(
     *,
     client: anthropic.Anthropic,
@@ -278,26 +298,6 @@ def _log_validation_error_messages(err: ValidationError) -> None:
         logger.debug(
             f"Error type: {error['type']}\nLocation:   {error['loc']}\nFaulty data: {error['input']}"
         )
-
-
-def _render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
-    """Render a SiteAnalysis object as a Markdown summary document."""
-
-    output_text = "# Site Analysis\n## Executive summary"
-    exec_text = (
-        site_analysis.executive_summary if site_analysis.executive_summary else "None."
-    )
-    output_text += "\n" + exec_text
-    for attr in [
-        "recurring_issues",
-        "missing_information",
-        "needs_human_review",
-        "suggestions",
-    ]:
-        output_text += f"\n## {_beautify_attr_name(attr)}"
-        output_text += _render_site_analysis_attribute(site_analysis, attr)
-
-    return output_text
 
 
 def _beautify_attr_name(attr_name: str) -> str:
