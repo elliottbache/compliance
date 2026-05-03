@@ -1,10 +1,14 @@
+import logging
+
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
 from compliance.schemas import SiteHistory
+
+logger = logging.getLogger(__name__)
 
 
 def validate_llm_references(
     site_analysis: SiteAnalysis, site_history: SiteHistory
-) -> None:
+) -> bool:
     """Validates all evidence references within a SiteAnalysis against site history.
 
     Iterates through specific analysis categories (recurring issues, missing
@@ -16,8 +20,8 @@ def validate_llm_references(
             claims and evidence references.
         site_history: The ground-truth site data used for verification.
 
-    Raises:
-        ValueError: If any evidence reference contains an ID or metadata
+    Returns:
+        False if any evidence reference contains an ID or metadata
             that does not exist in the site history.
     """
     for site_attr in [
@@ -32,7 +36,13 @@ def validate_llm_references(
         for item in attr_list:
             evidence_refs = item.evidence
             for evidence in evidence_refs:
-                _validate_evidence_ref(evidence, site_history)
+                try:
+                    _validate_evidence_ref(evidence, site_history)
+                except ValueError as e:
+                    logger.warning(f"Evidence is invalid: {e}.")
+                    return False
+
+    return True
 
 
 def _validate_evidence_ref(evidence: EvidenceRef, site_history: SiteHistory) -> None:
@@ -85,8 +95,7 @@ def _validate_evidence_ref(evidence: EvidenceRef, site_history: SiteHistory) -> 
 
         if not evidence.rule_index:
             raise ValueError(
-                "If we have a finding, there should be a rule index"
-                " associated to it."
+                "If we have a finding, there should be a rule index associated to it."
             )
 
         if evidence.rule_index and evidence.rule_index != finding.rule_index:

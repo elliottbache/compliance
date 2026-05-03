@@ -140,7 +140,7 @@ class TestValidateLlmReferences:
             ]
         )
 
-    def test_propagates_value_error_from_nested_evidence_validation(
+    def test_returns_false_when_nested_evidence_validation_fails(
         self, site_history: SiteHistory
     ) -> None:
         evidence_1 = EvidenceRef(
@@ -176,14 +176,13 @@ class TestValidateLlmReferences:
             suggestions=[],
         )
 
-        with (
-            patch(
-                "compliance._helpers._validate_evidence_ref",
-                side_effect=ValueError("bad evidence"),
-            ),
-            pytest.raises(ValueError, match="bad evidence"),
+        with patch(
+            "compliance._helpers._validate_evidence_ref",
+            side_effect=ValueError("bad evidence"),
         ):
-            validate_llm_references(site_analysis, site_history)
+            result = validate_llm_references(site_analysis, site_history)
+
+        assert result is False
 
     def test_skips_empty_sections_and_visits_populated_sections(
         self, site_history: SiteHistory
