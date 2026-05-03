@@ -16,6 +16,7 @@ from compliance.services.query_history import get_site_history
 
 MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v1.2"
+_DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ load_dotenv()
 
 
 def summarize_previous_visits(
-    site_history: SiteHistory, *, ai_model: str, case_info: str = ""
+    site_history: SiteHistory, *, ai_model: str = _DEFAULT_AI_MODEL, case_info: str = ""
 ) -> tuple[bool, str, SiteAnalysis]:
     """Analyzes site history using an AI model to generate a structured summary.
 
