@@ -7,6 +7,14 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from compliance.llm.schemas import (
+    EvidenceRef,
+    HumanReviewItem,
+    MissingInfoItem,
+    RecurringIssueItem,
+    SiteAnalysis,
+    SuggestionItem,
+)
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 
 
@@ -98,6 +106,54 @@ def site_history_factory():
         return site_history
 
     return _site_history
+
+
+@pytest.fixture
+def site_analysis_factory():
+    def _site_analysis(**overrides):
+        evidence = EvidenceRef(
+            cert_id=5001,
+            reg_title="Fire Safety 2023",
+            finding_id=901,
+            rule_index="FS-101",
+            inspection_date=date(2023, 10, 15),
+            support_text="Extinguisher pressure low.",
+        )
+        site_analysis = SiteAnalysis(
+            site_id=101,
+            inspection_count=2,
+            executive_summary="Prior inspections show one extinguisher issue.",
+            recurring_issues=[
+                RecurringIssueItem(
+                    item="Repeated safety documentation issue",
+                    confidence_note="Supported by inspection evidence.",
+                    evidence=[evidence, evidence],
+                )
+            ],
+            missing_information=[
+                MissingInfoItem(
+                    item="Corrective action records",
+                    why_missing_matters="They would confirm follow-up.",
+                    evidence=[evidence],
+                )
+            ],
+            needs_human_review=[
+                HumanReviewItem(
+                    item="Review extinguisher maintenance context",
+                    evidence=[evidence],
+                )
+            ],
+            suggestions=[
+                SuggestionItem(
+                    item="Review fire safety records before visiting",
+                    basis="Prior inspection mentioned extinguisher pressure.",
+                    evidence=[evidence],
+                )
+            ],
+        )
+        return site_analysis.model_copy(update=overrides)
+
+    return _site_analysis
 
 
 @pytest.fixture
@@ -314,6 +370,65 @@ class TestGetSiteByIdRoute:
 
 
 class TestGetCertificationByIdRoute:
+    def test_client_returns_certification_json_when_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 42
+            assert session is mock_db
+            return SimpleNamespace(
+                id=42,
+                certifier_id=7,
+                regulation_id=3,
+                site_id=12,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=None,
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        response = client.get("/certifications/42")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "id": 42,
+            "certifier_id": 7,
+            "regulation_id": 3,
+            "site_id": 12,
+            "result": "Pass",
+            "inspection_date": "2026-04-01",
+            "resolution_date": None,
+        }
+
+    def test_client_returns_404_when_certification_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        response = client.get("/certifications/999")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No certification for this id found: 999"}
+
+    def test_client_returns_422_when_certification_id_is_not_an_int(self, client):
+        response = client.get("/certifications/not-an-int")
+
+        assert response.status_code == 422
+
     def test_returns_certification_when_found(self, main_module, monkeypatch) -> None:
         fake_session = object()
         certification = SimpleNamespace(
@@ -668,7 +783,334 @@ class TestGetSiteHistoryByIdRoute:
         assert route.response_model is main_module.SiteHistory
 
 
+class TestAnalyzeSiteRoute:
+    def test_client_returns_site_analysis_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/101/analysis-preview")
+
+        assert response.status_code == 200
+        assert response.json()["site_id"] == 101
+        assert (
+            response.json()["executive_summary"]
+            == "Prior inspections show one extinguisher issue."
+        )
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis-preview")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis-preview")
+
+        assert response.status_code == 422
+
+    def test_delegates_to_create_site_analysis(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        result = main_module.analyze_site(101, fake_session)
+
+        assert result == site_analysis
+
+    def test_registers_site_analysis_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/analysis-preview"
+        )
+
+        assert route.response_model is main_module.SiteAnalysis
+
+
+class TestAnalyzeSiteReturnMarkdownRoute:
+    def test_client_returns_rendered_markdown(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        def fake_render_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "render_site_analysis_markdown",
+            fake_render_site_analysis_markdown,
+        )
+
+        response = client.post("/sites/101/analysis-preview/markdown")
+
+        assert response.status_code == 200
+        assert response.text == "# Site Analysis\nMarkdown body."
+        assert response.headers["content-type"].startswith("text/markdown")
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis-preview/markdown")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis-preview/markdown")
+
+        assert response.status_code == 422
+
+    def test_returns_rendered_markdown(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        def fake_render_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            main_module,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "render_site_analysis_markdown",
+            fake_render_site_analysis_markdown,
+        )
+
+        result = main_module.analyze_site_return_markdown(101, fake_session)
+
+        assert result.body == b"# Site Analysis\nMarkdown body."
+        assert result.media_type == "text/markdown"
+
+    def test_does_not_register_markdown_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None)
+            == "/sites/{site_id}/analysis-preview/markdown"
+        )
+
+        assert route.response_model is None
+
+
+class TestCreateSiteAnalysis:
+    def test_returns_site_analysis_when_history_exists(
+        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_history = site_history_factory()
+        site_analysis = site_analysis_factory()
+
+        def fake_get_site_history_by_id(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            assert history is site_history
+            return False, "v-test", site_analysis
+
+        def fake_validate_llm_references(analysis, history):
+            assert analysis is site_analysis
+            assert history is site_history
+            return True
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_history_by_id",
+            fake_get_site_history_by_id,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "validate_llm_references",
+            fake_validate_llm_references,
+        )
+
+        result = main_module._create_site_analysis(101, fake_session)
+
+        assert result == site_analysis
+
+    def test_returns_404_when_site_history_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_history_by_id(site_id, session):
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_history_by_id",
+            fake_get_site_history_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module._create_site_analysis(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site 999 not found."
+
+    def test_returns_502_when_analysis_references_invalid_evidence(
+        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+    ) -> None:
+        site_history = site_history_factory()
+        site_analysis = site_analysis_factory()
+
+        def fake_get_site_history_by_id(site_id, session):
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            return False, "v-test", site_analysis
+
+        def fake_validate_llm_references(analysis, history):
+            return False
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_history_by_id",
+            fake_get_site_history_by_id,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "validate_llm_references",
+            fake_validate_llm_references,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module._create_site_analysis(101, object())
+
+        assert exc_info.value.status_code == 502
+        assert (
+            exc_info.value.detail == "LLM model returned invalid evidence for site 101."
+        )
+
+
 class TestGetSiteAttachmentsOutByIdRoute:
+    def test_client_returns_site_attachments_json_when_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        site_attachments = main_module.SiteAttachmentsOut(
+            site_id=12,
+            attachments=[],
+        )
+
+        def fake_get_site_attachments_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_attachments
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_attachments_by_id",
+            fake_get_site_attachments_by_id,
+        )
+
+        response = client.get("/sites/12/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == {"site_id": 12, "attachments": []}
+
+    def test_client_returns_404_when_site_attachments_are_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_attachments_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            main_module,
+            "get_site_attachments_by_id",
+            fake_get_site_attachments_by_id,
+        )
+
+        response = client.get("/sites/999/attachments")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No attachments found for site 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.get("/sites/not-an-int/attachments")
+
+        assert response.status_code == 422
+
     def test_returns_site_attachments_when_found(
         self, main_module, monkeypatch
     ) -> None:
@@ -1007,6 +1449,120 @@ class TestGetAttachmentByIdRoute:
 
 
 class TestPostNewAttachmentRoute:
+    def test_client_returns_attachment_json_when_created(
+        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+    ):
+        new_attachment = main_module.AttachmentOut.model_validate(
+            {
+                **attachment_create_factory(),
+                "id": 50,
+                "uploaded_at": date(2026, 4, 3),
+                "inspection_date": date(2026, 4, 1),
+                "regulation_id": 5,
+                "regulation_title": "USDA Organic",
+            }
+        )
+
+        def fake_post_new_attachment(attachment, session):
+            assert attachment.file_type == "pdf"
+            assert attachment.file_name == "evidence"
+            assert attachment.certification_id == 100
+            assert session is mock_db
+            return new_attachment
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        response = client.post("/attachments", json=attachment_create_factory())
+
+        assert response.status_code == 201
+        assert response.json() == {
+            "file_type": "pdf",
+            "file_name": "evidence",
+            "certification_id": 100,
+            "description": "Inspection evidence",
+            "finding_ids": [],
+            "id": 50,
+            "uploaded_at": "2026-04-03",
+            "inspection_date": "2026-04-01",
+            "regulation_id": 5,
+            "regulation_title": "USDA Organic",
+        }
+
+    def test_client_returns_404_when_certification_is_not_found(
+        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+    ):
+        def fake_post_new_attachment(attachment, session):
+            assert attachment.certification_id == 100
+            assert session is mock_db
+            raise main_module.AttachmentCertificationNotFoundError(
+                "Certification 100 does not exist."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        response = client.post("/attachments", json=attachment_create_factory())
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Certification 100 does not exist."}
+
+    def test_client_returns_422_when_finding_belongs_to_another_certification(
+        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+    ):
+        def fake_post_new_attachment(attachment, session):
+            assert attachment.finding_ids == [7]
+            assert session is mock_db
+            raise main_module.AttachmentFindingCertificationMismatchError(
+                "Finding 7 does not belong to certification 100."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        response = client.post(
+            "/attachments", json=attachment_create_factory(finding_ids=[7])
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {
+            "detail": "Finding 7 does not belong to certification 100."
+        }
+
+    def test_client_returns_409_when_attachment_conflicts(
+        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+    ):
+        def fake_post_new_attachment(attachment, session):
+            assert session is mock_db
+            raise main_module.AttachmentConflictError(
+                "Attachment could not be created."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        response = client.post("/attachments", json=attachment_create_factory())
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": "Attachment could not be created."}
+
+    def test_client_returns_422_when_attachment_is_invalid(self, client):
+        response = client.post("/attachments", json={"file_type": "pdf"})
+
+        assert response.status_code == 422
+
     def test_returns_404_when_certification_is_not_found(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
