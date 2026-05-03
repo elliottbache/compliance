@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    AttachmentCreate,
     AttachmentWithContextOut,
     CertificationAttachmentsOut,
     ClientInOut,
@@ -14,12 +15,16 @@ from compliance.api.schemas import (
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services.query_db import (
+    AttachmentCertificationNotFoundError,
+    AttachmentFindingCertificationMismatchError,
+    AttachmentFindingNotFoundError,
     _build_finding_history_from_site_attachments,
     _build_finding_history_from_site_history,
     _build_finding_out,
     _format_attachment,
     _format_certification_attachments,
     _format_findings,
+    _format_new_attachment_with_context,
     _format_site_attachments,
     _format_site_history,
     get_attachment_by_id,
@@ -29,6 +34,7 @@ from compliance.services.query_db import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
+    post_new_attachment,
     post_new_client,
 )
 
@@ -326,6 +332,97 @@ class TestGetCertificationAttachmentsById:
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY attachments.id, findings.id" in str(stmt)
+
+
+class TestPostNewAttachment:
+    def test_raises_when_certification_does_not_exist(self) -> None:
+        attachment = AttachmentCreate(
+            file_type="pdf",
+            file_name="evidence",
+            certification_id=100,
+        )
+        session = MagicMock()
+        session.get.return_value = None
+
+        with pytest.raises(
+            AttachmentCertificationNotFoundError,
+            match="Certification 100 does not exist",
+        ):
+            post_new_attachment(attachment, session)
+
+        session.add.assert_not_called()
+
+    def test_raises_when_finding_does_not_exist(self) -> None:
+        attachment = AttachmentCreate(
+            file_type="pdf",
+            file_name="evidence",
+            certification_id=100,
+            finding_ids=[7],
+        )
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1)),
+            None,
+        ]
+
+        with pytest.raises(
+            AttachmentFindingNotFoundError,
+            match="Finding 7 does not exist",
+        ):
+            post_new_attachment(attachment, session)
+
+        session.add.assert_not_called()
+
+    def test_raises_when_finding_belongs_to_another_certification(self) -> None:
+        attachment = AttachmentCreate(
+            file_type="pdf",
+            file_name="evidence",
+            certification_id=100,
+            finding_ids=[7],
+        )
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1)),
+            SimpleNamespace(id=7, certification_id=200),
+        ]
+
+        with pytest.raises(
+            AttachmentFindingCertificationMismatchError,
+            match="Finding 7 does not belong to certification 100",
+        ):
+            post_new_attachment(attachment, session)
+
+        session.add.assert_not_called()
+
+
+class TestFormatNewAttachmentWithContext:
+    def test_builds_attachment_output_with_certification_context(self) -> None:
+        attachment = SimpleNamespace(
+            id=50,
+            file_type="pdf",
+            certification_id=100,
+            file_path="/path/placeholder/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=date(2026, 4, 3),
+        )
+        certification = SimpleNamespace(
+            inspection_date=date(2026, 4, 1),
+            regulation_id=5,
+            certification_regulation_rel=SimpleNamespace(title="USDA Organic"),
+        )
+
+        result = _format_new_attachment_with_context(
+            attachment,
+            certification,
+            [1, 2],
+        )
+
+        assert result.id == 50
+        assert result.file_name == "evidence"
+        assert result.finding_ids == [1, 2]
+        assert result.inspection_date == date(2026, 4, 1)
+        assert result.regulation_id == 5
+        assert result.regulation_title == "USDA Organic"
 
 
 class TestPostNewClient:

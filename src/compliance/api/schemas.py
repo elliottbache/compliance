@@ -37,7 +37,7 @@ class CertificationOut(BaseModel):
 class AttachmentWithContextOut(BaseModel):
     """Public API response shape for an attachment record."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
     file_type: str
@@ -51,6 +51,30 @@ class AttachmentWithContextOut(BaseModel):
     regulation_title: str
 
     finding_links: list[FindingHistory] = Field(default_factory=list)
+
+
+class AttachmentCreate(BaseModel):
+    """Public API input shape for an attachment metadata record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    file_type: str
+    file_name: str
+    certification_id: int
+    description: str | None = None
+    finding_ids: list[int] = Field(default_factory=list)
+
+
+class AttachmentOut(AttachmentCreate):
+    """Public API response shape for an attachment record as in database."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
+    uploaded_at: date
+    inspection_date: date | None
+    regulation_id: int
+    regulation_title: str
 
 
 class SiteAttachmentsOut(BaseModel):
