@@ -171,9 +171,6 @@ def summarize_previous_visits(
     )
     logger.debug(f"response: {_parse_message_to_string(response)}")
 
-    markdown_text = _render_site_analysis_markdown(site_analysis)
-    print(markdown_text)
-
     return is_retry, _DEFAULT_PROMPT_VERSION, site_analysis
 
 

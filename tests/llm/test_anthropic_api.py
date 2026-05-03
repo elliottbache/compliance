@@ -20,6 +20,7 @@ from compliance.llm.anthropic_api import (
     _parse_message_to_string,
     _render_site_analysis_attribute,
     _render_site_analysis_markdown,
+    summarize_previous_visits,
 )
 from compliance.llm.schemas import (
     EvidenceRef,
@@ -170,6 +171,47 @@ def site_analysis_factory(evidence_ref_factory):
 
 class ExampleModel(BaseModel):
     value: int
+
+
+class TestSummarizePreviousVisits:
+    def test_uses_default_ai_model_when_not_provided(
+        self, site_history, site_analysis_factory
+    ) -> None:
+        site_analysis = site_analysis_factory()
+
+        with (
+            patch("compliance.llm.anthropic_api.anthropic.Anthropic"),
+            patch("compliance.llm.anthropic_api._call_model") as mock_call_model,
+            patch(
+                "compliance.llm.anthropic_api._convert_response_to_site_analysis",
+                return_value=site_analysis,
+            ),
+        ):
+            result = summarize_previous_visits(site_history)
+
+        assert result == (False, anthropic_api._DEFAULT_PROMPT_VERSION, site_analysis)
+        assert mock_call_model.call_args.kwargs["ai_model"] == (
+            anthropic_api._DEFAULT_AI_MODEL
+        )
+
+    def test_uses_provided_ai_model(self, site_history, site_analysis_factory) -> None:
+        site_analysis = site_analysis_factory()
+
+        with (
+            patch("compliance.llm.anthropic_api.anthropic.Anthropic"),
+            patch("compliance.llm.anthropic_api._call_model") as mock_call_model,
+            patch(
+                "compliance.llm.anthropic_api._convert_response_to_site_analysis",
+                return_value=site_analysis,
+            ),
+        ):
+            result = summarize_previous_visits(
+                site_history,
+                ai_model="claude-test",
+            )
+
+        assert result == (False, anthropic_api._DEFAULT_PROMPT_VERSION, site_analysis)
+        assert mock_call_model.call_args.kwargs["ai_model"] == "claude-test"
 
 
 class TestCallModel:
