@@ -1,4 +1,7 @@
+import logging
 from collections.abc import Mapping, Sequence
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -6,6 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    AttachmentCreate,
+    AttachmentOut,
     AttachmentWithContextOut,
     CertificationAttachmentsOut,
     ClientInOut,
@@ -24,6 +29,28 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+
+logger = logging.getLogger(__name__)
+
+
+class AttachmentCreateError(Exception):
+    """Base error for attachment creation failures."""
+
+
+class AttachmentCertificationNotFoundError(AttachmentCreateError):
+    """Raised when an attachment's certification does not exist."""
+
+
+class AttachmentFindingNotFoundError(AttachmentCreateError):
+    """Raised when an attachment's linked finding does not exist."""
+
+
+class AttachmentFindingCertificationMismatchError(AttachmentCreateError):
+    """Raised when a linked finding belongs to another certification."""
+
+
+class AttachmentConflictError(AttachmentCreateError):
+    """Raised when attachment creation conflicts with stored data."""
 
 
 def get_site_by_id(site_id: int, session: Session) -> Site | None:
@@ -294,6 +321,132 @@ def post_new_client(client: ClientInOut, session: Session) -> Client | None:
         return None
 
     return new_client
+
+
+def post_new_attachment(
+    attachment: AttachmentCreate, session: Session
+) -> AttachmentOut:
+    """Persist a new attachment metadata record and optional finding links.
+
+    Builds temporary storage metadata for the attachment, validates that the
+    parent certification and requested linked findings exist, and creates any
+    finding-attachment link rows in the same transaction.
+
+    Args:
+        attachment: Attachment metadata validated by the API layer.
+        session: Database session used to validate related records and persist
+            the attachment metadata.
+
+    Returns:
+        The created attachment metadata with certification and regulation
+        context.
+
+    Raises:
+        AttachmentCertificationNotFoundError: If the parent certification does
+            not exist.
+        AttachmentFindingNotFoundError: If a requested linked finding does not
+            exist.
+        AttachmentFindingCertificationMismatchError: If a requested finding
+            belongs to another certification.
+        AttachmentConflictError: If the attachment or link rows conflict with
+            existing stored data.
+    """
+    attachment_dict = attachment.model_dump()
+    orm_data = {
+        "file_type": attachment.file_type,
+        "certification_id": attachment.certification_id,
+        "description": attachment.description,
+        "file_path": "/path/placeholder/"
+        + attachment_dict["file_name"]
+        + "."
+        + attachment_dict["file_type"],
+        "uploaded_at": date.today(),
+    }
+    new_attachment = Attachment(**orm_data)
+
+    # check if certification exists
+    certification = session.get(Certification, attachment.certification_id)
+    if certification is None:
+        raise AttachmentCertificationNotFoundError(
+            f"Certification {attachment.certification_id} does not exist."
+        )
+
+    # check if findings exist
+    for finding_id in attachment.finding_ids:
+        finding = session.get(Finding, finding_id)
+        if finding is None:
+            raise AttachmentFindingNotFoundError(
+                f"Finding {finding_id} does not exist."
+            )
+
+        if finding.certification_id != attachment.certification_id:
+            raise AttachmentFindingCertificationMismatchError(
+                f"Finding {finding_id} does not belong to certification "
+                f"{attachment.certification_id}."
+            )
+
+    try:
+        # add new attachment
+        session.add(new_attachment)
+        session.flush()
+
+        # add new findingAttachment
+        for finding_id in attachment.finding_ids:
+            new_finding_attachment = FindingAttachment(
+                finding_id=finding_id,
+                attachment_id=new_attachment.id,
+                certification_id=attachment.certification_id,
+            )
+            session.add(new_finding_attachment)
+        session.flush()
+
+        new_attachment_with_context = _format_new_attachment_with_context(
+            new_attachment,
+            certification,
+            attachment.finding_ids,
+        )
+        session.commit()
+
+    except IntegrityError as e:
+        logger.warning(f"Error posting new attachment: {e}")
+        session.rollback()
+        raise AttachmentConflictError("Attachment could not be created.") from e
+
+    except Exception:
+        session.rollback()
+        raise
+
+    return AttachmentOut.model_validate(new_attachment_with_context)
+
+
+def _format_new_attachment_with_context(
+    attachment: Attachment,
+    certification: Certification,
+    finding_ids: list[int],
+) -> AttachmentOut:
+    """Build output metadata for a newly created attachment.
+
+    Args:
+        attachment: Newly persisted attachment ORM object.
+        certification: Parent certification for the attachment.
+        finding_ids: Finding IDs linked to the attachment during creation.
+
+    Returns:
+        Attachment metadata enriched with certification and regulation context.
+    """
+    file_name = Path(attachment.file_path).stem
+    return AttachmentOut(
+        id=attachment.id,
+        file_type=attachment.file_type,
+        certification_id=attachment.certification_id,
+        description=attachment.description,
+        uploaded_at=attachment.uploaded_at,
+        file_name=file_name,
+        finding_ids=list(finding_ids),
+        inspection_date=certification.inspection_date,
+        regulation_id=certification.regulation_id,
+        regulation_title=certification.certification_regulation_rel.title,
+    )
 
 
 def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:

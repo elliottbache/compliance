@@ -173,6 +173,22 @@ def certification_attachments_factory(attachment_factory):
     return _certification_attachments
 
 
+@pytest.fixture
+def attachment_create_factory():
+    def _attachment_create(**overrides):
+        attachment = {
+            "file_type": "pdf",
+            "file_name": "evidence",
+            "certification_id": 100,
+            "description": "Inspection evidence",
+            "finding_ids": [],
+        }
+        attachment.update(overrides)
+        return attachment
+
+    return _attachment_create
+
+
 def site_history_row(**overrides):
     row = {
         "site_id": 71,
@@ -988,6 +1004,106 @@ class TestGetAttachmentByIdRoute:
         )
 
         assert route.response_model is main_module.AttachmentWithContextOut
+
+
+class TestPostNewAttachmentRoute:
+    def test_returns_404_when_certification_is_not_found(
+        self, main_module, monkeypatch, attachment_create_factory
+    ) -> None:
+        attachment = main_module.AttachmentCreate.model_validate(
+            attachment_create_factory()
+        )
+
+        def fake_post_new_attachment(attachment_info, session):
+            raise main_module.AttachmentCertificationNotFoundError(
+                "Certification 100 does not exist."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.post_new_attachment_route(attachment, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certification 100 does not exist."
+
+    def test_returns_404_when_finding_is_not_found(
+        self, main_module, monkeypatch, attachment_create_factory
+    ) -> None:
+        attachment = main_module.AttachmentCreate.model_validate(
+            attachment_create_factory(finding_ids=[7])
+        )
+
+        def fake_post_new_attachment(attachment_info, session):
+            raise main_module.AttachmentFindingNotFoundError(
+                "Finding 7 does not exist."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.post_new_attachment_route(attachment, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Finding 7 does not exist."
+
+    def test_returns_422_when_finding_belongs_to_another_certification(
+        self, main_module, monkeypatch, attachment_create_factory
+    ) -> None:
+        attachment = main_module.AttachmentCreate.model_validate(
+            attachment_create_factory(finding_ids=[7])
+        )
+
+        def fake_post_new_attachment(attachment_info, session):
+            raise main_module.AttachmentFindingCertificationMismatchError(
+                "Finding 7 does not belong to certification 100."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.post_new_attachment_route(attachment, object())
+
+        assert exc_info.value.status_code == 422
+        assert (
+            exc_info.value.detail == "Finding 7 does not belong to certification 100."
+        )
+
+    def test_returns_409_when_attachment_conflicts(
+        self, main_module, monkeypatch, attachment_create_factory
+    ) -> None:
+        attachment = main_module.AttachmentCreate.model_validate(
+            attachment_create_factory()
+        )
+
+        def fake_post_new_attachment(attachment_info, session):
+            raise main_module.AttachmentConflictError(
+                "Attachment could not be created."
+            )
+
+        monkeypatch.setattr(
+            main_module,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_module.post_new_attachment_route(attachment, object())
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == "Attachment could not be created."
 
 
 class TestPostNewClientRoute:

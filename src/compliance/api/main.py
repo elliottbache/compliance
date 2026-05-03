@@ -6,6 +6,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    AttachmentCreate,
+    AttachmentOut,
     AttachmentWithContextOut,
     CertificationAttachmentsOut,
     CertificationOut,
@@ -17,6 +19,10 @@ from compliance.api.schemas import (
 from compliance.db.db_access import get_db
 from compliance.schemas import SiteHistory
 from compliance.services.query_db import (
+    AttachmentCertificationNotFoundError,
+    AttachmentConflictError,
+    AttachmentFindingCertificationMismatchError,
+    AttachmentFindingNotFoundError,
     get_attachment_by_id,
     get_certification_attachments_by_id,
     get_certification_by_id,
@@ -25,6 +31,7 @@ from compliance.services.query_db import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
+    post_new_attachment,
     post_new_client,
 )
 
@@ -260,3 +267,36 @@ def get_attachment_by_id_route(
         )
 
     return AttachmentWithContextOut.model_validate(result)
+
+
+@app.post("/attachments", status_code=201)
+def post_new_attachment_route(
+    attachment: AttachmentCreate, session: SessionDep
+) -> AttachmentOut:
+    """Create a new attachment metadata record.
+
+    Args:
+        attachment: Attachment metadata supplied in the request body.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Created attachment metadata with generated storage and certification
+        context fields.
+
+    Raises:
+        HTTPException: If the parent certification or linked findings are
+            missing, if a finding belongs to another certification, or if the
+            attachment conflicts with existing stored data.
+    """
+    try:
+        new_attachment = post_new_attachment(attachment, session)
+    except AttachmentCertificationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentFindingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentFindingCertificationMismatchError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except AttachmentConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return AttachmentOut.model_validate(new_attachment)

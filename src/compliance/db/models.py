@@ -178,6 +178,7 @@ class Attachment(Base):
         ),
         back_populates="finding_attachment_attachment_rel",
         viewonly=True,
+        cascade="all, delete-orphan",
     )
 
 
@@ -208,6 +209,7 @@ class Finding(Base):
         ),
         back_populates="finding_attachment_finding_rel",
         viewonly=True,
+        cascade="all, delete-orphan",
     )
 
 
@@ -220,11 +222,13 @@ class FindingAttachment(Base):
             ["finding_id", "certification_id"],
             ["findings.id", "findings.certification_id"],
             name="fk_finding_attachments_finding_id_id_certification_id_certification_id",
+            ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
             ["attachment_id", "certification_id"],
             ["attachments.id", "attachments.certification_id"],
             name="fk_finding_attachments_attachment_id_id_certification_id_certification_id",
+            ondelete="CASCADE",
         ),
     )
 
