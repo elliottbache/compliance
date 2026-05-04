@@ -213,7 +213,7 @@ class TestRenderSiteAnalysisMarkdown:
         result = render_site_analysis_markdown(site_analysis)
 
         assert result.startswith(
-            "# Site Analysis\n## Executive summary\nShort summary."
+            "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary\nShort summary."
         )
         assert "## Recurring issues" in result
         assert "## Missing information" in result
@@ -226,7 +226,7 @@ class TestRenderSiteAnalysisMarkdown:
         result = render_site_analysis_markdown(site_analysis)
 
         assert result.startswith(
-            "# Site Analysis\n## Executive summary\nNone.\n## Recurring issues"
+            "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary\nNone.\n## Recurring issues"
         )
 
     def test_renders_sections_in_expected_order(self, site_analysis_factory) -> None:

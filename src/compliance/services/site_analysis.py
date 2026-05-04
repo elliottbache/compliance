@@ -55,7 +55,7 @@ def summarize_previous_visits(
 def render_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
     """Render a SiteAnalysis object as a Markdown summary document."""
 
-    output_text = "# Site Analysis\n## Executive summary"
+    output_text = "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary"
     exec_text = (
         site_analysis.executive_summary if site_analysis.executive_summary else "None."
     )
