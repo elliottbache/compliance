@@ -8,6 +8,19 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from httpx import Request
 
+from compliance.api.routers import (
+    attachments as attachments_router,
+)
+from compliance.api.routers import (
+    certifications as certifications_router,
+)
+from compliance.api.routers import (
+    clients as clients_router,
+)
+from compliance.api.routers import (
+    sites as sites_router,
+)
+from compliance.db.db_access import get_db
 from compliance.llm.schemas import (
     EvidenceRef,
     HumanReviewItem,
@@ -41,7 +54,7 @@ def mock_db(main_module):
     def _get_db():
         yield mock
 
-    main_module.app.dependency_overrides[main_module.get_db] = _get_db
+    main_module.app.dependency_overrides[get_db] = _get_db
     yield mock
     main_module.app.dependency_overrides.clear()
 
@@ -276,7 +289,7 @@ class TestGetSiteByIdRoute:
             assert session is mock_db
             return site_factory()
 
-        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
 
         response = client.get("/sites/12")
 
@@ -302,7 +315,7 @@ class TestGetSiteByIdRoute:
             assert session is mock_db
             return fake_site
 
-        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
 
         response = client.get("/sites/999")
 
@@ -317,7 +330,7 @@ class TestGetSiteByIdRoute:
             assert session is mock_db
             return site_factory()
 
-        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
 
         response = client.get("/sites/not-an-int")
 
@@ -342,20 +355,20 @@ class TestGetSiteByIdRoute:
             assert session is fake_session
             return site
 
-        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
 
-        result = main_module.get_site_by_id_route(12, fake_session)
+        result = sites_router.get_site_by_id_route(12, fake_session)
 
-        assert result == main_module.SiteOut.model_validate(site)
+        assert result == sites_router.SiteOut.model_validate(site)
 
     def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
         def fake_get_site_by_id(site_id, session):
             return None
 
-        monkeypatch.setattr(main_module, "get_site_by_id", fake_get_site_by_id)
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_site_by_id_route(999, object())
+            sites_router.get_site_by_id_route(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No site for this id found: 999"
@@ -367,7 +380,7 @@ class TestGetSiteByIdRoute:
             if getattr(route, "path", None) == "/sites/{site_id}"
         )
 
-        assert route.response_model is main_module.SiteOut
+        assert route.response_model is sites_router.SiteOut
 
 
 class TestGetCertificationByIdRoute:
@@ -388,7 +401,7 @@ class TestGetCertificationByIdRoute:
             )
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_by_id",
             fake_get_certification_by_id,
         )
@@ -415,7 +428,7 @@ class TestGetCertificationByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_by_id",
             fake_get_certification_by_id,
         )
@@ -448,14 +461,16 @@ class TestGetCertificationByIdRoute:
             return certification
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_by_id",
             fake_get_certification_by_id,
         )
 
-        result = main_module.get_certification_by_id_route(42, fake_session)
+        result = certifications_router.get_certification_by_id_route(42, fake_session)
 
-        assert result == main_module.CertificationOut.model_validate(certification)
+        assert result == certifications_router.CertificationOut.model_validate(
+            certification
+        )
 
     def test_returns_404_when_certification_is_not_found(
         self, main_module, monkeypatch
@@ -464,13 +479,13 @@ class TestGetCertificationByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_by_id",
             fake_get_certification_by_id,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_certification_by_id_route(999, object())
+            certifications_router.get_certification_by_id_route(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No certification for this id found: 999"
@@ -482,7 +497,7 @@ class TestGetCertificationByIdRoute:
             if getattr(route, "path", None) == "/certifications/{certification_id}"
         )
 
-        assert route.response_model is main_module.CertificationOut
+        assert route.response_model is certifications_router.CertificationOut
 
 
 class TestGetCertificationsBySiteIdRoute:
@@ -496,7 +511,7 @@ class TestGetCertificationsBySiteIdRoute:
             return certifications_factory(2)
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certifications_by_site_id",
             fake_get_certifications_by_site_id,
         )
@@ -536,7 +551,7 @@ class TestGetCertificationsBySiteIdRoute:
             return fake_site
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certifications_by_site_id",
             fake_get_certifications_by_site_id,
         )
@@ -583,15 +598,17 @@ class TestGetCertificationsBySiteIdRoute:
             return certifications
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certifications_by_site_id",
             fake_get_certifications_by_site_id,
         )
 
-        result = main_module.get_certifications_by_site_id_route(12, fake_session)
+        result = certifications_router.get_certifications_by_site_id_route(
+            12, fake_session
+        )
 
         assert result == [
-            main_module.CertificationOut.model_validate(certification)
+            certifications_router.CertificationOut.model_validate(certification)
             for certification in certifications
         ]
 
@@ -606,12 +623,12 @@ class TestGetCertificationsBySiteIdRoute:
             return []
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certifications_by_site_id",
             fake_get_certifications_by_site_id,
         )
 
-        result = main_module.get_certifications_by_site_id_route(
+        result = certifications_router.get_certifications_by_site_id_route(
             12, fake_session, limit=10, offset=20
         )
 
@@ -624,12 +641,14 @@ class TestGetCertificationsBySiteIdRoute:
             return []
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certifications_by_site_id",
             fake_get_certifications_by_site_id,
         )
 
-        result = main_module.get_certifications_by_site_id_route(999, object())
+        result = certifications_router.get_certifications_by_site_id_route(
+            999, object()
+        )
 
         assert result == []
 
@@ -640,7 +659,7 @@ class TestGetCertificationsBySiteIdRoute:
             if getattr(route, "path", None) == "/certifications"
         )
 
-        assert route.response_model == list[main_module.CertificationOut]
+        assert route.response_model == list[certifications_router.CertificationOut]
 
 
 class TestGetSiteHistoryByIdRoute:
@@ -654,7 +673,7 @@ class TestGetSiteHistoryByIdRoute:
             return site_history_factory()
 
         monkeypatch.setattr(
-            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+            sites_router, "get_site_history_by_id", fake_get_site_history_by_id
         )
 
         response = client.get("/sites/12/history")
@@ -707,7 +726,7 @@ class TestGetSiteHistoryByIdRoute:
             return fake_site
 
         monkeypatch.setattr(
-            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+            sites_router, "get_site_history_by_id", fake_get_site_history_by_id
         )
 
         response = client.get("/sites/999/history")
@@ -724,7 +743,7 @@ class TestGetSiteHistoryByIdRoute:
             return site_history_factory()
 
         monkeypatch.setattr(
-            main_module, "get_site_history_by_id", fake_get_site_history_by_id
+            sites_router, "get_site_history_by_id", fake_get_site_history_by_id
         )
 
         response = client.get("/sites/not-an-int/history")
@@ -734,7 +753,7 @@ class TestGetSiteHistoryByIdRoute:
     # unittests
     def test_returns_site_history_when_found(self, main_module, monkeypatch) -> None:
         fake_session = object()
-        site_history = main_module.SiteHistory(
+        site_history = sites_router.SiteHistory(
             site_id=12,
             certifications=[],
             inspection_count=0,
@@ -747,12 +766,12 @@ class TestGetSiteHistoryByIdRoute:
             return site_history
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
 
-        result = main_module.get_site_history_by_id_route(12, fake_session)
+        result = sites_router.get_site_history_by_id_route(12, fake_session)
 
         assert result == site_history
 
@@ -763,13 +782,13 @@ class TestGetSiteHistoryByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_site_history_by_id_route(999, object())
+            sites_router.get_site_history_by_id_route(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No site history found for this id: 999"
@@ -781,7 +800,7 @@ class TestGetSiteHistoryByIdRoute:
             if getattr(route, "path", None) == "/sites/{site_id}/history"
         )
 
-        assert route.response_model is main_module.SiteHistory
+        assert route.response_model is sites_router.SiteHistory
 
 
 class TestAnalyzeSiteRoute:
@@ -796,7 +815,7 @@ class TestAnalyzeSiteRoute:
             return site_analysis
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
@@ -819,7 +838,7 @@ class TestAnalyzeSiteRoute:
             raise HTTPException(status_code=404, detail="Site 999 not found.")
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
@@ -846,12 +865,12 @@ class TestAnalyzeSiteRoute:
             return site_analysis
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
 
-        result = main_module.analyze_site(101, fake_session)
+        result = sites_router.analyze_site(101, fake_session)
 
         assert result == site_analysis
 
@@ -862,7 +881,7 @@ class TestAnalyzeSiteRoute:
             if getattr(route, "path", None) == "/sites/{site_id}/analysis-preview"
         )
 
-        assert route.response_model is main_module.SiteAnalysis
+        assert route.response_model is sites_router.SiteAnalysis
 
 
 class TestAnalyzeSiteReturnMarkdownRoute:
@@ -881,12 +900,12 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             return "# Site Analysis\nMarkdown body."
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "render_site_analysis_markdown",
             fake_render_site_analysis_markdown,
         )
@@ -906,7 +925,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             raise HTTPException(status_code=404, detail="Site 999 not found.")
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
@@ -937,17 +956,17 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             return "# Site Analysis\nMarkdown body."
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "_create_site_analysis",
             fake_create_site_analysis,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "render_site_analysis_markdown",
             fake_render_site_analysis_markdown,
         )
 
-        result = main_module.analyze_site_return_markdown(101, fake_session)
+        result = sites_router.analyze_site_return_markdown(101, fake_session)
 
         assert result.body == b"# Site Analysis\nMarkdown body."
         assert result.media_type == "text/markdown"
@@ -986,22 +1005,22 @@ class TestCreateSiteAnalysis:
             return True
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "summarize_previous_visits",
             fake_summarize_previous_visits,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "validate_llm_references",
             fake_validate_llm_references,
         )
 
-        result = main_module._create_site_analysis(101, fake_session)
+        result = sites_router._create_site_analysis(101, fake_session)
 
         assert result == site_analysis
 
@@ -1012,13 +1031,13 @@ class TestCreateSiteAnalysis:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module._create_site_analysis(999, object())
+            sites_router._create_site_analysis(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site 999 not found."
@@ -1026,16 +1045,16 @@ class TestCreateSiteAnalysis:
     @pytest.mark.parametrize(
         "exception_factory",
         [
-            lambda main_module: main_module.APIError(
+            lambda main_module: sites_router.APIError(
                 "API unavailable",
                 request=Request("POST", "https://api.anthropic.com"),
                 body=None,
             ),
-            lambda main_module: main_module.ValidationError.from_exception_data(
+            lambda main_module: sites_router.ValidationError.from_exception_data(
                 "SiteAnalysis",
                 [{"type": "missing", "loc": ("site_id",), "input": {}}],
             ),
-            lambda main_module: main_module.JSONDecodeError("Invalid JSON", "{", 0),
+            lambda main_module: sites_router.JSONDecodeError("Invalid JSON", "{", 0),
         ],
     )
     def test_returns_502_when_ai_analysis_fails(
@@ -1050,18 +1069,18 @@ class TestCreateSiteAnalysis:
             raise exception_factory(main_module)
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "summarize_previous_visits",
             fake_summarize_previous_visits,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module._create_site_analysis(101, object())
+            sites_router._create_site_analysis(101, object())
 
         assert exc_info.value.status_code == 502
         assert exc_info.value.detail == "AI analysis failed for site 101."
@@ -1082,23 +1101,23 @@ class TestCreateSiteAnalysis:
             return False
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_history_by_id",
             fake_get_site_history_by_id,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "summarize_previous_visits",
             fake_summarize_previous_visits,
         )
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "validate_llm_references",
             fake_validate_llm_references,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module._create_site_analysis(101, object())
+            sites_router._create_site_analysis(101, object())
 
         assert exc_info.value.status_code == 502
         assert (
@@ -1110,7 +1129,7 @@ class TestGetSiteAttachmentsOutByIdRoute:
     def test_client_returns_site_attachments_json_when_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        site_attachments = main_module.SiteAttachmentsOut(
+        site_attachments = sites_router.SiteAttachmentsOut(
             site_id=12,
             attachments=[],
         )
@@ -1121,7 +1140,7 @@ class TestGetSiteAttachmentsOutByIdRoute:
             return site_attachments
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_attachments_by_id",
             fake_get_site_attachments_by_id,
         )
@@ -1140,7 +1159,7 @@ class TestGetSiteAttachmentsOutByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_attachments_by_id",
             fake_get_site_attachments_by_id,
         )
@@ -1159,7 +1178,7 @@ class TestGetSiteAttachmentsOutByIdRoute:
         self, main_module, monkeypatch
     ) -> None:
         fake_session = object()
-        site_attachments = main_module.SiteAttachmentsOut(
+        site_attachments = sites_router.SiteAttachmentsOut(
             site_id=12,
             attachments=[],
         )
@@ -1170,12 +1189,12 @@ class TestGetSiteAttachmentsOutByIdRoute:
             return site_attachments
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_attachments_by_id",
             fake_get_site_attachments_by_id,
         )
 
-        result = main_module.get_site_attachments_by_id_route(12, fake_session)
+        result = sites_router.get_site_attachments_by_id_route(12, fake_session)
 
         assert result == site_attachments
 
@@ -1186,13 +1205,13 @@ class TestGetSiteAttachmentsOutByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            sites_router,
             "get_site_attachments_by_id",
             fake_get_site_attachments_by_id,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_site_attachments_by_id_route(999, object())
+            sites_router.get_site_attachments_by_id_route(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No attachments found for site 999"
@@ -1204,7 +1223,7 @@ class TestGetSiteAttachmentsOutByIdRoute:
             if getattr(route, "path", None) == "/sites/{site_id}/attachments"
         )
 
-        assert route.response_model is main_module.SiteAttachmentsOut
+        assert route.response_model is sites_router.SiteAttachmentsOut
 
 
 class TestGetCertificationAttachmentsByIdRoute:
@@ -1222,7 +1241,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             return certification_attachments_factory()
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_attachments_by_id",
             fake_get_certification_attachments_by_id,
         )
@@ -1262,7 +1281,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             return certification_attachments_factory(attachments=[])
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_attachments_by_id",
             fake_get_certification_attachments_by_id,
         )
@@ -1281,7 +1300,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_attachments_by_id",
             fake_get_certification_attachments_by_id,
         )
@@ -1312,17 +1331,20 @@ class TestGetCertificationAttachmentsByIdRoute:
             return certification_attachments_factory()
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_attachments_by_id",
             fake_get_certification_attachments_by_id,
         )
 
-        result = main_module.get_certification_attachments_by_id_route(
+        result = certifications_router.get_certification_attachments_by_id_route(
             100, fake_session
         )
 
-        assert result == main_module.CertificationAttachmentsOut.model_validate(
-            certification_attachments_factory()
+        assert (
+            result
+            == certifications_router.CertificationAttachmentsOut.model_validate(
+                certification_attachments_factory()
+            )
         )
 
     def test_returns_404_when_certification_is_not_found(
@@ -1332,13 +1354,15 @@ class TestGetCertificationAttachmentsByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module,
+            certifications_router,
             "get_certification_attachments_by_id",
             fake_get_certification_attachments_by_id,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_certification_attachments_by_id_route(999, object())
+            certifications_router.get_certification_attachments_by_id_route(
+                999, object()
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No attachments found for certification 999"
@@ -1353,7 +1377,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             == "/certifications/{certification_id}/attachments"
         )
 
-        assert route.response_model is main_module.CertificationAttachmentsOut
+        assert route.response_model is certifications_router.CertificationAttachmentsOut
 
 
 class TestGetAttachmentByIdRoute:
@@ -1366,7 +1390,7 @@ class TestGetAttachmentByIdRoute:
             return attachment_factory()
 
         monkeypatch.setattr(
-            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+            attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
         response = client.get("/attachments/50")
@@ -1411,7 +1435,7 @@ class TestGetAttachmentByIdRoute:
             )
 
         monkeypatch.setattr(
-            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+            attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
         response = client.get("/attachments/50")
@@ -1433,7 +1457,7 @@ class TestGetAttachmentByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+            attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
         response = client.get("/attachments/999")
@@ -1457,12 +1481,12 @@ class TestGetAttachmentByIdRoute:
             return attachment_factory()
 
         monkeypatch.setattr(
-            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+            attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
-        result = main_module.get_attachment_by_id_route(50, fake_session)
+        result = attachments_router.get_attachment_by_id_route(50, fake_session)
 
-        assert result == main_module.AttachmentWithContextOut.model_validate(
+        assert result == attachments_router.AttachmentWithContextOut.model_validate(
             attachment_factory()
         )
 
@@ -1473,11 +1497,11 @@ class TestGetAttachmentByIdRoute:
             return None
 
         monkeypatch.setattr(
-            main_module, "get_attachment_by_id", fake_get_attachment_by_id
+            attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.get_attachment_by_id_route(999, object())
+            attachments_router.get_attachment_by_id_route(999, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Attachment 999 not found."
@@ -1489,14 +1513,14 @@ class TestGetAttachmentByIdRoute:
             if getattr(route, "path", None) == "/attachments/{attachment_id}"
         )
 
-        assert route.response_model is main_module.AttachmentWithContextOut
+        assert route.response_model is attachments_router.AttachmentWithContextOut
 
 
 class TestPostNewAttachmentRoute:
     def test_client_returns_attachment_json_when_created(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        new_attachment = main_module.AttachmentOut.model_validate(
+        new_attachment = attachments_router.AttachmentOut.model_validate(
             {
                 **attachment_create_factory(),
                 "id": 50,
@@ -1515,7 +1539,7 @@ class TestPostNewAttachmentRoute:
             return new_attachment
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
@@ -1542,12 +1566,12 @@ class TestPostNewAttachmentRoute:
         def fake_post_new_attachment(attachment, session):
             assert attachment.certification_id == 100
             assert session is mock_db
-            raise main_module.AttachmentCertificationNotFoundError(
+            raise attachments_router.AttachmentCertificationNotFoundError(
                 "Certification 100 does not exist."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
@@ -1563,12 +1587,12 @@ class TestPostNewAttachmentRoute:
         def fake_post_new_attachment(attachment, session):
             assert attachment.finding_ids == [7]
             assert session is mock_db
-            raise main_module.AttachmentFindingCertificationMismatchError(
+            raise attachments_router.AttachmentFindingCertificationMismatchError(
                 "Finding 7 does not belong to certification 100."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
@@ -1587,12 +1611,12 @@ class TestPostNewAttachmentRoute:
     ):
         def fake_post_new_attachment(attachment, session):
             assert session is mock_db
-            raise main_module.AttachmentConflictError(
+            raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
@@ -1610,23 +1634,23 @@ class TestPostNewAttachmentRoute:
     def test_returns_404_when_certification_is_not_found(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
-        attachment = main_module.AttachmentCreate.model_validate(
+        attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory()
         )
 
         def fake_post_new_attachment(attachment_info, session):
-            raise main_module.AttachmentCertificationNotFoundError(
+            raise attachments_router.AttachmentCertificationNotFoundError(
                 "Certification 100 does not exist."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(attachment, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification 100 does not exist."
@@ -1634,23 +1658,23 @@ class TestPostNewAttachmentRoute:
     def test_returns_404_when_finding_is_not_found(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
-        attachment = main_module.AttachmentCreate.model_validate(
+        attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory(finding_ids=[7])
         )
 
         def fake_post_new_attachment(attachment_info, session):
-            raise main_module.AttachmentFindingNotFoundError(
+            raise attachments_router.AttachmentFindingNotFoundError(
                 "Finding 7 does not exist."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(attachment, object())
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Finding 7 does not exist."
@@ -1658,23 +1682,23 @@ class TestPostNewAttachmentRoute:
     def test_returns_422_when_finding_belongs_to_another_certification(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
-        attachment = main_module.AttachmentCreate.model_validate(
+        attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory(finding_ids=[7])
         )
 
         def fake_post_new_attachment(attachment_info, session):
-            raise main_module.AttachmentFindingCertificationMismatchError(
+            raise attachments_router.AttachmentFindingCertificationMismatchError(
                 "Finding 7 does not belong to certification 100."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(attachment, object())
 
         assert exc_info.value.status_code == 422
         assert (
@@ -1684,23 +1708,23 @@ class TestPostNewAttachmentRoute:
     def test_returns_409_when_attachment_conflicts(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
-        attachment = main_module.AttachmentCreate.model_validate(
+        attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory()
         )
 
         def fake_post_new_attachment(attachment_info, session):
-            raise main_module.AttachmentConflictError(
+            raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
             )
 
         monkeypatch.setattr(
-            main_module,
+            attachments_router,
             "post_new_attachment",
             fake_post_new_attachment,
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(attachment, object())
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "Attachment could not be created."
@@ -1717,7 +1741,7 @@ class TestPostNewClientRoute:
             assert session is mock_db
             return client_record_factory()
 
-        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         response = client.post("/clients", json=vars(client_record_factory()))
 
@@ -1739,7 +1763,7 @@ class TestPostNewClientRoute:
             assert session is mock_db
             return fake_site
 
-        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         response = client.post("/clients", json=vars(client_record_factory()))
 
@@ -1756,7 +1780,7 @@ class TestPostNewClientRoute:
     # unittests
     def test_returns_created_client(self, main_module, monkeypatch) -> None:
         fake_session = object()
-        client = main_module.ClientInOut(
+        client = clients_router.ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -1769,16 +1793,16 @@ class TestPostNewClientRoute:
             assert session is fake_session
             return client
 
-        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
-        result = main_module.post_new_client_route(client, fake_session)
+        result = clients_router.post_new_client_route(client, fake_session)
 
         assert result == client
 
     def test_returns_409_when_client_is_not_created(
         self, main_module, monkeypatch
     ) -> None:
-        client = main_module.ClientInOut(
+        client = clients_router.ClientInOut(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -1789,10 +1813,10 @@ class TestPostNewClientRoute:
         def fake_post_new_client(client_info, session):
             return None
 
-        monkeypatch.setattr(main_module, "post_new_client", fake_post_new_client)
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            main_module.post_new_client_route(client, object())
+            clients_router.post_new_client_route(client, object())
 
         assert exc_info.value.status_code == 409
         assert "Client was not added" in exc_info.value.detail
@@ -1806,5 +1830,5 @@ class TestPostNewClientRoute:
             if getattr(route, "path", None) == "/clients"
         )
 
-        assert route.response_model is main_module.ClientInOut
+        assert route.response_model is clients_router.ClientInOut
         assert route.status_code == 201
