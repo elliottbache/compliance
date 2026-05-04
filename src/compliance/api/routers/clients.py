@@ -4,7 +4,7 @@ from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ClientInOut,
 )
-from compliance.services.query_db import (
+from compliance.services.records import (
     post_new_client,
 )
 

@@ -6,7 +6,7 @@ from compliance.api.schemas import (
     AttachmentOut,
     AttachmentWithContextOut,
 )
-from compliance.services.query_db import (
+from compliance.services.records import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentFindingCertificationMismatchError,

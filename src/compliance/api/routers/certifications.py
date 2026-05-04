@@ -7,7 +7,7 @@ from compliance.api.schemas import (
     CertificationAttachmentsOut,
     CertificationOut,
 )
-from compliance.services.query_db import (
+from compliance.services.records import (
     get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications_by_site_id,

@@ -1,6 +1,6 @@
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -13,8 +13,8 @@ from compliance.api.schemas import (
     FindingOut,
 )
 from compliance.db.models import Certification, Client, Site
-from compliance.schemas import FindingHistory, SiteHistory
-from compliance.services.query_db import (
+from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+from compliance.services.records import (
     AttachmentCertificationNotFoundError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
@@ -33,10 +33,95 @@ from compliance.services.query_db import (
     get_certifications_by_site_id,
     get_site_attachments_by_id,
     get_site_by_id,
+    get_site_history,
     get_site_history_by_id,
     post_new_attachment,
     post_new_client,
 )
+
+
+@pytest.fixture
+def certification_factory():
+    def _build(
+        cert_id: int,
+        *,
+        result: str | None = "pass",
+        resolution_date=None,
+        reg_title: str = "USDA Organic",
+        reg_description: str = "Organic certification",
+        certifier_org_name: str = "Certifier",
+        inspection_date: date | None = date(2024, 1, 10),
+        findings=None,
+    ) -> CertificationHistory:
+        return CertificationHistory(
+            cert_id=cert_id,
+            result=result,
+            resolution_date=resolution_date,
+            reg_title=reg_title,
+            reg_description=reg_description,
+            certifier_org_name=certifier_org_name,
+            inspection_date=inspection_date,
+            findings=[] if findings is None else findings,
+        )
+
+    return _build
+
+
+@pytest.fixture
+def site_history_row_factory():
+    def _build(**overrides):
+        row = {
+            "site_id": 71,
+            "cert_id": 100,
+            "result": "pass",
+            "resolution_date": None,
+            "reg_title": "USDA Organic",
+            "reg_description": "Organic certification",
+            "certifier_org_name": "Org A",
+            "inspection_date": None,
+            "finding_id": 1,
+            "finding": "Issue A",
+            "rule_index": "7 CFR 205.201",
+            "rule_title": "Rule A",
+            "rule_description": "Rule description A",
+        }
+        row.update(overrides)
+        return row
+
+    return _build
+
+
+@pytest.fixture
+def db_access_mocks():
+    mock_engine = MagicMock()
+    mock_meta = MagicMock()
+    mock_conn = MagicMock()
+
+    mock_context_manager = MagicMock()
+    mock_context_manager.__enter__.return_value = mock_conn
+    mock_context_manager.__exit__.return_value = None
+    mock_engine.connect.return_value = mock_context_manager
+
+    mock_tables = {
+        "certifications_table": MagicMock(),
+        "regulations_table": MagicMock(),
+        "certifiers_table": MagicMock(),
+        "findings_table": MagicMock(),
+        "rules_table": MagicMock(),
+    }
+
+    mock_stmt = MagicMock()
+    mock_stmt.where.return_value = mock_stmt
+    mock_stmt.join_from.return_value = mock_stmt
+    mock_stmt.order_by.return_value = mock_stmt
+
+    return {
+        "engine": mock_engine,
+        "meta": mock_meta,
+        "conn": mock_conn,
+        "tables": mock_tables,
+        "stmt": mock_stmt,
+    }
 
 
 def site_history_row(**overrides):
@@ -836,3 +921,144 @@ class TestFormatCertificationAttachmentsOut:
     def test_raises_value_error_when_first_row_is_empty(self) -> None:
         with pytest.raises(ValueError, match="First attachment row is empty"):
             _format_certification_attachments([{}])
+
+
+class TestGetSiteHistory:
+    def test_returns_none_when_query_returns_no_rows(self, db_access_mocks) -> None:
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = []
+
+        with (
+            patch(
+                "compliance.services.records.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.services.records.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.services.records.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
+            patch("compliance.services.records._format_site_history") as mock_format,
+        ):
+            result = get_site_history(71)
+
+        assert result is None
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
+        mock_format.assert_not_called()
+
+    def test_formats_site_history_when_query_returns_one_row(
+        self, site_history_row_factory, db_access_mocks
+    ) -> None:
+        rows = [
+            site_history_row_factory(
+                finding_id=None,
+                finding=None,
+                rule_index=None,
+                rule_title=None,
+                rule_description=None,
+            )
+        ]
+        formatted_site = SiteHistory(
+            site_id=71,
+            certifications=[],
+            inspection_count=1,
+            latest_inspection_date=None,
+        )
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = rows
+
+        with (
+            patch(
+                "compliance.services.records.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.services.records.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.services.records.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
+            patch(
+                "compliance.services.records._format_site_history",
+                return_value=formatted_site,
+            ) as mock_format,
+        ):
+            result = get_site_history(71)
+
+        assert result == formatted_site
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
+        mock_format.assert_called_once_with(rows)
+
+    def test_formats_site_history_when_query_returns_multiple_rows(
+        self, site_history_row_factory, db_access_mocks
+    ) -> None:
+        rows = [
+            site_history_row_factory(
+                cert_id=100,
+                finding_id=1,
+                finding="Issue A",
+                rule_index="7 CFR 205.201",
+                rule_title="Rule A",
+                rule_description="Rule description A",
+            ),
+            site_history_row_factory(
+                cert_id=100,
+                finding_id=2,
+                finding="Issue B",
+                rule_index="7 CFR 205.202",
+                rule_title="Rule B",
+                rule_description="Rule description B",
+            ),
+        ]
+        formatted_site = SiteHistory(
+            site_id=71,
+            certifications=[],
+            inspection_count=1,
+            latest_inspection_date=None,
+        )
+        db_access_mocks[
+            "conn"
+        ].execute.return_value.mappings.return_value.all.return_value = rows
+
+        with (
+            patch(
+                "compliance.services.records.get_engine_metadata",
+                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
+            ) as mock_get_engine_metadata,
+            patch(
+                "compliance.services.records.get_tables",
+                return_value=db_access_mocks["tables"],
+            ) as mock_get_tables,
+            patch(
+                "compliance.services.records.select",
+                return_value=db_access_mocks["stmt"],
+            ) as mock_select,
+            patch(
+                "compliance.services.records._format_site_history",
+                return_value=formatted_site,
+            ) as mock_format,
+        ):
+            result = get_site_history(71)
+
+        assert result == formatted_site
+        mock_get_engine_metadata.assert_called_once_with()
+        mock_get_tables.assert_called_once_with(
+            db_access_mocks["engine"], db_access_mocks["meta"]
+        )
+        mock_select.assert_called_once()
+        mock_format.assert_called_once_with(rows)
