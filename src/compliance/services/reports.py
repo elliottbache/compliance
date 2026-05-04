@@ -8,7 +8,7 @@ def build_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
 
     output_text = (
         f"# Site Analysis\n## Metadata\n**Site ID:** {site_analysis.site_id}"
-        f"\n**Generated at:** {datetime.now()}\n**Note:** Everything in this"
+        f"\n\n**Generated at:** {datetime.now()}\n\n**Note:** Everything in this"
         f" report is AI-generated and is meant for human-review-only.  "
         f"These are not official compliance decisions.\n## Executive summary"
     )
