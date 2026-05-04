@@ -864,7 +864,7 @@ class TestGetSiteHistoryRoute:
         assert route.response_model is sites_router.SiteHistory
 
 
-class TestCreateSiteAnalysisPreviewRoute:
+class TestCreateSiteAnalysisRoute:
     def test_client_returns_site_analysis_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_analysis_factory
     ):
@@ -881,7 +881,7 @@ class TestCreateSiteAnalysisPreviewRoute:
             fake_create_site_analysis,
         )
 
-        response = client.post("/sites/101/analysis-preview")
+        response = client.post("/sites/101/analysis")
 
         assert response.status_code == 200
         assert response.json()["site_id"] == 101
@@ -904,13 +904,13 @@ class TestCreateSiteAnalysisPreviewRoute:
             fake_create_site_analysis,
         )
 
-        response = client.post("/sites/999/analysis-preview")
+        response = client.post("/sites/999/analysis")
 
         assert response.status_code == 404
         assert response.json() == {"detail": "Site 999 not found."}
 
     def test_client_returns_422_when_site_id_is_not_an_int(self, client):
-        response = client.post("/sites/not-an-int/analysis-preview")
+        response = client.post("/sites/not-an-int/analysis")
 
         assert response.status_code == 422
 
@@ -931,7 +931,7 @@ class TestCreateSiteAnalysisPreviewRoute:
             fake_create_site_analysis,
         )
 
-        result = sites_router.create_site_analysis_preview_route(101, fake_session)
+        result = sites_router.create_site_analysis_route(101, fake_session)
 
         assert result == site_analysis
 
@@ -939,7 +939,7 @@ class TestCreateSiteAnalysisPreviewRoute:
         route = next(
             route
             for route in main_module.app.routes
-            if getattr(route, "path", None) == "/sites/{site_id}/analysis-preview"
+            if getattr(route, "path", None) == "/sites/{site_id}/analysis"
         )
 
         assert route.response_model is sites_router.SiteAnalysis
@@ -971,7 +971,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             fake_build_site_analysis_markdown,
         )
 
-        response = client.post("/sites/101/analysis-preview/markdown")
+        response = client.post("/sites/101/analysis/markdown")
 
         assert response.status_code == 200
         assert response.text == "# Site Analysis\nMarkdown body."
@@ -991,13 +991,13 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             fake_create_site_analysis,
         )
 
-        response = client.post("/sites/999/analysis-preview/markdown")
+        response = client.post("/sites/999/analysis/markdown")
 
         assert response.status_code == 404
         assert response.json() == {"detail": "Site 999 not found."}
 
     def test_client_returns_422_when_site_id_is_not_an_int(self, client):
-        response = client.post("/sites/not-an-int/analysis-preview/markdown")
+        response = client.post("/sites/not-an-int/analysis/markdown")
 
         assert response.status_code == 422
 
@@ -1027,9 +1027,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             fake_build_site_analysis_markdown,
         )
 
-        result = sites_router.create_site_analysis_markdown_preview_route(
-            101, fake_session
-        )
+        result = sites_router.create_site_analysis_markdown_route(101, fake_session)
 
         assert result.body == b"# Site Analysis\nMarkdown body."
         assert result.media_type == "text/markdown"
@@ -1038,8 +1036,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
         route = next(
             route
             for route in main_module.app.routes
-            if getattr(route, "path", None)
-            == "/sites/{site_id}/analysis-preview/markdown"
+            if getattr(route, "path", None) == "/sites/{site_id}/analysis/markdown"
         )
 
         assert route.response_model is None

@@ -145,11 +145,9 @@ def get_site_history_route(site_id: int, session: SessionDep) -> SiteHistory:
     return SiteHistory.model_validate(site_history)
 
 
-@router.post("/{site_id}/analysis-preview")
-def create_site_analysis_preview_route(
-    site_id: int, session: SessionDep
-) -> SiteAnalysis:
-    """Generate an AI analysis preview for one site's certification history.
+@router.post("/{site_id}/analysis")
+def create_site_analysis_route(site_id: int, session: SessionDep) -> SiteAnalysis:
+    """Generate an AI analysis for one site's certification history.
 
     Args:
         site_id: Unique identifier for the site whose history should be
@@ -168,11 +166,9 @@ def create_site_analysis_preview_route(
     return _create_site_analysis(site_id, session)
 
 
-@router.post("/{site_id}/analysis-preview/markdown")
-def create_site_analysis_markdown_preview_route(
-    site_id: int, session: SessionDep
-) -> Response:
-    """Generate a Markdown AI analysis preview for one site's history.
+@router.post("/{site_id}/analysis/markdown")
+def create_site_analysis_markdown_route(site_id: int, session: SessionDep) -> Response:
+    """Generate a Markdown AI analysis for one site's history.
 
     Args:
         site_id: Unique identifier for the site whose history should be
