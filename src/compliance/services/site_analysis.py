@@ -12,7 +12,7 @@ def summarize_previous_visits(
     site_history: SiteHistory,
     *,
     ai_model: str = "claude-haiku-4-5-20251001",
-    prompt_version: str = "v1.2",
+    prompt_version: str = "v1.3",
     case_info: str = "",
 ) -> SiteAnalysis:
     """Analyze site history with the site-analysis prompt workflow.
@@ -103,6 +103,9 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
     - Resolution dates can acceptably be null if the status is "In progress" or "Fail".
     They should not be null for "Pass".
     - Pass grades do not require findings.  Fail grades do.
+    - Findings are tied to a rule, which is tied to a regulation, which is tied to a certification
+    for a specific site history.  The finding ID cited in evidence must coincide with the cited
+    certification.
     
     Site history:
     """
