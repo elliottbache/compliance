@@ -182,9 +182,9 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG")
 
-    from compliance.services.records import get_site_history
+    from compliance.services.records import get_site_history_legacy
 
-    site_history = get_site_history(71)
+    site_history = get_site_history_legacy(71)
     if site_history is None:
         raise ValueError("site_history is None")
 

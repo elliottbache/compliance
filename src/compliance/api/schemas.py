@@ -86,6 +86,15 @@ class SiteAttachmentsOut(BaseModel):
     attachments: list[AttachmentWithContextOut]
 
 
+class SiteCertificationsOut(BaseModel):
+    """Public API response shape for a site's certification records."""
+
+    model_config = ConfigDict(frozen=True)
+
+    site_id: int
+    certifications: list[CertificationOut]
+
+
 class CertificationAttachmentsOut(BaseModel):
     """Public API response shape for a certification's attachments record."""
 

@@ -11,6 +11,7 @@ from compliance.api.schemas import (
     CertificationAttachmentsOut,
     ClientInOut,
     FindingOut,
+    SiteCertificationsOut,
 )
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
@@ -27,14 +28,15 @@ from compliance.services.records import (
     _format_new_attachment_with_context,
     _format_site_attachments,
     _format_site_history,
+    format_site_certifications,
     get_attachment_by_id,
     get_certification_attachments_by_id,
     get_certification_by_id,
-    get_certifications_by_site_id,
-    get_site_attachments_by_id,
+    get_site_attachments,
     get_site_by_id,
+    get_site_certifications,
     get_site_history,
-    get_site_history_by_id,
+    get_site_history_legacy,
     post_new_attachment,
     post_new_client,
 )
@@ -246,7 +248,7 @@ class TestGetCertificationById:
         assert result is None
 
 
-class TestGetCertificationsBySiteId:
+class TestGetSiteCertifications:
     def test_returns_certifications_for_site(self) -> None:
         session = MagicMock()
         expected_certifications = [
@@ -257,7 +259,7 @@ class TestGetCertificationsBySiteId:
             expected_certifications
         )
 
-        result = get_certifications_by_site_id(12, session, limit=None, offset=0)
+        result = get_site_certifications(12, session, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == expected_certifications
@@ -266,7 +268,7 @@ class TestGetCertificationsBySiteId:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        result = get_certifications_by_site_id(999, session, limit=None, offset=0)
+        result = get_site_certifications(999, session, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == []
@@ -277,7 +279,7 @@ class TestGetCertificationsBySiteId:
             MagicMock(spec=Certification)
         ]
 
-        get_certifications_by_site_id(12, session, limit=None, offset=0)
+        get_site_certifications(12, session, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifications.resolution_date DESC, certifications.id" in str(
@@ -290,7 +292,7 @@ class TestGetCertificationsBySiteId:
             MagicMock(spec=Certification)
         ]
 
-        get_certifications_by_site_id(12, session, limit=10, offset=20)
+        get_site_certifications(12, session, limit=10, offset=20)
 
         stmt = session.execute.call_args.args[0]
         statement_text = str(stmt)
@@ -298,12 +300,33 @@ class TestGetCertificationsBySiteId:
         assert "OFFSET" in statement_text
 
 
-class TestGetSiteHistoryById:
+class TestFormatSiteCertifications:
+    def test_wraps_certifications_in_site_response(self) -> None:
+        certifications = [
+            SimpleNamespace(
+                id=100,
+                certifier_id=200,
+                regulation_id=300,
+                site_id=12,
+                result="Certified",
+                inspection_date=date(2023, 10, 15),
+                resolution_date=date(2023, 10, 20),
+            )
+        ]
+
+        result = format_site_certifications(12, certifications)
+
+        assert result == SiteCertificationsOut.model_validate(
+            {"site_id": 12, "certifications": certifications}
+        )
+
+
+class TestGetSiteHistoryForSite:
     def test_returns_none_when_query_returns_no_rows(self) -> None:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_site_history_by_id(71, session)
+        result = get_site_history(71, session)
 
         session.execute.assert_called_once()
         assert result is None
@@ -321,18 +344,18 @@ class TestGetSiteHistoryById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_site_history_by_id(71, session)
+        result = get_site_history(71, session)
 
         session.execute.assert_called_once()
         assert result == _format_site_history(rows)
 
 
-class TestGetSiteAttachmentsOutById:
+class TestGetSiteAttachments:
     def test_returns_none_when_query_returns_no_rows(self) -> None:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_site_attachments_by_id(71, session)
+        result = get_site_attachments(71, session)
 
         session.execute.assert_called_once()
         assert result is None
@@ -342,7 +365,7 @@ class TestGetSiteAttachmentsOutById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_site_attachments_by_id(71, session)
+        result = get_site_attachments(71, session)
 
         session.execute.assert_called_once()
         assert result == _format_site_attachments(rows)
@@ -944,7 +967,7 @@ class TestGetSiteHistory:
             ) as mock_select,
             patch("compliance.services.records._format_site_history") as mock_format,
         ):
-            result = get_site_history(71)
+            result = get_site_history_legacy(71)
 
         assert result is None
         mock_get_engine_metadata.assert_called_once_with()
@@ -994,7 +1017,7 @@ class TestGetSiteHistory:
                 return_value=formatted_site,
             ) as mock_format,
         ):
-            result = get_site_history(71)
+            result = get_site_history_legacy(71)
 
         assert result == formatted_site
         mock_get_engine_metadata.assert_called_once_with()
@@ -1053,7 +1076,7 @@ class TestGetSiteHistory:
                 return_value=formatted_site,
             ) as mock_format,
         ):
-            result = get_site_history(71)
+            result = get_site_history_legacy(71)
 
         assert result == formatted_site
         mock_get_engine_metadata.assert_called_once_with()

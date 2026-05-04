@@ -16,6 +16,7 @@ from compliance.api.schemas import (
     ClientInOut,
     FindingOut,
     SiteAttachmentsOut,
+    SiteCertificationsOut,
 )
 from compliance.db.db_access import get_engine_metadata, get_tables
 from compliance.db.models import (
@@ -59,7 +60,7 @@ def get_site_by_id(site_id: int, session: Session) -> Site | None:
     return session.get(Site, site_id)
 
 
-def get_site_history(site_id: int) -> SiteHistory | None:
+def get_site_history_legacy(site_id: int) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
     Builds the database connection and reflected table objects needed to query
@@ -125,7 +126,7 @@ def get_certification_by_id(
     return session.get(Certification, certification_id)
 
 
-def get_site_history_by_id(site_id: int, session: Session) -> SiteHistory | None:
+def get_site_history(site_id: int, session: Session) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
     Queries certification records for the given site using the provided session,
@@ -171,9 +172,7 @@ def get_site_history_by_id(site_id: int, session: Session) -> SiteHistory | None
     return _format_site_history(results)
 
 
-def get_site_attachments_by_id(
-    site_id: int, session: Session
-) -> SiteAttachmentsOut | None:
+def get_site_attachments(site_id: int, session: Session) -> SiteAttachmentsOut | None:
     """Retrieve attachment records for a site with certification and finding context.
 
     Args:
@@ -207,7 +206,7 @@ def get_site_attachments_by_id(
     return _format_site_attachments(results)
 
 
-def get_certifications_by_site_id(
+def get_site_certifications(
     site_id: int, session: Session, limit: int | None, offset: int
 ) -> list[Certification]:
     """Retrieve certifications for one site ordered by latest resolution date.
@@ -233,6 +232,24 @@ def get_certifications_by_site_id(
         .offset(offset)
     )
     return list(session.execute(stmt).scalars().all())
+
+
+def format_site_certifications(
+    site_id: int, certifications: Sequence[Certification]
+) -> SiteCertificationsOut:
+    """Build a site-level certification collection response.
+
+    Args:
+        site_id: Unique identifier of the site whose certifications were queried.
+        certifications: Certification ORM objects returned for the site.
+
+    Returns:
+        Site certification response containing the site ID and serialized
+        certification records.
+    """
+    return SiteCertificationsOut.model_validate(
+        {"site_id": site_id, "certifications": list(certifications)}
+    )
 
 
 def get_certification_attachments_by_id(
@@ -807,9 +824,9 @@ if __name__ == "__main__":
 
     session = get_db()
 
-    print(f"\nsite 71: {get_site_history_by_id(71, next(iter(session)))}")
+    print(f"\nsite 71: {get_site_history(71, next(iter(session)))}")
 
     session = get_db()
-    print(f"\nsite 71: {get_site_attachments_by_id(71, next(iter(session)))}")
+    print(f"\nsite 71: {get_site_attachments(71, next(iter(session)))}")
 
-    print(f"\nsite 71: {get_site_history(71)}")
+    print(f"\nsite 71: {get_site_history_legacy(71)}")
