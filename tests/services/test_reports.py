@@ -14,9 +14,15 @@ class TestBuildSiteAnalysisMarkdown:
 
         result = build_site_analysis_markdown(site_analysis)
 
-        assert result.startswith(
-            "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary\nShort summary."
+        assert result.startswith("# Site Analysis\n## Metadata")
+        assert f"**Site ID:** {site_analysis.site_id}" in result
+        assert "**Generated at:**" in result
+        assert (
+            "**Note:** Everything in this report is AI-generated and is meant "
+            "for human-review-only.  These are not official compliance decisions."
+            in result
         )
+        assert "## Executive summary\nShort summary." in result
         assert "## Recurring issues" in result
         assert "## Missing information" in result
         assert "## Needs human review" in result
@@ -27,9 +33,10 @@ class TestBuildSiteAnalysisMarkdown:
 
         result = build_site_analysis_markdown(site_analysis)
 
-        assert result.startswith(
-            "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary\nNone.\n## Recurring issues"
-        )
+        assert result.startswith("# Site Analysis\n## Metadata")
+        assert f"**Site ID:** {site_analysis.site_id}" in result
+        assert "**Generated at:**" in result
+        assert "## Executive summary\nNone.\n## Recurring issues" in result
 
     def test_renders_sections_in_expected_order(self, site_analysis_factory) -> None:
         site_analysis = site_analysis_factory()

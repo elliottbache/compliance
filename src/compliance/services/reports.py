@@ -1,10 +1,17 @@
+from datetime import datetime
+
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
 
 
 def build_site_analysis_markdown(site_analysis: SiteAnalysis) -> str:
     """Render a SiteAnalysis object as a Markdown summary document."""
 
-    output_text = "# Site Analysis\n## Note\nEverything in this report is AI-generated and is meant for human-review-only.  These are not official compliance decisions.\n## Executive summary"
+    output_text = (
+        f"# Site Analysis\n## Metadata\n**Site ID:** {site_analysis.site_id}"
+        f"\n**Generated at:** {datetime.now()}\n**Note:** Everything in this"
+        f" report is AI-generated and is meant for human-review-only.  "
+        f"These are not official compliance decisions.\n## Executive summary"
+    )
     exec_text = (
         site_analysis.executive_summary if site_analysis.executive_summary else "None."
     )
