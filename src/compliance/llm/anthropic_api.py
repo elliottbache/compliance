@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
 from compliance.logging_utils import configure_logging
 from compliance.schemas import SiteHistory
-from compliance.services.query_history import get_site_history
+from compliance.services.records import get_site_history
 
 MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v1.2"

@@ -17,7 +17,7 @@ from compliance.llm.anthropic_api import (
 )
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
-from compliance.services.query_db import (
+from compliance.services.records import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
