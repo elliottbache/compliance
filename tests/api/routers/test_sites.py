@@ -1,0 +1,1085 @@
+from datetime import date
+from types import SimpleNamespace
+
+import pytest
+from fastapi import HTTPException
+from httpx import Request
+
+from compliance.api.routers import sites as sites_router
+
+
+class TestGetSiteByIdRoute:
+    # TestClient
+    def test_client_returns_site_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_factory
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_factory()
+
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/12")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "id": 12,
+            "nif": "A1234567B",
+            "city": "Madrid",
+            "postal_code": 28013,
+            "street": "Gran Via",
+            "street_number": None,
+            "suite": None,
+            "address_info": "Main entrance",
+        }
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        fake_site = None
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/999")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site for this id found: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(
+        self, main_module, client, mock_db, monkeypatch, site_factory
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_factory()
+
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
+
+        response = client.get("/sites/not-an-int")
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_site_when_found(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        site = SimpleNamespace(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return site
+
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
+
+        result = sites_router.get_site_by_id_route(12, fake_session)
+
+        assert result == sites_router.SiteOut.model_validate(site)
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        def fake_get_site_by_id(site_id, session):
+            return None
+
+        monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_by_id_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 999"
+
+    def test_registers_site_output_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}"
+        )
+
+        assert route.response_model is sites_router.SiteOut
+
+
+class TestGetSiteCertificationsRoute:
+    # TestClient
+    def test_client_returns_certifications_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, certifications_factory
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
+        def fake_get_site_certifications(site_id, session, limit, offset):
+            assert site_id == 12
+            assert session is mock_db
+            return certifications_factory(2)
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        response = client.get("/sites/12/certifications")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "site_id": 12,
+            "certifications": [
+                {
+                    "id": 100,
+                    "certifier_id": 200,
+                    "regulation_id": 300,
+                    "site_id": 12,
+                    "result": "Certified",
+                    "inspection_date": "2023-10-15",
+                    "resolution_date": "2023-10-20",
+                },
+                {
+                    "id": 101,
+                    "certifier_id": 200,
+                    "regulation_id": 300,
+                    "site_id": 12,
+                    "result": "Certified",
+                    "inspection_date": "2023-10-15",
+                    "resolution_date": "2023-10-20",
+                },
+            ],
+        }
+
+    def test_client_returns_empty_list_when_site_has_no_certifications(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
+        def fake_get_site_certifications(site_id, session, limit, offset):
+            assert site_id == 999
+            assert session is mock_db
+            return []
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        response = client.get("/sites/999/certifications")
+
+        assert response.status_code == 200
+        assert response.json() == {"site_id": 999, "certifications": []}
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+
+        response = client.get("/sites/999/certifications")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site for this id found: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.get("/sites/not-an-int/certifications")
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_certifications_for_site(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        certifications = [
+            SimpleNamespace(
+                id=42,
+                certifier_id=7,
+                regulation_id=3,
+                site_id=12,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=date(2026, 4, 15),
+            ),
+            SimpleNamespace(
+                id=43,
+                certifier_id=8,
+                regulation_id=3,
+                site_id=12,
+                result="Fail",
+                inspection_date=date(2026, 5, 1),
+                resolution_date=None,
+            ),
+        ]
+
+        def fake_get_site_certifications(site_id, session, limit, offset):
+            assert site_id == 12
+            assert session is fake_session
+            assert limit is None
+            assert offset == 0
+            return certifications
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        result = sites_router.get_site_certifications_route(12, fake_session)
+
+        assert result == sites_router.SiteCertificationsOut.model_validate(
+            {"site_id": 12, "certifications": certifications}
+        )
+
+    def test_passes_limit_and_offset_to_service(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+
+        def fake_get_site_certifications(site_id, session, limit, offset):
+            assert site_id == 12
+            assert session is fake_session
+            assert limit == 10
+            assert offset == 20
+            return []
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        result = sites_router.get_site_certifications_route(
+            12, fake_session, limit=10, offset=20
+        )
+
+        assert result == sites_router.SiteCertificationsOut(
+            site_id=12, certifications=[]
+        )
+
+    def test_returns_empty_list_when_site_has_no_certifications(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_certifications(site_id, session, limit, offset):
+            return []
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        result = sites_router.get_site_certifications_route(999, object())
+
+        assert result == sites_router.SiteCertificationsOut(
+            site_id=999, certifications=[]
+        )
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: None,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_certifications_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 999"
+
+    def test_registers_certification_list_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/certifications"
+        )
+
+        assert route.response_model is sites_router.SiteCertificationsOut
+
+
+class TestGetSiteHistoryRoute:
+    # TestClient
+    def test_client_returns_site_history_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_history_factory
+    ):
+        def fake_get_site_history(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_history_factory()
+
+        monkeypatch.setattr(sites_router, "get_site_history", fake_get_site_history)
+
+        response = client.get("/sites/12/history")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "site_id": 101,
+            "certifications": [
+                {
+                    "cert_id": 5001,
+                    "result": "Certified",
+                    "resolution_date": "2023-10-20",
+                    "reg_title": "Fire Safety 2023",
+                    "reg_description": "Standard fire safety regulations for commercial buildings.",
+                    "certifier_org_name": "SafeCheck Inc.",
+                    "inspection_date": "2023-10-15",
+                    "findings": [
+                        {
+                            "finding_id": 901,
+                            "finding": "Extinguisher pressure low",
+                            "rule_index": "FS-101",
+                            "rule_title": "Equipment Maintenance",
+                            "rule_description": "Extinguishers must be within safe pressure limits.",
+                        }
+                    ],
+                },
+                {
+                    "cert_id": 5002,
+                    "result": None,
+                    "resolution_date": None,
+                    "reg_title": "Electrical Safety",
+                    "reg_description": "General electrical standards.",
+                    "certifier_org_name": "VoltGuard",
+                    "inspection_date": "2023-11-05",
+                    "findings": [],
+                },
+            ],
+            "inspection_count": 2,
+            "latest_inspection_date": "2023-11-05",
+        }
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        fake_site = None
+
+        def fake_get_site_history(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return fake_site
+
+        monkeypatch.setattr(sites_router, "get_site_history", fake_get_site_history)
+
+        response = client.get("/sites/999/history")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site history found for this id: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(
+        self, main_module, client, mock_db, monkeypatch, site_history_factory
+    ):
+        def fake_get_site_history(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_history_factory()
+
+        monkeypatch.setattr(sites_router, "get_site_history", fake_get_site_history)
+
+        response = client.get("/sites/not-an-int/history")
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_site_history_when_found(self, main_module, monkeypatch) -> None:
+        fake_session = object()
+        site_history = sites_router.SiteHistory(
+            site_id=12,
+            certifications=[],
+            inspection_count=0,
+            latest_inspection_date=None,
+        )
+
+        def fake_get_site_history(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return site_history
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+
+        result = sites_router.get_site_history_route(12, fake_session)
+
+        assert result == site_history
+
+    def test_returns_404_when_site_history_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_history(site_id, session):
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_history_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site history found for this id: 999"
+
+    def test_registers_site_history_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/history"
+        )
+
+        assert route.response_model is sites_router.SiteHistory
+
+
+class TestCreateSiteAnalysisRoute:
+    def test_client_returns_site_analysis_json_when_found(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/101/analysis")
+
+        assert response.status_code == 200
+        assert response.json()["site_id"] == 101
+        assert (
+            response.json()["executive_summary"]
+            == "Prior inspections show one extinguisher issue."
+        )
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis")
+
+        assert response.status_code == 422
+
+    def test_delegates_to_create_site_analysis(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        result = sites_router.create_site_analysis_route(101, fake_session)
+
+        assert result == site_analysis
+
+    def test_registers_site_analysis_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/analysis"
+        )
+
+        assert route.response_model is sites_router.SiteAnalysis
+
+
+class TestAnalyzeSiteReturnMarkdownRoute:
+    def test_client_returns_rendered_markdown(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        response = client.post("/sites/101/analysis/markdown")
+
+        assert response.status_code == 200
+        assert response.text == "# Site Analysis\nMarkdown body."
+        assert response.headers["content-type"].startswith("text/markdown")
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis/markdown")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis/markdown")
+
+        assert response.status_code == 422
+
+    def test_returns_rendered_markdown(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        result = sites_router.create_site_analysis_markdown_route(101, fake_session)
+
+        assert result.body == b"# Site Analysis\nMarkdown body."
+        assert result.media_type == "text/markdown"
+
+    def test_does_not_register_markdown_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/analysis/markdown"
+        )
+
+        assert route.response_model is None
+
+
+class TestCreateSiteAnalysisMarkdownDownloadRoute:
+    def test_client_returns_rendered_markdown_attachment(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        response = client.post("/sites/101/analysis/markdown/download")
+
+        assert response.status_code == 200
+        assert response.text == "# Site Analysis\nMarkdown body."
+        assert response.headers["content-type"].startswith("text/markdown")
+        assert (
+            response.headers["content-disposition"]
+            == 'attachment; filename="site-101-analysis.md"'
+        )
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis/markdown/download")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis/markdown/download")
+
+        assert response.status_code == 422
+
+    def test_returns_rendered_markdown_attachment(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        result = sites_router.create_site_analysis_markdown_download_route(
+            101, fake_session
+        )
+
+        assert result.body == b"# Site Analysis\nMarkdown body."
+        assert result.media_type == "text/markdown"
+        assert (
+            result.headers["content-disposition"]
+            == 'attachment; filename="site-101-analysis.md"'
+        )
+
+    def test_propagates_404_when_site_history_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.create_site_analysis_markdown_download_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site 999 not found."
+
+    def test_does_not_register_download_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None)
+            == "/sites/{site_id}/analysis/markdown/download"
+        )
+
+        assert route.response_model is None
+
+
+class TestCreateSiteAnalysis:
+    def test_returns_site_analysis_when_history_exists(
+        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_history = site_history_factory()
+        site_analysis = site_analysis_factory()
+
+        def fake_get_site_history(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            assert history is site_history
+            return site_analysis
+
+        def fake_validate_llm_references(analysis, history):
+            assert analysis is site_analysis
+            assert history is site_history
+            return True
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "validate_llm_references",
+            fake_validate_llm_references,
+        )
+
+        result = sites_router._create_site_analysis(101, fake_session)
+
+        assert result == site_analysis
+
+    def test_returns_404_when_site_history_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_history(site_id, session):
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router._create_site_analysis(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site 999 not found."
+
+    @pytest.mark.parametrize(
+        "exception_factory",
+        [
+            lambda main_module: sites_router.APIError(
+                "API unavailable",
+                request=Request("POST", "https://api.anthropic.com"),
+                body=None,
+            ),
+            lambda main_module: sites_router.ValidationError.from_exception_data(
+                "SiteAnalysis",
+                [{"type": "missing", "loc": ("site_id",), "input": {}}],
+            ),
+            lambda main_module: sites_router.JSONDecodeError("Invalid JSON", "{", 0),
+        ],
+    )
+    def test_returns_502_when_ai_analysis_fails(
+        self, main_module, monkeypatch, site_history_factory, exception_factory
+    ) -> None:
+        site_history = site_history_factory()
+
+        def fake_get_site_history(site_id, session):
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            raise exception_factory(main_module)
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router._create_site_analysis(101, object())
+
+        assert exc_info.value.status_code == 502
+        assert exc_info.value.detail == "AI analysis failed for site 101."
+
+    def test_returns_502_when_analysis_references_invalid_evidence(
+        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+    ) -> None:
+        site_history = site_history_factory()
+        site_analysis = site_analysis_factory()
+
+        def fake_get_site_history(site_id, session):
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            return False, "v-test", site_analysis
+
+        def fake_validate_llm_references(analysis, history):
+            return False
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "validate_llm_references",
+            fake_validate_llm_references,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router._create_site_analysis(101, object())
+
+        assert exc_info.value.status_code == 502
+        assert (
+            exc_info.value.detail == "LLM model returned invalid evidence for site 101."
+        )
+
+
+class TestGetSiteAttachmentsRoute:
+    def test_client_returns_site_attachments_json_when_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        site_attachments = sites_router.SiteAttachmentsOut(
+            site_id=12,
+            attachments=[],
+        )
+
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
+        def fake_get_site_attachments(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return site_attachments
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_attachments",
+            fake_get_site_attachments,
+        )
+
+        response = client.get("/sites/12/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == {"site_id": 12, "attachments": []}
+
+    def test_client_returns_empty_attachment_list_when_site_has_none(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
+        def fake_get_site_attachments(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_attachments",
+            fake_get_site_attachments,
+        )
+
+        response = client.get("/sites/999/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == {"site_id": 999, "attachments": []}
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+
+        response = client.get("/sites/999/attachments")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site for this id found: 999"}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.get("/sites/not-an-int/attachments")
+
+        assert response.status_code == 422
+
+    def test_returns_site_attachments_when_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        fake_session = object()
+        site_attachments = sites_router.SiteAttachmentsOut(
+            site_id=12,
+            attachments=[],
+        )
+
+        def fake_get_site_attachments(site_id, session):
+            assert site_id == 12
+            assert session is fake_session
+            return site_attachments
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_attachments",
+            fake_get_site_attachments,
+        )
+
+        result = sites_router.get_site_attachments_route(12, fake_session)
+
+        assert result == site_attachments
+
+    def test_returns_empty_attachment_list_when_site_has_none(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_site_attachments(site_id, session):
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_attachments",
+            fake_get_site_attachments,
+        )
+
+        result = sites_router.get_site_attachments_route(999, object())
+
+        assert result == sites_router.SiteAttachmentsOut(site_id=999, attachments=[])
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: None,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_attachments_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 999"
+
+    def test_registers_site_attachments_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites/{site_id}/attachments"
+        )
+
+        assert route.response_model is sites_router.SiteAttachmentsOut
