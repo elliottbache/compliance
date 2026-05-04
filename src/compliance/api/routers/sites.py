@@ -64,16 +64,21 @@ def get_site_attachments_route(site_id: int, session: SessionDep) -> SiteAttachm
 
     Returns:
         Site attachments serialized with certification, regulation, and finding
-        context.
+        context, or an empty attachment list when the site exists without
+        attachments.
 
     Raises:
-        HTTPException: If no attachments exist for the requested site.
+        HTTPException: If no site exists for the requested ID.
     """
+    site = get_site_by_id(site_id, session)
+    if site is None:
+        raise HTTPException(
+            status_code=404, detail=f"No site for this id found: {site_id}"
+        )
+
     site_attachments = get_site_attachments(site_id, session)
     if site_attachments is None:
-        raise HTTPException(
-            status_code=404, detail=f"No attachments found for site {site_id}"
-        )
+        return SiteAttachmentsOut(site_id=site_id, attachments=[])
 
     return SiteAttachmentsOut.model_validate(site_attachments)
 
@@ -97,8 +102,18 @@ def get_site_certifications_route(
             results.
 
     Returns:
-        Site certifications serialized with the public API response schema.
+        Site certifications serialized with the public API response schema, or
+        an empty certification list when the site exists without certifications.
+
+    Raises:
+        HTTPException: If no site exists for the requested ID.
     """
+    site = get_site_by_id(site_id, session)
+    if site is None:
+        raise HTTPException(
+            status_code=404, detail=f"No site for this id found: {site_id}"
+        )
+
     results = get_site_certifications(site_id, session, limit, offset)
 
     return format_site_certifications(site_id, results)

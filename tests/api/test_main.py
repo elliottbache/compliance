@@ -505,11 +505,21 @@ class TestGetSiteCertificationsRoute:
     def test_client_returns_certifications_json_when_found(
         self, main_module, client, mock_db, monkeypatch, certifications_factory
     ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
         def fake_get_site_certifications(site_id, session, limit, offset):
             assert site_id == 12
             assert session is mock_db
             return certifications_factory(2)
 
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
         monkeypatch.setattr(
             sites_router,
             "get_site_certifications",
@@ -543,16 +553,24 @@ class TestGetSiteCertificationsRoute:
             ],
         }
 
-    def test_client_returns_empty_list_when_site_is_not_found(
+    def test_client_returns_empty_list_when_site_has_no_certifications(
         self, main_module, client, mock_db, monkeypatch
     ):
-        fake_site = []
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
 
         def fake_get_site_certifications(site_id, session, limit, offset):
             assert site_id == 999
             assert session is mock_db
-            return fake_site
+            return []
 
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
         monkeypatch.setattr(
             sites_router,
             "get_site_certifications",
@@ -563,6 +581,25 @@ class TestGetSiteCertificationsRoute:
 
         assert response.status_code == 200
         assert response.json() == {"site_id": 999, "certifications": []}
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+
+        response = client.get("/sites/999/certifications")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No site for this id found: 999"}
 
     def test_client_returns_422_when_site_id_is_not_an_int(self, client):
         response = client.get("/sites/not-an-int/certifications")
@@ -602,6 +639,11 @@ class TestGetSiteCertificationsRoute:
 
         monkeypatch.setattr(
             sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
             "get_site_certifications",
             fake_get_site_certifications,
         )
@@ -624,6 +666,11 @@ class TestGetSiteCertificationsRoute:
 
         monkeypatch.setattr(
             sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
             "get_site_certifications",
             fake_get_site_certifications,
         )
@@ -644,6 +691,11 @@ class TestGetSiteCertificationsRoute:
 
         monkeypatch.setattr(
             sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
             "get_site_certifications",
             fake_get_site_certifications,
         )
@@ -653,6 +705,19 @@ class TestGetSiteCertificationsRoute:
         assert result == sites_router.SiteCertificationsOut(
             site_id=999, certifications=[]
         )
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: None,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_certifications_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 999"
 
     def test_registers_certification_list_response_model(self, main_module) -> None:
         route = next(
@@ -1132,11 +1197,21 @@ class TestGetSiteAttachmentsRoute:
             attachments=[],
         )
 
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 12
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
         def fake_get_site_attachments(site_id, session):
             assert site_id == 12
             assert session is mock_db
             return site_attachments
 
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
         monkeypatch.setattr(
             sites_router,
             "get_site_attachments",
@@ -1148,14 +1223,24 @@ class TestGetSiteAttachmentsRoute:
         assert response.status_code == 200
         assert response.json() == {"site_id": 12, "attachments": []}
 
-    def test_client_returns_404_when_site_attachments_are_not_found(
+    def test_client_returns_empty_attachment_list_when_site_has_none(
         self, main_module, client, mock_db, monkeypatch
     ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return SimpleNamespace(id=site_id)
+
         def fake_get_site_attachments(site_id, session):
             assert site_id == 999
             assert session is mock_db
             return None
 
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
         monkeypatch.setattr(
             sites_router,
             "get_site_attachments",
@@ -1164,8 +1249,27 @@ class TestGetSiteAttachmentsRoute:
 
         response = client.get("/sites/999/attachments")
 
+        assert response.status_code == 200
+        assert response.json() == {"site_id": 999, "attachments": []}
+
+    def test_client_returns_404_when_site_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_get_site_by_id(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            fake_get_site_by_id,
+        )
+
+        response = client.get("/sites/999/attachments")
+
         assert response.status_code == 404
-        assert response.json() == {"detail": "No attachments found for site 999"}
+        assert response.json() == {"detail": "No site for this id found: 999"}
 
     def test_client_returns_422_when_site_id_is_not_an_int(self, client):
         response = client.get("/sites/not-an-int/attachments")
@@ -1188,6 +1292,11 @@ class TestGetSiteAttachmentsRoute:
 
         monkeypatch.setattr(
             sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
             "get_site_attachments",
             fake_get_site_attachments,
         )
@@ -1196,7 +1305,7 @@ class TestGetSiteAttachmentsRoute:
 
         assert result == site_attachments
 
-    def test_returns_404_when_site_attachments_are_not_found(
+    def test_returns_empty_attachment_list_when_site_has_none(
         self, main_module, monkeypatch
     ) -> None:
         def fake_get_site_attachments(site_id, session):
@@ -1204,15 +1313,31 @@ class TestGetSiteAttachmentsRoute:
 
         monkeypatch.setattr(
             sites_router,
+            "get_site_by_id",
+            lambda site_id, session: SimpleNamespace(id=site_id),
+        )
+        monkeypatch.setattr(
+            sites_router,
             "get_site_attachments",
             fake_get_site_attachments,
+        )
+
+        result = sites_router.get_site_attachments_route(999, object())
+
+        assert result == sites_router.SiteAttachmentsOut(site_id=999, attachments=[])
+
+    def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_by_id",
+            lambda site_id, session: None,
         )
 
         with pytest.raises(HTTPException) as exc_info:
             sites_router.get_site_attachments_route(999, object())
 
         assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "No attachments found for site 999"
+        assert exc_info.value.detail == "No site for this id found: 999"
 
     def test_registers_site_attachments_response_model(self, main_module) -> None:
         route = next(
@@ -1306,9 +1431,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         response = client.get("/certifications/999/attachments")
 
         assert response.status_code == 404
-        assert response.json() == {
-            "detail": "No attachments found for certification 999"
-        }
+        assert response.json() == {"detail": "No certification for this id found: 999"}
 
     def test_client_returns_422_when_certification_id_is_not_an_int(self, client):
         response = client.get("/certifications/not-an-int/attachments")
@@ -1363,7 +1486,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             )
 
         assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "No attachments found for certification 999"
+        assert exc_info.value.detail == "No certification for this id found: 999"
 
     def test_registers_certification_attachments_response_model(
         self, main_module

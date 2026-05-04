@@ -52,7 +52,8 @@ def get_certification_attachments_by_id_route(
 
     Returns:
         Certification attachments serialized with certification, regulation,
-        and linked finding context.
+        and linked finding context, or an empty attachment list when the
+        certification exists without attachments.
 
     Raises:
         HTTPException: If no certification exists for the requested ID.
@@ -63,7 +64,7 @@ def get_certification_attachments_by_id_route(
     if certification_attachments is None:
         raise HTTPException(
             status_code=404,
-            detail=f"No attachments found for certification {certification_id}",
+            detail=f"No certification for this id found: {certification_id}",
         )
 
     return CertificationAttachmentsOut.model_validate(certification_attachments)
