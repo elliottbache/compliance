@@ -997,7 +997,7 @@ class TestCreateSiteAnalysis:
 
         def fake_summarize_previous_visits(history):
             assert history is site_history
-            return False, "v-test", site_analysis
+            return site_analysis
 
         def fake_validate_llm_references(analysis, history):
             assert analysis is site_analysis

@@ -11,16 +11,16 @@ from compliance.api.schemas import (
     SiteAttachmentsOut,
     SiteOut,
 )
-from compliance.llm.anthropic_api import (
-    render_site_analysis_markdown,
-    summarize_previous_visits,
-)
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
 from compliance.services.records import (
     get_site_attachments_by_id,
     get_site_by_id,
     get_site_history_by_id,
+)
+from compliance.services.site_analysis import (
+    render_site_analysis_markdown,
+    summarize_previous_visits,
 )
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -167,7 +167,7 @@ def _create_site_analysis(site_id: int, session: Session) -> SiteAnalysis:
         raise HTTPException(status_code=404, detail=f"Site {site_id} not found.")
 
     try:
-        _, _, site_analysis = summarize_previous_visits(site_history)
+        site_analysis = summarize_previous_visits(site_history)
     except (APIError, ValidationError, JSONDecodeError) as exc:
         raise HTTPException(
             status_code=502,

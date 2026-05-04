@@ -8,13 +8,13 @@ import spacy
 from pydantic import BaseModel, ValidationError
 
 from compliance._helpers import validate_llm_references
-from compliance.llm.anthropic_api import summarize_previous_visits
 from compliance.llm.schemas import (
     ExpectedResults,
     ResultChecks,
     SiteAnalysis,
 )
 from compliance.schemas import Site
+from compliance.services.site_analysis import summarize_previous_visits
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
@@ -290,9 +290,9 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
 
         checks = [field_name for field_name in ResultChecks.model_fields]
         logger.info(
-            f"Case name: {case_name}, failed checks: {to_write[case_name]["failures"]},"
+            f"Case name: {case_name}, failed checks: {to_write[case_name]['failures']},"
             f" pass/fail checks: {checks},"
-            f" summary_output: {to_write[case_name]["output_summary"]}"
+            f" summary_output: {to_write[case_name]['output_summary']}"
         )
 
     to_write["failed_cases"] = failed_cases

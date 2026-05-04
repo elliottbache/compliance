@@ -35,7 +35,7 @@ dev = [
   "myst-parser>=3.0",
   "pre-commit",
   "ruff==0.14.10",
-  "black==25.12.0",  # same as pre-commit
+  "black==24.10.0",  # same as pre-commit
   "isort",
   "mypy==1.13.0",
   "codespell==2.4.1",
