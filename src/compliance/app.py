@@ -1,5 +1,5 @@
-from compliance.llm.anthropic_api import summarize_previous_visits
 from compliance.services.query_history import get_site_history
+from compliance.services.site_analysis import summarize_previous_visits
 
 
 def run_pipeline() -> None:
