@@ -1,7 +1,8 @@
 from json import JSONDecodeError
+from typing import Annotated
 
 from anthropic import APIError
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -9,14 +10,17 @@ from compliance._helpers import validate_llm_references
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     SiteAttachmentsOut,
+    SiteCertificationsOut,
     SiteOut,
 )
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
 from compliance.services.records import (
-    get_site_attachments_by_id,
+    format_site_certifications,
+    get_site_attachments,
     get_site_by_id,
-    get_site_history_by_id,
+    get_site_certifications,
+    get_site_history,
 )
 from compliance.services.site_analysis import (
     render_site_analysis_markdown,
@@ -50,10 +54,8 @@ def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOut:
 
 
 @router.get("/{site_id}/attachments")
-def get_site_attachments_by_id_route(
-    site_id: int, session: SessionDep
-) -> SiteAttachmentsOut:
-    """Return attachment details for one site by ID.
+def get_site_attachments_route(site_id: int, session: SessionDep) -> SiteAttachmentsOut:
+    """Return attachment details for one site.
 
     Args:
         site_id: Unique identifier for the site whose attachments should be
@@ -67,7 +69,7 @@ def get_site_attachments_by_id_route(
     Raises:
         HTTPException: If no attachments exist for the requested site.
     """
-    site_attachments = get_site_attachments_by_id(site_id, session)
+    site_attachments = get_site_attachments(site_id, session)
     if site_attachments is None:
         raise HTTPException(
             status_code=404, detail=f"No attachments found for site {site_id}"
@@ -76,9 +78,35 @@ def get_site_attachments_by_id_route(
     return SiteAttachmentsOut.model_validate(site_attachments)
 
 
+@router.get("/{site_id}/certifications")
+def get_site_certifications_route(
+    site_id: int,
+    session: SessionDep,
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> SiteCertificationsOut:
+    """Return certifications for one site.
+
+    Args:
+        site_id: Unique identifier for the site whose certifications should be
+            retrieved.
+        session: Database session provided by FastAPI dependency injection.
+        limit: Maximum number of certifications to return. If omitted, all
+            matching certifications are returned.
+        offset: Number of matching certifications to skip before returning
+            results.
+
+    Returns:
+        Site certifications serialized with the public API response schema.
+    """
+    results = get_site_certifications(site_id, session, limit, offset)
+
+    return format_site_certifications(site_id, results)
+
+
 @router.get("/{site_id}/history")
-def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHistory:
-    """Return certification history for one site by ID.
+def get_site_history_route(site_id: int, session: SessionDep) -> SiteHistory:
+    """Return certification history for one site.
 
     Args:
         site_id: Unique identifier for the site whose history should be retrieved.
@@ -90,7 +118,7 @@ def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHisto
     Raises:
         HTTPException: If no certification history exists for the requested site.
     """
-    site_history = get_site_history_by_id(site_id, session)
+    site_history = get_site_history(site_id, session)
     if site_history is None:
         raise HTTPException(
             status_code=404,
@@ -101,7 +129,9 @@ def get_site_history_by_id_route(site_id: int, session: SessionDep) -> SiteHisto
 
 
 @router.post("/{site_id}/analysis-preview")
-def analyze_site(site_id: int, session: SessionDep) -> SiteAnalysis:
+def create_site_analysis_preview_route(
+    site_id: int, session: SessionDep
+) -> SiteAnalysis:
     """Generate an AI analysis preview for one site's certification history.
 
     Args:
@@ -122,7 +152,9 @@ def analyze_site(site_id: int, session: SessionDep) -> SiteAnalysis:
 
 
 @router.post("/{site_id}/analysis-preview/markdown")
-def analyze_site_return_markdown(site_id: int, session: SessionDep) -> Response:
+def create_site_analysis_markdown_preview_route(
+    site_id: int, session: SessionDep
+) -> Response:
     """Generate a Markdown AI analysis preview for one site's history.
 
     Args:
@@ -162,7 +194,7 @@ def _create_site_analysis(site_id: int, session: Session) -> SiteAnalysis:
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    site_history = get_site_history_by_id(site_id, session)
+    site_history = get_site_history(site_id, session)
     if site_history is None:
         raise HTTPException(status_code=404, detail=f"Site {site_id} not found.")
 
