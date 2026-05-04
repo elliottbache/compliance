@@ -22,8 +22,10 @@ from compliance.services.records import (
     get_site_certifications,
     get_site_history,
 )
+from compliance.services.reports import (
+    build_site_analysis_markdown,
+)
 from compliance.services.site_analysis import (
-    render_site_analysis_markdown,
     summarize_previous_visits,
 )
 
@@ -188,7 +190,7 @@ def create_site_analysis_markdown_preview_route(
     site_analysis = _create_site_analysis(site_id, session)
 
     return Response(
-        content=render_site_analysis_markdown(site_analysis),
+        content=build_site_analysis_markdown(site_analysis),
         media_type="text/markdown",
     )
 

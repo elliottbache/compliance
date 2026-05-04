@@ -956,7 +956,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             assert session is mock_db
             return site_analysis
 
-        def fake_render_site_analysis_markdown(analysis):
+        def fake_build_site_analysis_markdown(analysis):
             assert analysis is site_analysis
             return "# Site Analysis\nMarkdown body."
 
@@ -967,8 +967,8 @@ class TestAnalyzeSiteReturnMarkdownRoute:
         )
         monkeypatch.setattr(
             sites_router,
-            "render_site_analysis_markdown",
-            fake_render_site_analysis_markdown,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
         )
 
         response = client.post("/sites/101/analysis-preview/markdown")
@@ -1012,7 +1012,7 @@ class TestAnalyzeSiteReturnMarkdownRoute:
             assert session is fake_session
             return site_analysis
 
-        def fake_render_site_analysis_markdown(analysis):
+        def fake_build_site_analysis_markdown(analysis):
             assert analysis is site_analysis
             return "# Site Analysis\nMarkdown body."
 
@@ -1023,8 +1023,8 @@ class TestAnalyzeSiteReturnMarkdownRoute:
         )
         monkeypatch.setattr(
             sites_router,
-            "render_site_analysis_markdown",
-            fake_render_site_analysis_markdown,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
         )
 
         result = sites_router.create_site_analysis_markdown_preview_route(
