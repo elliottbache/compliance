@@ -1043,6 +1043,65 @@ class TestAnalyzeSiteReturnMarkdownRoute:
 
 
 class TestCreateSiteAnalysisMarkdownDownloadRoute:
+    def test_client_returns_rendered_markdown_attachment(
+        self, main_module, client, mock_db, monkeypatch, site_analysis_factory
+    ):
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is mock_db
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        response = client.post("/sites/101/analysis/markdown/download")
+
+        assert response.status_code == 200
+        assert response.text == "# Site Analysis\nMarkdown body."
+        assert response.headers["content-type"].startswith("text/markdown")
+        assert (
+            response.headers["content-disposition"]
+            == 'attachment; filename="site-101-analysis.md"'
+        )
+
+    def test_client_returns_404_when_site_history_is_not_found(
+        self, main_module, client, mock_db, monkeypatch
+    ):
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            assert session is mock_db
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        response = client.post("/sites/999/analysis/markdown/download")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Site 999 not found."}
+
+    def test_client_returns_422_when_site_id_is_not_an_int(self, client):
+        response = client.post("/sites/not-an-int/analysis/markdown/download")
+
+        assert response.status_code == 422
+
     def test_returns_rendered_markdown_attachment(
         self, main_module, monkeypatch, site_analysis_factory
     ) -> None:
