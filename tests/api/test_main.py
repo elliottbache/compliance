@@ -1042,6 +1042,74 @@ class TestAnalyzeSiteReturnMarkdownRoute:
         assert route.response_model is None
 
 
+class TestCreateSiteAnalysisMarkdownDownloadRoute:
+    def test_returns_rendered_markdown_attachment(
+        self, main_module, monkeypatch, site_analysis_factory
+    ) -> None:
+        fake_session = object()
+        site_analysis = site_analysis_factory()
+
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 101
+            assert session is fake_session
+            return site_analysis
+
+        def fake_build_site_analysis_markdown(analysis):
+            assert analysis is site_analysis
+            return "# Site Analysis\nMarkdown body."
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "build_site_analysis_markdown",
+            fake_build_site_analysis_markdown,
+        )
+
+        result = sites_router.create_site_analysis_markdown_download_route(
+            101, fake_session
+        )
+
+        assert result.body == b"# Site Analysis\nMarkdown body."
+        assert result.media_type == "text/markdown"
+        assert (
+            result.headers["content-disposition"]
+            == 'attachment; filename="site-101-analysis.md"'
+        )
+
+    def test_propagates_404_when_site_history_is_not_found(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_create_site_analysis(site_id, session):
+            assert site_id == 999
+            raise HTTPException(status_code=404, detail="Site 999 not found.")
+
+        monkeypatch.setattr(
+            sites_router,
+            "_create_site_analysis",
+            fake_create_site_analysis,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.create_site_analysis_markdown_download_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site 999 not found."
+
+    def test_does_not_register_download_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None)
+            == "/sites/{site_id}/analysis/markdown/download"
+        )
+
+        assert route.response_model is None
+
+
 class TestCreateSiteAnalysis:
     def test_returns_site_analysis_when_history_exists(
         self, main_module, monkeypatch, site_history_factory, site_analysis_factory

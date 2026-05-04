@@ -191,6 +191,38 @@ def create_site_analysis_markdown_route(site_id: int, session: SessionDep) -> Re
     )
 
 
+@router.post("/{site_id}/analysis/markdown/download")
+def create_site_analysis_markdown_download_route(
+    site_id: int, session: SessionDep
+) -> Response:
+    """Generate a downloadable Markdown AI analysis for one site's history.
+
+    Args:
+        site_id: Unique identifier for the site whose history should be
+            analyzed.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        A text/markdown attachment response containing the validated site
+        analysis.
+
+    Raises:
+        HTTPException: If no site history exists for the requested site, if the
+            LLM call or response parsing fails, or if the generated analysis
+            references evidence that is not present in the source site history.
+    """
+    site_analysis = _create_site_analysis(site_id, session)
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="site-{site_id}-analysis.md"'
+    }
+    return Response(
+        content=build_site_analysis_markdown(site_analysis),
+        media_type="text/markdown",
+        headers=headers,
+    )
+
+
 def _create_site_analysis(site_id: int, session: Session) -> SiteAnalysis:
     """Create and validate a structured AI analysis for one site.
 
