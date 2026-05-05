@@ -5,12 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from compliance.schemas import FindingHistory
 
 
-class SiteOut(BaseModel):
-    """Public API response shape for a site record."""
+class SiteCreate(BaseModel):
+    """Public API input shape for creating a site record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
-    id: int
     nif: str = Field(min_length=9, max_length=9)
     city: str
     postal_code: int
@@ -18,6 +17,14 @@ class SiteOut(BaseModel):
     street_number: int | None
     suite: str | None
     address_info: str | None
+
+
+class SiteOut(SiteCreate):
+    """Public API response shape for a site record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
 
 
 class CertificationOut(BaseModel):

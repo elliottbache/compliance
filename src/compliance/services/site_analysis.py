@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG")
 
-    from compliance.services.records import get_site_history_legacy
+    from compliance.services.sites import get_site_history_legacy
 
     site_history = get_site_history_legacy(71)
     if site_history is None:

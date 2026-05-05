@@ -11,25 +11,47 @@ from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     SiteAttachmentsOut,
     SiteCertificationsOut,
+    SiteCreate,
     SiteOut,
 )
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
-from compliance.services.records import (
-    format_site_certifications,
-    get_site_attachments,
-    get_site_by_id,
-    get_site_certifications,
-    get_site_history,
-)
 from compliance.services.reports import (
     build_site_analysis_markdown,
 )
 from compliance.services.site_analysis import (
     summarize_previous_visits,
 )
+from compliance.services.sites import (
+    format_site_certifications,
+    get_site_attachments,
+    get_site_by_id,
+    get_site_certifications,
+    get_site_history,
+    get_sites,
+    post_new_site,
+)
 
 router = APIRouter(prefix="/sites", tags=["sites"])
+
+
+@router.get("")
+def get_sites_route(
+    session: SessionDep,
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[SiteOut]:
+    """Return sites with optional pagination.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        limit: Maximum number of sites to return.
+        offset: Number of sites to skip before returning results.
+
+    Returns:
+        Site records serialized with the public API response schema.
+    """
+    return get_sites(session, limit, offset)
 
 
 @router.get("/{site_id}")
@@ -143,6 +165,28 @@ def get_site_history_route(site_id: int, session: SessionDep) -> SiteHistory:
         )
 
     return SiteHistory.model_validate(site_history)
+
+
+@router.post("", status_code=201)
+def post_new_site_route(site: SiteCreate, session: SessionDep) -> SiteOut:
+    """Create a new site record.
+
+    Args:
+        site: Site details supplied in the request body.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Created site details serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If the site cannot be created, such as when it conflicts
+            with an existing record or references missing parent data.
+    """
+    new_site = post_new_site(site, session)
+    if new_site is None:
+        raise HTTPException(status_code=409, detail=f"Site was not added: {site}.")
+
+    return SiteOut.model_validate(new_site)
 
 
 @router.post("/{site_id}/analysis")

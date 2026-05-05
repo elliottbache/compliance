@@ -8,6 +8,86 @@ from httpx import Request
 from compliance.api.routers import sites as sites_router
 
 
+class TestGetSitesRoute:
+    # TestClient
+    def test_client_returns_site_json(self, client, mock_db, monkeypatch, site_factory):
+        def fake_get_sites(session, limit, offset):
+            assert session is mock_db
+            assert limit == 2
+            assert offset == 1
+            return [
+                sites_router.SiteOut.model_validate(site_factory()),
+                sites_router.SiteOut.model_validate(
+                    site_factory(
+                        id=13,
+                        city="Valencia",
+                        postal_code=46001,
+                        street="Carrer de Colon",  # codespell:ignore carrer
+                    )
+                ),
+            ]
+
+        monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
+
+        response = client.get("/sites?limit=2&offset=1")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": 12,
+                "nif": "A1234567B",
+                "city": "Madrid",
+                "postal_code": 28013,
+                "street": "Gran Via",
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+            {
+                "id": 13,
+                "nif": "A1234567B",
+                "city": "Valencia",
+                "postal_code": 46001,
+                "street": "Carrer de Colon",  # codespell:ignore carrer
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+        ]
+
+    def test_client_returns_422_when_limit_is_invalid(self, client):
+        response = client.get("/sites?limit=0")
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_sites(self, monkeypatch, site_factory) -> None:
+        fake_session = object()
+        expected_sites = [sites_router.SiteOut.model_validate(site_factory())]
+
+        def fake_get_sites(session, limit, offset):
+            assert session is fake_session
+            assert limit == 10
+            assert offset == 5
+            return expected_sites
+
+        monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
+
+        result = sites_router.get_sites_route(fake_session, limit=10, offset=5)
+
+        assert result == expected_sites
+
+    def test_registers_site_list_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites"
+            and "GET" in getattr(route, "methods", set())
+        )
+
+        assert route.response_model == list[sites_router.SiteOut]
+
+
 class TestGetSiteByIdRoute:
     # TestClient
     def test_client_returns_site_json_when_found(
@@ -474,6 +554,146 @@ class TestGetSiteHistoryRoute:
         )
 
         assert route.response_model is sites_router.SiteHistory
+
+
+class TestPostNewSiteRoute:
+    # TestClient
+    def test_client_returns_created_site_json(
+        self, client, mock_db, monkeypatch, site_factory
+    ):
+        def fake_post_new_site(site, session):
+            assert site.nif == "A1234567B"
+            assert site.city == "Madrid"
+            assert session is mock_db
+            return site_factory()
+
+        monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
+
+        response = client.post(
+            "/sites",
+            json={
+                "nif": "A1234567B",
+                "city": "Madrid",
+                "postal_code": 28013,
+                "street": "Gran Via",
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json() == {
+            "id": 12,
+            "nif": "A1234567B",
+            "city": "Madrid",
+            "postal_code": 28013,
+            "street": "Gran Via",
+            "street_number": None,
+            "suite": None,
+            "address_info": "Main entrance",
+        }
+
+    def test_client_returns_409_when_site_is_not_created(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_new_site(site, session):
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
+
+        response = client.post(
+            "/sites",
+            json={
+                "nif": "A1234567B",
+                "city": "Madrid",
+                "postal_code": 28013,
+                "street": "Gran Via",
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"].startswith("Site was not added: ")
+
+    def test_client_returns_422_when_site_is_invalid(self, client):
+        response = client.post(
+            "/sites",
+            json={
+                "nif": "short",
+                "city": "Madrid",
+                "postal_code": 28013,
+                "street": "Gran Via",
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+        )
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_created_site(self, monkeypatch, site_factory) -> None:
+        fake_session = object()
+        site = sites_router.SiteCreate(
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+        created_site = site_factory()
+
+        def fake_post_new_site(site_info, session):
+            assert site_info is site
+            assert session is fake_session
+            return created_site
+
+        monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
+
+        result = sites_router.post_new_site_route(site, fake_session)
+
+        assert result == sites_router.SiteOut.model_validate(created_site)
+
+    def test_returns_409_when_site_is_not_created(self, monkeypatch) -> None:
+        site = sites_router.SiteCreate(
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+
+        def fake_post_new_site(site_info, session):
+            return None
+
+        monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.post_new_site_route(site, object())
+
+        assert exc_info.value.status_code == 409
+        assert "Site was not added" in exc_info.value.detail
+
+    def test_registers_site_create_response_model_and_created_status(
+        self, main_module
+    ) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/sites"
+            and "POST" in getattr(route, "methods", set())
+        )
+
+        assert route.response_model is sites_router.SiteOut
+        assert route.status_code == 201
 
 
 class TestCreateSiteAnalysisRoute:
