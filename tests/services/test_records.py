@@ -7,22 +7,17 @@ import pytest
 from compliance.api.schemas import (
     AttachmentCreate,
     AttachmentWithContextOut,
-    CertificationAttachmentsOut,
     FindingOut,
 )
-from compliance.db.models import Certification
 from compliance.services.records import (
     AttachmentCertificationNotFoundError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     _build_finding_out,
     _format_attachment,
-    _format_certification_attachments,
     _format_findings,
     _format_new_attachment_with_context,
     get_attachment_by_id,
-    get_certification_attachments_by_id,
-    get_certification_by_id,
     post_new_attachment,
 )
 
@@ -42,41 +37,6 @@ def site_history_row(**overrides):
         "rule_index": "7 CFR 205.201",
         "rule_title": "Organic plan",
         "rule_description": "Producer must maintain an organic system plan.",
-    }
-    row.update(overrides)
-    return row
-
-
-def site_attachment_row(**overrides):
-    row = {
-        "Attachment": SimpleNamespace(
-            id=50,
-            file_type="pdf",
-            file_path="dummy/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=date(2026, 4, 3),
-            certification_id=100,
-        ),
-        "Certification": SimpleNamespace(
-            site_id=71,
-            id=100,
-            regulation_id=5,
-            inspection_date=date(2026, 4, 1),
-        ),
-        "Regulation": SimpleNamespace(
-            id=5,
-            title="USDA Organic",
-        ),
-        "Finding": SimpleNamespace(
-            id=1,
-            finding="Missing document",
-        ),
-        "FindingAttachment": MagicMock(),
-        "Rule": SimpleNamespace(
-            rule_index="7 CFR 205.201",
-            title="Organic plan",
-            description="Producer must maintain an organic system plan.",
-        ),
     }
     row.update(overrides)
     return row
@@ -107,27 +67,6 @@ def finding_row(**overrides):
     return row
 
 
-class TestGetCertificationById:
-    def test_gets_certification_by_id_from_session(self) -> None:
-        session = MagicMock()
-        expected_certification = MagicMock(spec=Certification)
-        session.get.return_value = expected_certification
-
-        result = get_certification_by_id(42, session)
-
-        session.get.assert_called_once_with(Certification, 42)
-        assert result is expected_certification
-
-    def test_returns_none_when_certification_is_not_found(self) -> None:
-        session = MagicMock()
-        session.get.return_value = None
-
-        result = get_certification_by_id(999, session)
-
-        session.get.assert_called_once_with(Certification, 999)
-        assert result is None
-
-
 class TestGetAttachmentById:
     def test_returns_none_when_query_returns_no_rows(self) -> None:
         session = MagicMock()
@@ -138,8 +77,10 @@ class TestGetAttachmentById:
         session.execute.assert_called_once()
         assert result is None
 
-    def test_formats_attachment_when_query_returns_rows(self) -> None:
-        rows = [site_attachment_row()]
+    def test_formats_attachment_when_query_returns_rows(
+        self, site_attachment_row_factory
+    ) -> None:
+        rows = [site_attachment_row_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -147,56 +88,6 @@ class TestGetAttachmentById:
 
         session.execute.assert_called_once()
         assert result == _format_attachment(rows)
-
-
-class TestGetCertificationAttachmentsById:
-    def test_returns_none_when_certification_does_not_exist(self) -> None:
-        session = MagicMock()
-        session.get.return_value = None
-
-        result = get_certification_attachments_by_id(100, session)
-
-        session.get.assert_called_once_with(Certification, 100)
-        session.execute.assert_not_called()
-        assert result is None
-
-    def test_returns_empty_attachment_list_when_certification_has_no_attachments(
-        self,
-    ) -> None:
-        session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
-        session.execute.return_value.mappings.return_value.all.return_value = []
-
-        result = get_certification_attachments_by_id(100, session)
-
-        session.get.assert_called_once_with(Certification, 100)
-        session.execute.assert_called_once()
-        assert result == CertificationAttachmentsOut(
-            certification_id=100,
-            attachments=[],
-        )
-
-    def test_formats_certification_attachments_when_query_returns_rows(self) -> None:
-        rows = [site_attachment_row()]
-        session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
-        session.execute.return_value.mappings.return_value.all.return_value = rows
-
-        result = get_certification_attachments_by_id(100, session)
-
-        session.get.assert_called_once_with(Certification, 100)
-        session.execute.assert_called_once()
-        assert result == _format_certification_attachments(rows)
-
-    def test_orders_attachments_by_attachment_id_then_finding_id(self) -> None:
-        session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
-        session.execute.return_value.mappings.return_value.all.return_value = []
-
-        get_certification_attachments_by_id(100, session)
-
-        stmt = session.execute.call_args.args[0]
-        assert "ORDER BY attachments.id, findings.id" in str(stmt)
 
 
 class TestPostNewAttachment:
@@ -383,8 +274,10 @@ class TestBuildFindingOut:
 
 
 class TestFormatAttachment:
-    def test_creates_attachment_without_finding_links(self) -> None:
-        rows = [site_attachment_row(Finding=None, Rule=None)]
+    def test_creates_attachment_without_finding_links(
+        self, site_attachment_row_factory
+    ) -> None:
+        rows = [site_attachment_row_factory(Finding=None, Rule=None)]
 
         result = _format_attachment(rows)
 
@@ -401,10 +294,12 @@ class TestFormatAttachment:
             finding_links=[],
         )
 
-    def test_collects_two_finding_links_for_attachment(self) -> None:
+    def test_collects_two_finding_links_for_attachment(
+        self, site_attachment_row_factory
+    ) -> None:
         rows = [
-            site_attachment_row(),
-            site_attachment_row(
+            site_attachment_row_factory(),
+            site_attachment_row_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -422,73 +317,3 @@ class TestFormatAttachment:
             "7 CFR 205.201",
             "7 CFR 205.202",
         ]
-
-
-class TestFormatCertificationAttachmentsOut:
-    def test_creates_certification_attachments_with_finding_link(self) -> None:
-        result = _format_certification_attachments([site_attachment_row()])
-
-        assert result.certification_id == 100
-        assert len(result.attachments) == 1
-        assert result.attachments[0].id == 50
-        assert result.attachments[0].regulation_title == "USDA Organic"
-        assert len(result.attachments[0].finding_links) == 1
-        assert result.attachments[0].finding_links[0].finding_id == 1
-
-    def test_groups_multiple_findings_under_same_attachment(self) -> None:
-        rows = [
-            site_attachment_row(),
-            site_attachment_row(
-                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
-                Rule=SimpleNamespace(
-                    rule_index="7 CFR 205.202",
-                    title="Land requirements",
-                    description="Land must meet organic requirements.",
-                ),
-            ),
-        ]
-
-        result = _format_certification_attachments(rows)
-
-        assert len(result.attachments) == 1
-        assert [
-            finding.finding_id for finding in result.attachments[0].finding_links
-        ] == [1, 2]
-
-    def test_groups_attachments_by_id_without_reordering(self) -> None:
-        second_attachment = SimpleNamespace(
-            id=60,
-            file_type="pdf",
-            file_path="dummy/second.pdf",
-            description="Second attachment",
-            uploaded_at=date(2026, 4, 4),
-            certification_id=100,
-        )
-        rows = [
-            site_attachment_row(Attachment=second_attachment),
-            site_attachment_row(),
-            site_attachment_row(
-                Attachment=second_attachment,
-                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
-                Rule=SimpleNamespace(
-                    rule_index="7 CFR 205.202",
-                    title="Land requirements",
-                    description="Land must meet organic requirements.",
-                ),
-            ),
-        ]
-
-        result = _format_certification_attachments(rows)
-
-        assert [attachment.id for attachment in result.attachments] == [60, 50]
-        assert [
-            finding.finding_id for finding in result.attachments[0].finding_links
-        ] == [1, 2]
-
-    def test_raises_stop_iteration_when_rows_are_empty(self) -> None:
-        with pytest.raises(StopIteration):
-            _format_certification_attachments([])
-
-    def test_raises_value_error_when_first_row_is_empty(self) -> None:
-        with pytest.raises(ValueError, match="First attachment row is empty"):
-            _format_certification_attachments([{}])

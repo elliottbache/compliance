@@ -31,7 +31,7 @@ class SiteOut(SiteCreate):
 
 
 class CertificationCreate(BaseModel):
-    """Public API response shape for a certification record."""
+    """Public API input shape for creating a certification record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
 

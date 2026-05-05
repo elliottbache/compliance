@@ -1,4 +1,6 @@
 from datetime import date
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -99,5 +101,44 @@ def site_analysis_factory(evidence_ref_factory):
         }
         data.update(overrides)
         return SiteAnalysis(**data)
+
+    return _build
+
+
+@pytest.fixture
+def site_attachment_row_factory():
+    def _build(**overrides):
+        row = {
+            "Attachment": SimpleNamespace(
+                id=50,
+                file_type="pdf",
+                file_path="dummy/evidence.pdf",
+                description="Inspection evidence",
+                uploaded_at=date(2026, 4, 3),
+                certification_id=100,
+            ),
+            "Certification": SimpleNamespace(
+                site_id=71,
+                id=100,
+                regulation_id=5,
+                inspection_date=date(2026, 4, 1),
+            ),
+            "Regulation": SimpleNamespace(
+                id=5,
+                title="USDA Organic",
+            ),
+            "Finding": SimpleNamespace(
+                id=1,
+                finding="Missing document",
+            ),
+            "FindingAttachment": MagicMock(),
+            "Rule": SimpleNamespace(
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+                description="Producer must maintain an organic system plan.",
+            ),
+        }
+        row.update(overrides)
+        return row
 
     return _build

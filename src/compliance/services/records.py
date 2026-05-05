@@ -11,7 +11,6 @@ from compliance.api.schemas import (
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
-    CertificationAttachmentsOut,
     FindingOut,
 )
 from compliance.db.models import (
@@ -45,65 +44,6 @@ class AttachmentFindingCertificationMismatchError(AttachmentCreateError):
 
 class AttachmentConflictError(AttachmentCreateError):
     """Raised when attachment creation conflicts with stored data."""
-
-
-def get_certification_by_id(
-    certification_id: int, session: Session
-) -> Certification | None:
-    """Return one certification by primary key, or None when it does not exist."""
-    return session.get(Certification, certification_id)
-
-
-def get_certification_attachments_by_id(
-    certification_id: int, session: Session
-) -> CertificationAttachmentsOut | None:
-    """Retrieve attachment records for one certification.
-
-    Checks that the certification exists before querying its attachments so a
-    missing certification can be distinguished from an existing certification
-    with no attachment records.
-
-    Args:
-        certification_id: Unique identifier of the certification whose
-            attachments should be retrieved.
-        session: Database session used to check the certification and execute
-            the attachment query.
-
-    Returns:
-        A formatted attachment collection for the certification, an empty
-        attachment collection if the certification exists without attachments,
-        or ``None`` if no matching certification exists.
-    """
-    # check if certification exists
-    certification = session.get(Certification, certification_id)
-    if certification is None:
-        return None
-
-    # get attachments for certification
-    stmt = (
-        select(
-            Attachment,
-            Certification,
-            Regulation,
-            FindingAttachment,
-            Finding,
-            Rule,
-        )
-        .where(Certification.id == certification_id)
-        .join(Attachment.attachment_certification_rel)
-        .join(Certification.certification_regulation_rel)
-        .outerjoin(Attachment.attachment_finding_attachment_rel)
-        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
-        .outerjoin(Finding.finding_rule_rel)
-        .order_by(Attachment.id, Finding.id)
-    )
-    results = session.execute(stmt).mappings().all()
-    if results == []:
-        return CertificationAttachmentsOut.model_validate(
-            {"certification_id": certification_id, "attachments": []}
-        )
-    else:
-        return _format_certification_attachments(results)
 
 
 def get_findings(
@@ -301,61 +241,6 @@ def _format_new_attachment_with_context(
         inspection_date=certification.inspection_date,
         regulation_id=certification.regulation_id,
         regulation_title=certification.certification_regulation_rel.title,
-    )
-
-
-def _format_certification_attachments(
-    certification_attachment_list: Sequence[Mapping],
-) -> CertificationAttachmentsOut:
-    """Aggregate attachment query rows into a certification-level response.
-
-    Groups rows by attachment and collects linked findings under each
-    attachment so repeated attachment rows do not produce duplicate attachment
-    records.
-
-    Args:
-        certification_attachment_list: Rows from the certification attachment
-            query containing attachment, certification, regulation, finding,
-            link, and rule objects.
-
-    Returns:
-        A certification attachment response containing unique attachments and
-        their finding links.
-
-    Raises:
-        StopIteration: If ``certification_attachment_list`` is empty.
-        ValueError: If the first attachment row is empty.
-    """
-
-    it = iter(certification_attachment_list)
-    try:
-        first_row = next(it)
-    except StopIteration:
-        raise StopIteration("certification_attachment_list is empty") from None
-
-    if not first_row:
-        raise ValueError(
-            f"First attachment row is empty: {certification_attachment_list}"
-        )
-
-    # 1. Group all rows by their Attachment ID
-    rows_by_attachment: dict[int, list[Mapping]] = {}
-    for row in certification_attachment_list:
-        aid = row["Attachment"].id
-        if aid not in rows_by_attachment:
-            rows_by_attachment[aid] = []
-        rows_by_attachment[aid].append(row)
-
-    # 2. Process each group using the single-attachment formatter
-    # We maintain the order of appearance by iterating over the original list
-    # or just use the grouped values.
-    formatted_attachments = [
-        _format_attachment(rows) for rows in rows_by_attachment.values()
-    ]
-
-    return CertificationAttachmentsOut(
-        certification_id=first_row["Certification"].id,
-        attachments=formatted_attachments,
     )
 
 
