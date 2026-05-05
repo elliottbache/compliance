@@ -11,8 +11,9 @@ from compliance.api.routers import sites as sites_router
 class TestGetSitesRoute:
     # TestClient
     def test_client_returns_site_json(self, client, mock_db, monkeypatch, site_factory):
-        def fake_get_sites(session, limit, offset):
+        def fake_get_sites(session, nif, limit, offset):
             assert session is mock_db
+            assert nif is None
             assert limit == 2
             assert offset == 1
             return [
@@ -65,17 +66,35 @@ class TestGetSitesRoute:
         fake_session = object()
         expected_sites = [sites_router.SiteOut.model_validate(site_factory())]
 
-        def fake_get_sites(session, limit, offset):
+        def fake_get_sites(session, nif, limit, offset):
             assert session is fake_session
+            assert nif == "A1234567B"
             assert limit == 10
             assert offset == 5
             return expected_sites
 
         monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
 
-        result = sites_router.get_sites_route(fake_session, limit=10, offset=5)
+        result = sites_router.get_sites_route(
+            fake_session, nif="A1234567B", limit=10, offset=5
+        )
 
         assert result == expected_sites
+
+    def test_returns_404_when_client_filter_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_sites(session, nif, limit, offset):
+            assert nif == "A1234567B"
+            return None
+
+        monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_sites_route(
+                object(), nif="A1234567B", limit=None, offset=0
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No client with this NIF: A1234567B."
 
     def test_registers_site_list_response_model(self, main_module) -> None:
         route = next(

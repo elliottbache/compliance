@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import SiteCertificationsOut, SiteCreate, SiteOut
-from compliance.db.models import Certification, Site
+from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services._helpers import (
     _build_finding_history_from_site_attachments,
@@ -142,7 +142,7 @@ class TestGetSites:
         ]
         session.execute.return_value.scalars.return_value.all.return_value = sites
 
-        result = get_sites(session, limit=10, offset=5)
+        result = get_sites(session, nif=None, limit=10, offset=5)
 
         assert result == [SiteOut.model_validate(site) for site in sites]
 
@@ -150,10 +150,32 @@ class TestGetSites:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        get_sites(session, limit=None, offset=0)
+        get_sites(session, nif=None, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
+
+    def test_filters_by_client_nif_when_client_exists(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Client)
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        result = get_sites(session, nif="A1234567B", limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert result == []
+        session.get.assert_called_once_with(Client, "A1234567B")
+        assert "WHERE sites.nif = :nif_1" in str(stmt)
+
+    def test_returns_none_when_client_filter_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = get_sites(session, nif="A1234567B", limit=None, offset=0)
+
+        assert result is None
+        session.get.assert_called_once_with(Client, "A1234567B")
+        session.execute.assert_not_called()
 
 
 class TestGetSiteById:

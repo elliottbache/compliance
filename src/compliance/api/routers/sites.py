@@ -38,20 +38,29 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 @router.get("")
 def get_sites_route(
     session: SessionDep,
+    nif: Annotated[str | None, Query(min_length=9, max_length=9)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[SiteOut]:
-    """Return sites with optional pagination.
+    """Return sites with optional client filtering and pagination.
 
     Args:
         session: Database session provided by FastAPI dependency injection.
+        nif: Optional client NIF used to return sites for one client.
         limit: Maximum number of sites to return.
         offset: Number of sites to skip before returning results.
 
     Returns:
         Site records serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If ``nif`` is provided and no matching client exists.
     """
-    return get_sites(session, limit, offset)
+    sites = get_sites(session, nif, limit, offset)
+    if sites is None:
+        raise HTTPException(status_code=404, detail=f"No client with this NIF: {nif}.")
+
+    return sites
 
 
 @router.get("/{site_id}")

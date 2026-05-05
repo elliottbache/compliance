@@ -15,6 +15,7 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Certifier,
+    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -25,22 +26,32 @@ from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services._helpers import _format_attachment
 
 
-def get_sites(session: Session, limit: int | None, offset: int) -> list[SiteOut]:
-    """Retrieve sites ordered by city, NIF, and ID.
+def get_sites(
+    session: Session, nif: str | None, limit: int | None, offset: int
+) -> list[SiteOut] | None:
+    """Retrieve sites with optional client filtering.
 
     Args:
         session: Database session used to execute the site query.
+        nif: Optional client NIF used to restrict results to one client. When
+            supplied, the client must exist.
         limit: Maximum number of sites to return. If ``None``, all sites
             are returned.
         offset: Number of sites to skip before returning results.
 
     Returns:
         Site records serialized with the public API schema, or an empty list
-        if no sites exist.
+        if no sites match. Returns ``None`` when ``nif`` is supplied but no
+        matching client exists.
     """
-    stmt = (
-        select(Site).order_by(Site.city, Site.nif, Site.id).limit(limit).offset(offset)
-    )
+    stmt = select(Site)
+    if nif is not None:
+        if session.get(Client, nif) is None:
+            return None
+        stmt = stmt.where(Site.nif == nif)
+
+    stmt = stmt.order_by(Site.city, Site.nif, Site.id).limit(limit).offset(offset)
+
     sites = session.execute(stmt).scalars().all()
 
     return [SiteOut.model_validate(site) for site in sites]
