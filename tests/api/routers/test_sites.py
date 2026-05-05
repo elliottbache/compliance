@@ -229,7 +229,7 @@ class TestGetSiteCertificationsRoute:
                     "certifier_id": 200,
                     "regulation_id": 300,
                     "site_id": 12,
-                    "result": "Certified",
+                    "result": "Pass",
                     "inspection_date": "2023-10-15",
                     "resolution_date": "2023-10-20",
                 },
@@ -238,7 +238,7 @@ class TestGetSiteCertificationsRoute:
                     "certifier_id": 200,
                     "regulation_id": 300,
                     "site_id": 12,
-                    "result": "Certified",
+                    "result": "Pass",
                     "inspection_date": "2023-10-15",
                     "resolution_date": "2023-10-20",
                 },
@@ -441,7 +441,7 @@ class TestGetSiteHistoryRoute:
             "certifications": [
                 {
                     "cert_id": 5001,
-                    "result": "Certified",
+                    "result": "Pass",
                     "resolution_date": "2023-10-20",
                     "reg_title": "Fire Safety 2023",
                     "reg_description": "Standard fire safety regulations for commercial buildings.",
@@ -473,7 +473,7 @@ class TestGetSiteHistoryRoute:
         }
 
     def test_client_returns_404_when_site_is_not_found(
-        self, main_module, client, mock_db, monkeypatch
+        self, client, mock_db, monkeypatch
     ):
         fake_site = None
 
@@ -490,7 +490,7 @@ class TestGetSiteHistoryRoute:
         assert response.json() == {"detail": "No site history found for this id: 999"}
 
     def test_client_returns_422_when_site_id_is_not_an_int(
-        self, main_module, client, mock_db, monkeypatch, site_history_factory
+        self, client, mock_db, monkeypatch, site_history_factory
     ):
         def fake_get_site_history(site_id, session):
             assert site_id == 12
@@ -504,7 +504,7 @@ class TestGetSiteHistoryRoute:
         assert response.status_code == 422
 
     # unittests
-    def test_returns_site_history_when_found(self, main_module, monkeypatch) -> None:
+    def test_returns_site_history_when_found(self, monkeypatch) -> None:
         fake_session = object()
         site_history = sites_router.SiteHistory(
             site_id=12,
@@ -528,9 +528,7 @@ class TestGetSiteHistoryRoute:
 
         assert result == site_history
 
-    def test_returns_404_when_site_history_is_not_found(
-        self, main_module, monkeypatch
-    ) -> None:
+    def test_returns_404_when_site_history_is_not_found(self, monkeypatch) -> None:
         def fake_get_site_history(site_id, session):
             return None
 

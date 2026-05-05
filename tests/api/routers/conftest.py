@@ -63,7 +63,7 @@ def site_history_factory():
             certifications=[
                 CertificationHistory(
                     cert_id=5001,
-                    result="Certified",
+                    result="Pass",
                     resolution_date=date(2023, 10, 20),
                     reg_title="Fire Safety 2023",
                     reg_description="Standard fire safety regulations for commercial buildings.",
@@ -155,7 +155,7 @@ def certifications_factory():
                 certifier_id=200,
                 regulation_id=300,
                 site_id=12,
-                result="Certified",
+                result="Pass",
                 inspection_date=date(2023, 10, 15),
                 resolution_date=date(2023, 10, 20),
             )

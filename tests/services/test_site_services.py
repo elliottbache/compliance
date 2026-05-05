@@ -133,41 +133,6 @@ def site_history_row(**overrides):
     return row
 
 
-def site_attachment_row(**overrides):
-    row = {
-        "Attachment": SimpleNamespace(
-            id=50,
-            file_type="pdf",
-            file_path="dummy/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=date(2026, 4, 3),
-            certification_id=100,
-        ),
-        "Certification": SimpleNamespace(
-            site_id=71,
-            id=100,
-            regulation_id=5,
-            inspection_date=date(2026, 4, 1),
-        ),
-        "Regulation": SimpleNamespace(
-            id=5,
-            title="USDA Organic",
-        ),
-        "Finding": SimpleNamespace(
-            id=1,
-            finding="Missing document",
-        ),
-        "FindingAttachment": MagicMock(),
-        "Rule": SimpleNamespace(
-            rule_index="7 CFR 205.201",
-            title="Organic plan",
-            description="Producer must maintain an organic system plan.",
-        ),
-    }
-    row.update(overrides)
-    return row
-
-
 class TestGetSites:
     def test_returns_sites_from_session(self) -> None:
         session = MagicMock()
@@ -304,7 +269,7 @@ class TestFormatSiteCertifications:
                 certifier_id=200,
                 regulation_id=300,
                 site_id=12,
-                result="Certified",
+                result="Pass",
                 inspection_date=date(2023, 10, 15),
                 resolution_date=date(2023, 10, 20),
             )
@@ -356,8 +321,10 @@ class TestGetSiteAttachments:
         session.execute.assert_called_once()
         assert result is None
 
-    def test_formats_site_attachments_when_query_returns_rows(self) -> None:
-        rows = [site_attachment_row()]
+    def test_formats_site_attachments_when_query_returns_rows(
+        self, site_attachment_row_factory
+    ) -> None:
+        rows = [site_attachment_row_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -432,8 +399,12 @@ class TestBuildFindingHistoryFromSiteHistory:
 
 
 class TestBuildFindingHistoryFromSiteAttachmentsOut:
-    def test_builds_finding_history_from_nested_row_objects(self) -> None:
-        result = _build_finding_history_from_site_attachments(site_attachment_row())
+    def test_builds_finding_history_from_nested_row_objects(
+        self, site_attachment_row_factory
+    ) -> None:
+        result = _build_finding_history_from_site_attachments(
+            site_attachment_row_factory()
+        )
 
         assert result == FindingHistory(
             finding_id=1,
@@ -443,17 +414,19 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
             rule_description="Producer must maintain an organic system plan.",
         )
 
-    def test_raises_key_error_when_required_row_object_is_missing(self) -> None:
-        row = site_attachment_row()
+    def test_raises_key_error_when_required_row_object_is_missing(
+        self, site_attachment_row_factory
+    ) -> None:
+        row = site_attachment_row_factory()
         del row["Rule"]
 
         with pytest.raises(KeyError, match="Missing finding history fields"):
             _build_finding_history_from_site_attachments(row)
 
     def test_raises_key_error_when_required_finding_history_field_is_missing(
-        self,
+        self, site_attachment_row_factory
     ) -> None:
-        row = site_attachment_row(
+        row = site_attachment_row_factory(
             Rule=SimpleNamespace(
                 rule_index="7 CFR 205.201",
                 title="Organic plan",
@@ -465,8 +438,10 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
 
 
 class TestFormatSiteAttachmentsOut:
-    def test_creates_site_attachments_with_finding_link(self) -> None:
-        result = _format_site_attachments([site_attachment_row()])
+    def test_creates_site_attachments_with_finding_link(
+        self, site_attachment_row_factory
+    ) -> None:
+        result = _format_site_attachments([site_attachment_row_factory()])
 
         assert result.site_id == 71
         assert len(result.attachments) == 1
@@ -475,10 +450,12 @@ class TestFormatSiteAttachmentsOut:
         assert len(result.attachments[0].finding_links) == 1
         assert result.attachments[0].finding_links[0].finding_id == 1
 
-    def test_groups_multiple_findings_under_same_attachment(self) -> None:
+    def test_groups_multiple_findings_under_same_attachment(
+        self, site_attachment_row_factory
+    ) -> None:
         rows = [
-            site_attachment_row(),
-            site_attachment_row(
+            site_attachment_row_factory(),
+            site_attachment_row_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -495,7 +472,9 @@ class TestFormatSiteAttachmentsOut:
             finding.finding_id for finding in result.attachments[0].finding_links
         ] == [1, 2]
 
-    def test_groups_attachments_by_id_without_reordering(self) -> None:
+    def test_groups_attachments_by_id_without_reordering(
+        self, site_attachment_row_factory
+    ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
             file_type="pdf",
@@ -505,9 +484,9 @@ class TestFormatSiteAttachmentsOut:
             certification_id=100,
         )
         rows = [
-            site_attachment_row(Attachment=second_attachment),
-            site_attachment_row(),
-            site_attachment_row(
+            site_attachment_row_factory(Attachment=second_attachment),
+            site_attachment_row_factory(),
+            site_attachment_row_factory(
                 Attachment=second_attachment,
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(

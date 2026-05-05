@@ -1,8 +1,11 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from compliance.schemas import FindingHistory
+
+CertificationResult = Literal["Pass", "Fail"]
 
 
 class SiteCreate(BaseModel):
@@ -14,9 +17,9 @@ class SiteCreate(BaseModel):
     city: str
     postal_code: int
     street: str
-    street_number: int | None
-    suite: str | None
-    address_info: str | None
+    street_number: int | None = None
+    suite: str | None = None
+    address_info: str | None = None
 
 
 class SiteOut(SiteCreate):
@@ -27,18 +30,25 @@ class SiteOut(SiteCreate):
     id: int
 
 
-class CertificationOut(BaseModel):
+class CertificationCreate(BaseModel):
+    """Public API response shape for a certification record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    certifier_id: int
+    regulation_id: int
+    site_id: int
+    result: CertificationResult | None = None
+    inspection_date: date | None = None
+    resolution_date: date | None = None
+
+
+class CertificationOut(CertificationCreate):
     """Public API response shape for a certification record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    certifier_id: int
-    regulation_id: int
-    site_id: int
-    result: str | None
-    inspection_date: date | None
-    resolution_date: date | None
 
 
 class AttachmentWithContextOut(BaseModel):
