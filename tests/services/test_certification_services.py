@@ -10,7 +10,7 @@ from compliance.api.schemas import (
     CertificationCreate,
     CertificationOut,
 )
-from compliance.db.models import Certification
+from compliance.db.models import Certification, Site
 from compliance.services.certifications import (
     _format_certification_attachments,
     get_certification_attachments_by_id,
@@ -59,7 +59,9 @@ class TestGetCertifications:
             certifications
         )
 
-        result = get_certifications(session, limit=10, offset=5)
+        result = get_certifications(
+            session, site_id=None, open_only=False, limit=10, offset=5
+        )
 
         assert result == [
             CertificationOut.model_validate(certification)
@@ -70,13 +72,48 @@ class TestGetCertifications:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        get_certifications(session, limit=None, offset=0)
+        get_certifications(session, site_id=None, open_only=False, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert (
             "ORDER BY certifications.regulation_id, "
             "certifications.inspection_date DESC, certifications.id" in str(stmt)
         )
+
+    def test_filters_by_site_when_site_exists(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Site)
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        result = get_certifications(
+            session, site_id=12, open_only=False, limit=None, offset=0
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert result == []
+        session.get.assert_called_once_with(Site, 12)
+        assert "WHERE certifications.site_id = :site_id_1" in str(stmt)
+
+    def test_returns_none_when_site_filter_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = get_certifications(
+            session, site_id=999, open_only=False, limit=None, offset=0
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Site, 999)
+        session.execute.assert_not_called()
+
+    def test_filters_open_certifications_by_resolution_date(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_certifications(session, site_id=None, open_only=True, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.resolution_date IS NULL" in str(stmt)
 
 
 class TestGetCertificationById:

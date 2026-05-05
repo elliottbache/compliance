@@ -17,6 +17,7 @@ from compliance.db.models import (
     FindingAttachment,
     Regulation,
     Rule,
+    Site,
 )
 from compliance.services._helpers import _format_attachment
 
@@ -24,23 +25,41 @@ logger = logging.getLogger(__name__)
 
 
 def get_certifications(
-    session: Session, limit: int | None, offset: int
-) -> list[CertificationOut]:
-    """Retrieve certifications ordered by regulation, inspection date, and ID.
+    session: Session,
+    site_id: int | None,
+    open_only: bool,
+    limit: int | None,
+    offset: int,
+) -> list[CertificationOut] | None:
+    """Retrieve certifications with optional site and open-only filters.
 
     Args:
         session: Database session used to execute the certification query.
+        site_id: Optional site ID used to restrict results to one site. When
+            supplied, the site must exist.
+        open_only: When true, only return certifications without a resolution
+            date.
         limit: Maximum number of certifications to return. If ``None``, all
             certifications are returned.
         offset: Number of certifications to skip before returning results.
 
     Returns:
         Certification records serialized with the public API schema, or an
-        empty list if no certifications exist.
+        empty list if no certifications match. Returns ``None`` when ``site_id``
+        is supplied but no matching site exists.
     """
+    stmt = select(Certification)
+
+    if site_id is not None:
+        if session.get(Site, site_id) is None:
+            return None
+        stmt = stmt.where(Certification.site_id == site_id)
+
+    if open_only:
+        stmt = stmt.where(Certification.resolution_date.is_(None))
+
     stmt = (
-        select(Certification)
-        .order_by(
+        stmt.order_by(
             Certification.regulation_id,
             Certification.inspection_date.desc(),
             Certification.id,
@@ -48,6 +67,7 @@ def get_certifications(
         .limit(limit)
         .offset(offset)
     )
+
     certifications = session.execute(stmt).scalars().all()
 
     return [

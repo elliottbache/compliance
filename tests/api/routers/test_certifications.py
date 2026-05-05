@@ -11,8 +11,10 @@ class TestGetCertificationsRoute:
     def test_client_returns_certifications_json(
         self, client, mock_db, monkeypatch, certifications_factory
     ):
-        def fake_get_certifications(session, limit, offset):
+        def fake_get_certifications(session, site_id, open_only, limit, offset):
             assert session is mock_db
+            assert site_id is None
+            assert open_only is False
             assert limit == 2
             assert offset == 1
             return [
@@ -60,8 +62,10 @@ class TestGetCertificationsRoute:
             for certification in certifications_factory(1, result="Pass")
         ]
 
-        def fake_get_certifications(session, limit, offset):
+        def fake_get_certifications(session, site_id, open_only, limit, offset):
             assert session is fake_session
+            assert site_id == 12
+            assert open_only is True
             assert limit == 10
             assert offset == 5
             return expected_certifications
@@ -71,10 +75,27 @@ class TestGetCertificationsRoute:
         )
 
         result = certifications_router.get_certifications_route(
-            fake_session, limit=10, offset=5
+            fake_session, site_id=12, open_only=True, limit=10, offset=5
         )
 
         assert result == expected_certifications
+
+    def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_certifications(session, site_id, open_only, limit, offset):
+            assert site_id == 999
+            return None
+
+        monkeypatch.setattr(
+            certifications_router, "get_certifications", fake_get_certifications
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.get_certifications_route(
+                object(), site_id=999, open_only=False, limit=None, offset=0
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site does not exist: 999"
 
     def test_registers_certification_list_response_model(self, main_module) -> None:
         route = next(

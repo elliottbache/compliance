@@ -21,20 +21,31 @@ router = APIRouter(prefix="/certifications", tags=["certifications"])
 @router.get("")
 def get_certifications_route(
     session: SessionDep,
+    site_id: Annotated[int | None, Query(gt=0)] = None,
+    open_only: Annotated[bool, Query()] = False,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CertificationOut]:
-    """Return certifications with optional pagination.
+    """Return certifications with optional filters and pagination.
 
     Args:
         session: Database session provided by FastAPI dependency injection.
+        site_id: Optional site ID used to return certifications for one site.
+        open_only: When true, return certifications without a resolution date.
         limit: Maximum number of certifications to return.
         offset: Number of certifications to skip before returning results.
 
     Returns:
         Certification records serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If ``site_id`` is provided and no matching site exists.
     """
-    return get_certifications(session, limit, offset)
+    certifications_list = get_certifications(session, site_id, open_only, limit, offset)
+    if certifications_list is None:
+        raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}")
+
+    return certifications_list
 
 
 @router.get("/{certification_id}")
