@@ -427,12 +427,12 @@ class TestPostNewCertificationRoute:
             "resolution_date": None,
         }
 
-    def test_client_returns_409_when_certification_is_not_created(
+    def test_client_returns_409_when_certification_conflicts(
         self, client, mock_db, monkeypatch
     ):
         def fake_post_new_certification(certification, session):
             assert session is mock_db
-            return None
+            raise certifications_router.CertificationConflictError()
 
         monkeypatch.setattr(
             certifications_router,
@@ -507,7 +507,7 @@ class TestPostNewCertificationRoute:
             created_certification
         )
 
-    def test_returns_409_when_certification_is_not_created(self, monkeypatch) -> None:
+    def test_returns_404_when_certifier_does_not_exist(self, monkeypatch) -> None:
         certification = certifications_router.CertificationCreate(
             certifier_id=7,
             regulation_id=3,
@@ -516,7 +516,76 @@ class TestPostNewCertificationRoute:
         )
 
         def fake_post_new_certification(certification_info, session):
-            return None
+            raise certifications_router.CertificationCertifierError()
+
+        monkeypatch.setattr(
+            certifications_router,
+            "post_new_certification",
+            fake_post_new_certification,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.post_new_certification_route(certification, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certifier 7 does not exist."
+
+    def test_returns_404_when_regulation_does_not_exist(self, monkeypatch) -> None:
+        certification = certifications_router.CertificationCreate(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            result="Pass",
+        )
+
+        def fake_post_new_certification(certification_info, session):
+            raise certifications_router.CertificationRegulationError()
+
+        monkeypatch.setattr(
+            certifications_router,
+            "post_new_certification",
+            fake_post_new_certification,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.post_new_certification_route(certification, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Regulation 3 does not exist."
+
+    def test_returns_404_when_site_does_not_exist(self, monkeypatch) -> None:
+        certification = certifications_router.CertificationCreate(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            result="Pass",
+        )
+
+        def fake_post_new_certification(certification_info, session):
+            raise certifications_router.CertificationSiteError()
+
+        monkeypatch.setattr(
+            certifications_router,
+            "post_new_certification",
+            fake_post_new_certification,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.post_new_certification_route(certification, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Site 12 does not exist."
+
+    def test_returns_409_when_certification_conflicts(self, monkeypatch) -> None:
+        certification = certifications_router.CertificationCreate(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            result="Pass",
+        )
+
+        def fake_post_new_certification(certification_info, session):
+            raise certifications_router.CertificationConflictError()
 
         monkeypatch.setattr(
             certifications_router,

@@ -19,9 +19,25 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import _format_attachment
+from compliance.services._helpers import _format_attachment, get_constraint_name
 
 logger = logging.getLogger(__name__)
+
+
+class CertificationConflictError(Exception):
+    """Raised when a certification cannot be created because of existing data."""
+
+
+class CertificationCertifierError(CertificationConflictError):
+    """Raised when a certification references a missing certifier."""
+
+
+class CertificationRegulationError(CertificationConflictError):
+    """Raised when a certification references a missing regulation."""
+
+
+class CertificationSiteError(CertificationConflictError):
+    """Raised when a certification references a missing site."""
 
 
 def get_certifications(
@@ -136,7 +152,7 @@ def get_certification_attachments_by_id(
 
 def post_new_certification(
     certification: CertificationCreate, session: Session
-) -> Certification | None:
+) -> Certification:
     """Persist a new certification record.
 
     Args:
@@ -144,19 +160,34 @@ def post_new_certification(
         session: Database session used to add and commit the certification.
 
     Returns:
-        The created Certification ORM object, or ``None`` if an integrity conflict
-        prevents the insert.
+        The created Certification ORM object.
 
+    Raises:
+        CertificationCertifierError: If the certifier ID does not exist.
+        CertificationRegulationError: If the regulation ID does not exist.
+        CertificationSiteError: If the site ID does not exist.
+        CertificationConflictError: If another integrity conflict prevents the insert.
     """
     certification_dict = certification.model_dump()
     new_certification = Certification(**certification_dict)
     try:
         session.add(new_certification)
         session.commit()
-    except IntegrityError as e:
-        logger.error(f"Certification post error: {e}")
+    except IntegrityError as exc:
         session.rollback()
-        return None
+
+        constraint_name = get_constraint_name(exc)
+
+        if constraint_name == "certifications_certifier_id_fkey":
+            raise CertificationCertifierError(certification.certifier_id) from exc
+
+        if constraint_name == "certifications_regulation_id_fkey":
+            raise CertificationRegulationError(certification.regulation_id) from exc
+
+        if constraint_name == "certifications_site_id_fkey":
+            raise CertificationSiteError(certification.site_id) from exc
+
+        raise CertificationConflictError() from exc
 
     return new_certification
 

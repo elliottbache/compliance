@@ -12,6 +12,10 @@ from compliance.api.schemas import (
 )
 from compliance.db.models import Certification, Site
 from compliance.services.certifications import (
+    CertificationCertifierError,
+    CertificationConflictError,
+    CertificationRegulationError,
+    CertificationSiteError,
     _format_certification_attachments,
     get_certification_attachments_by_id,
     get_certification_by_id,
@@ -46,6 +50,11 @@ def _certification_create(**overrides) -> CertificationCreate:
     }
     data.update(overrides)
     return CertificationCreate(**data)
+
+
+def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
+    orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
+    return IntegrityError("insert failed", {}, orig)
 
 
 class TestGetCertifications:
@@ -194,11 +203,12 @@ class TestPostNewCertification:
         session = MagicMock()
         certification = _certification_create()
 
-        post_new_certification(certification, session)
+        result = post_new_certification(certification, session)
 
         session.add.assert_called_once()
         added_certification = session.add.call_args.args[0]
 
+        assert result is added_certification
         assert isinstance(added_certification, Certification)
         assert added_certification.certifier_id == 7
         assert added_certification.regulation_id == 3
@@ -207,16 +217,47 @@ class TestPostNewCertification:
         assert added_certification.inspection_date == date(2026, 4, 1)
         assert added_certification.resolution_date is None
 
-    def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
         session = MagicMock()
-        session.commit.side_effect = IntegrityError("insert failed", {}, None)
+        session.commit.side_effect = _integrity_error()
         certification = _certification_create()
 
-        result = post_new_certification(certification, session)
+        with pytest.raises(CertificationConflictError):
+            post_new_certification(certification, session)
 
-        assert result is None
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_raises_certifier_error_when_certifier_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.commit.side_effect = _integrity_error(
+            "certifications_certifier_id_fkey"
+        )
+
+        with pytest.raises(CertificationCertifierError):
+            post_new_certification(_certification_create(), session)
+
+        session.rollback.assert_called_once_with()
+
+    def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.commit.side_effect = _integrity_error(
+            "certifications_regulation_id_fkey"
+        )
+
+        with pytest.raises(CertificationRegulationError):
+            post_new_certification(_certification_create(), session)
+
+        session.rollback.assert_called_once_with()
+
+    def test_raises_site_error_when_site_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.commit.side_effect = _integrity_error("certifications_site_id_fkey")
+
+        with pytest.raises(CertificationSiteError):
+            post_new_certification(_certification_create(), session)
+
         session.rollback.assert_called_once_with()
 
 

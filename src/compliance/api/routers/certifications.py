@@ -9,6 +9,10 @@ from compliance.api.schemas import (
     CertificationOut,
 )
 from compliance.services.certifications import (
+    CertificationCertifierError,
+    CertificationConflictError,
+    CertificationRegulationError,
+    CertificationSiteError,
     get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications,
@@ -119,13 +123,34 @@ def post_new_certification_route(
         Created certification details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If the certification cannot be created, such as when it
-            conflicts with an existing record or references missing parent data.
+        HTTPException: If the certification references missing parent data or
+            another integrity conflict prevents creation.
     """
-    new_certification = post_new_certification(certification, session)
-    if new_certification is None:
+    try:
+        new_certification = post_new_certification(certification, session)
+
+    except CertificationCertifierError as err:
         raise HTTPException(
-            status_code=409, detail=f"Certification was not added: {certification}."
-        )
+            status_code=404,
+            detail=f"Certifier {certification.certifier_id} does not exist.",
+        ) from err
+
+    except CertificationRegulationError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Regulation {certification.regulation_id} does not exist.",
+        ) from err
+
+    except CertificationSiteError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Site {certification.site_id} does not exist.",
+        ) from err
+
+    except CertificationConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Certification was not added: {certification}.",
+        ) from err
 
     return CertificationOut.model_validate(new_certification)
