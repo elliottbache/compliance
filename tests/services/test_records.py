@@ -3,17 +3,15 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
     AttachmentCreate,
     AttachmentWithContextOut,
     CertificationAttachmentsOut,
-    ClientInOut,
     FindingOut,
     SiteCertificationsOut,
 )
-from compliance.db.models import Certification, Client, Site
+from compliance.db.models import Certification, Site
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.records import (
     AttachmentCertificationNotFoundError,
@@ -38,7 +36,6 @@ from compliance.services.records import (
     get_site_history,
     get_site_history_legacy,
     post_new_attachment,
-    post_new_client,
 )
 
 
@@ -531,48 +528,6 @@ class TestFormatNewAttachmentWithContext:
         assert result.inspection_date == date(2026, 4, 1)
         assert result.regulation_id == 5
         assert result.regulation_title == "USDA Organic"
-
-
-class TestPostNewClient:
-    def test_adds_and_commits_new_client(self) -> None:
-        session = MagicMock()
-        client = ClientInOut(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email="ada@example.com",
-            telephone=123456789,
-        )
-
-        post_new_client(client, session)
-
-        session.add.assert_called_once()
-        added_client = session.add.call_args.args[0]
-
-        assert isinstance(added_client, Client)
-        assert added_client.nif == "A1234567B"
-        assert added_client.company_name == "Acme Compliance"
-        assert added_client.contact_name == "Ada Lovelace"
-        assert added_client.email == "ada@example.com"
-        assert added_client.telephone == 123456789
-
-    def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
-        session = MagicMock()
-        session.commit.side_effect = IntegrityError("insert failed", {}, None)
-        client = ClientInOut(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email="ada@example.com",
-            telephone=123456789,
-        )
-
-        result = post_new_client(client, session)
-
-        assert result is None
-        session.add.assert_called_once()
-        session.commit.assert_called_once_with()
-        session.rollback.assert_called_once_with()
 
 
 class TestFormatSiteHistory:

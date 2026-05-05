@@ -13,7 +13,6 @@ from compliance.api.schemas import (
     AttachmentOut,
     AttachmentWithContextOut,
     CertificationAttachmentsOut,
-    ClientInOut,
     FindingOut,
     SiteAttachmentsOut,
     SiteCertificationsOut,
@@ -23,7 +22,6 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Certifier,
-    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -374,30 +372,6 @@ def get_attachment_by_id(
     )
     rows = session.execute(stmt).mappings().all()
     return None if not rows else _format_attachment(rows)
-
-
-def post_new_client(client: ClientInOut, session: Session) -> Client | None:
-    """Persist a new client record.
-
-    Args:
-        client: Client data validated by the API layer.
-        session: Database session used to add and commit the client.
-
-    Returns:
-        The created Client ORM object, or ``None`` if an integrity conflict
-        prevents the insert.
-
-    """
-    client_dict = client.model_dump()
-    new_client = Client(**client_dict)
-    try:
-        session.add(new_client)
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        return None
-
-    return new_client
 
 
 def post_new_attachment(

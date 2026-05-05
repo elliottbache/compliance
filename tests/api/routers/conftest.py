@@ -1,5 +1,4 @@
 from datetime import date
-from importlib import import_module
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -16,16 +15,6 @@ from compliance.llm.schemas import (
     SuggestionItem,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
-
-
-@pytest.fixture
-def main_module(monkeypatch):
-    monkeypatch.setenv("POSTGRES_DB", "test_db")
-    monkeypatch.setenv("POSTGRES_USER", "test_user")
-    monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
-    monkeypatch.setenv("POSTGRES_HOST", "localhost")
-
-    return import_module("compliance.api.main")
 
 
 @pytest.fixture
