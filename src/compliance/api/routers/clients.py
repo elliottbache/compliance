@@ -7,6 +7,9 @@ from compliance.api.schemas import (
     ClientInOut,
 )
 from compliance.services.clients import (
+    ClientCompanyNameConflictError,
+    ClientConflictError,
+    ClientNifConflictError,
     get_client_by_nif,
     get_clients,
     post_new_client,
@@ -72,8 +75,24 @@ def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInO
         HTTPException: If the client cannot be created, such as when it
             conflicts with an existing record.
     """
-    new_client = post_new_client(client, session)
-    if new_client is None:
-        raise HTTPException(status_code=409, detail=f"Client was not added: {client}.")
+    try:
+        new_client = post_new_client(client, session)
+
+    except ClientNifConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Client with NIF {client.nif} already exists.",
+        ) from err
+
+    except ClientCompanyNameConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Client with company name {client.company_name} already exists.",
+        ) from err
+
+    except ClientConflictError as err:
+        raise HTTPException(
+            status_code=409, detail="Client was not added because of a data conflict."
+        ) from err
 
     return ClientInOut.model_validate(new_client)

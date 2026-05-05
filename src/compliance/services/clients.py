@@ -8,6 +8,19 @@ from compliance.api.schemas import (
 from compliance.db.models import (
     Client,
 )
+from compliance.services._helpers import get_constraint_name
+
+
+class ClientConflictError(Exception):
+    """Raised when a client cannot be created because of existing data."""
+
+
+class ClientNifConflictError(ClientConflictError):
+    """Raised when a client NIF already exists."""
+
+
+class ClientCompanyNameConflictError(ClientConflictError):
+    """Raised when a client company name already exists."""
 
 
 def get_clients(session: Session, limit: int | None, offset: int) -> list[ClientInOut]:
@@ -50,7 +63,7 @@ def get_client_by_nif(nif: str, session: Session) -> ClientInOut | None:
     return None if not client_db else ClientInOut.model_validate(client_db)
 
 
-def post_new_client(client: ClientInOut, session: Session) -> Client | None:
+def post_new_client(client: ClientInOut, session: Session) -> Client:
     """Persist a new client record.
 
     Args:
@@ -67,8 +80,18 @@ def post_new_client(client: ClientInOut, session: Session) -> Client | None:
     try:
         session.add(new_client)
         session.commit()
-    except IntegrityError:
+
+    except IntegrityError as exc:
         session.rollback()
-        return None
+
+        constraint_name = get_constraint_name(exc)
+
+        if constraint_name == "pk_clients":
+            raise ClientNifConflictError(client.nif) from exc
+
+        if constraint_name == "uq_clients_company_name":
+            raise ClientCompanyNameConflictError(client.company_name) from exc
+
+        raise ClientConflictError() from exc
 
     return new_client

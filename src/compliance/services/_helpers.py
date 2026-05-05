@@ -1,6 +1,8 @@
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
 from compliance.api.schemas import (
     AttachmentWithContextOut,
 )
@@ -43,6 +45,11 @@ def _format_attachment(
             )
 
     return AttachmentWithContextOut(**attachment_dict)
+
+
+def get_constraint_name(exc: IntegrityError) -> str | None:
+    diag = getattr(exc.orig, "diag", None)
+    return getattr(diag, "constraint_name", None)
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:

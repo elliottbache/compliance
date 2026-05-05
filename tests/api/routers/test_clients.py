@@ -195,18 +195,18 @@ class TestPostNewClientRoute:
     def test_client_returns_409_when_client_already_exists(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
-        fake_site = None
-
         def fake_post_new_client(client_record, session):
             assert session is mock_db
-            return fake_site
+            raise clients_router.ClientConflictError
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         response = client.post("/clients", json=vars(client_record_factory()))
 
         assert response.status_code == 409
-        assert response.json()["detail"].startswith("Client was not added: ")
+        assert response.json() == {
+            "detail": "Client was not added because of a data conflict."
+        }
 
     def test_client_returns_422_when_client_is_invalid(
         self, client, client_record_factory
@@ -249,7 +249,7 @@ class TestPostNewClientRoute:
         )
 
         def fake_post_new_client(client_info, session):
-            return None
+            raise clients_router.ClientConflictError
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
@@ -257,7 +257,56 @@ class TestPostNewClientRoute:
             clients_router.post_new_client_route(client, object())
 
         assert exc_info.value.status_code == 409
-        assert "Client was not added" in exc_info.value.detail
+        assert (
+            exc_info.value.detail == "Client was not added because of a data conflict."
+        )
+
+    def test_returns_409_when_client_nif_already_exists(
+        self, main_module, monkeypatch
+    ) -> None:
+        client = clients_router.ClientInOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        def fake_post_new_client(client_info, session):
+            raise clients_router.ClientNifConflictError
+
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.post_new_client_route(client, object())
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == "Client with NIF A1234567B already exists."
+
+    def test_returns_409_when_client_company_name_already_exists(
+        self, main_module, monkeypatch
+    ) -> None:
+        client = clients_router.ClientInOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+
+        def fake_post_new_client(client_info, session):
+            raise clients_router.ClientCompanyNameConflictError
+
+        monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.post_new_client_route(client, object())
+
+        assert exc_info.value.status_code == 409
+        assert (
+            exc_info.value.detail
+            == "Client with company name Acme Compliance already exists."
+        )
 
     def test_registers_client_response_model_and_created_status(
         self, main_module

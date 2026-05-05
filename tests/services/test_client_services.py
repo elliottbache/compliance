@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
@@ -7,6 +8,9 @@ from compliance.api.schemas import (
 )
 from compliance.db.models import Client
 from compliance.services.clients import (
+    ClientCompanyNameConflictError,
+    ClientConflictError,
+    ClientNifConflictError,
     get_client_by_nif,
     get_clients,
     post_new_client,
@@ -93,7 +97,9 @@ class TestPostNewClient:
         assert added_client.email == "ada@example.com"
         assert added_client.telephone == 123456789
 
-    def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_nif_conflict_when_nif_already_exists(
+        self, monkeypatch
+    ) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
         client = ClientInOut(
@@ -103,10 +109,62 @@ class TestPostNewClient:
             email="ada@example.com",
             telephone=123456789,
         )
+        monkeypatch.setattr(
+            "compliance.services.clients.get_constraint_name",
+            lambda exc: "pk_clients",
+        )
 
-        result = post_new_client(client, session)
+        with pytest.raises(ClientNifConflictError):
+            post_new_client(client, session)
 
-        assert result is None
+        session.add.assert_called_once()
+        session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_rolls_back_and_raises_company_name_conflict_when_company_name_exists(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        session.commit.side_effect = IntegrityError("insert failed", {}, None)
+        client = ClientInOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+        monkeypatch.setattr(
+            "compliance.services.clients.get_constraint_name",
+            lambda exc: "uq_clients_company_name",
+        )
+
+        with pytest.raises(ClientCompanyNameConflictError):
+            post_new_client(client, session)
+
+        session.add.assert_called_once()
+        session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_rolls_back_and_raises_generic_conflict_for_unknown_integrity_error(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        session.commit.side_effect = IntegrityError("insert failed", {}, None)
+        client = ClientInOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+        monkeypatch.setattr(
+            "compliance.services.clients.get_constraint_name",
+            lambda exc: "unexpected_constraint",
+        )
+
+        with pytest.raises(ClientConflictError):
+            post_new_client(client, session)
+
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
