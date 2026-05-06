@@ -133,6 +133,29 @@ class ClientInOut(BaseModel):
     telephone: int | None
 
 
+class FindingCreate(BaseModel):
+    """Public API input shape for a finding metadata record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    certification_id: int
+    rule_id: int
+    finding: str
+    attachment_ids: list[int] | None = None
+
+
+class FindingAttachmentOut(BaseModel):
+    """Public API output shape for an attachment linked to a finding."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    attachment_id: int
+    file_type: str
+    file_path: str
+    description: str | None
+    uploaded_at: date
+
+
 class FindingOut(BaseModel):
     """Public API output shape for a finding record."""
 
@@ -143,8 +166,9 @@ class FindingOut(BaseModel):
     site_id: int
     certification_id: int
     certification_title: str
-    certification_resolution_date: date
+    certification_resolution_date: date | None
     rule_id: int
     rule_index: str
     rule_title: str | None
     rule_description: str
+    attachments: list[FindingAttachmentOut] = Field(default_factory=list)

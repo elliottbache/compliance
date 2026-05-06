@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from compliance.api.schemas import (
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
-    FindingOut,
 )
 from compliance.db.models import (
     Attachment,
@@ -44,45 +42,6 @@ class AttachmentFindingCertificationMismatchError(AttachmentCreateError):
 
 class AttachmentConflictError(AttachmentCreateError):
     """Raised when attachment creation conflicts with stored data."""
-
-
-def get_findings(
-    session: Session, site_id: int | None, rule_id: int | None, open_only: bool
-) -> list[FindingOut]:
-    """Retrieve findings with optional site, rule, and open-status filters.
-
-    Args:
-        session: Database session used to execute the finding query.
-        site_id: Optional site identifier used to limit findings to one site.
-        rule_id: Optional rule identifier used to limit findings to one rule.
-        open_only: When true, only return findings whose certification has no
-            resolution date.
-
-    Returns:
-        Finding records serialized with certification, regulation, and rule
-        context, or an empty list if no matching findings exist.
-    """
-    stmt = (
-        select(
-            Finding,
-            Certification,
-            Regulation,
-            Rule,
-        )
-        .join(Finding.finding_certification_rel)
-        .join(Certification.certification_regulation_rel)
-        .join(Finding.finding_rule_rel)
-    )
-    if site_id is not None:
-        stmt = stmt.where(Certification.site_id == site_id)
-    if rule_id is not None:
-        stmt = stmt.where(Rule.id == rule_id)
-    if open_only:
-        stmt = stmt.where(Certification.resolution_date.is_(None))
-
-    results = session.execute(stmt).mappings().all()
-
-    return _format_findings(results)
 
 
 def get_attachment_by_id(
@@ -242,52 +201,3 @@ def _format_new_attachment_with_context(
         regulation_id=certification.regulation_id,
         regulation_title=certification.certification_regulation_rel.title,
     )
-
-
-def _format_findings(finding_list: Sequence[Mapping]) -> list[FindingOut]:
-    """Format finding query rows into public finding output records.
-
-    Args:
-        finding_list: Rows containing ``Finding``, ``Certification``,
-            ``Regulation``, and ``Rule`` ORM objects.
-
-    Returns:
-        Finding records serialized with certification and rule context.
-
-    Raises:
-        KeyError: If required row objects or nested fields are missing.
-    """
-    return [_build_finding_out(row) for row in finding_list]
-
-
-def _build_finding_out(row: Mapping) -> FindingOut:
-    """Build a public finding output object from one finding query row."""
-    field_sources = {
-        "finding_id": ("Finding", "id"),
-        "finding": ("Finding", "finding"),
-        "site_id": ("Certification", "site_id"),
-        "certification_id": ("Certification", "id"),
-        "certification_resolution_date": ("Certification", "resolution_date"),
-        "certification_title": ("Regulation", "title"),
-        "rule_id": ("Rule", "id"),
-        "rule_index": ("Rule", "rule_index"),
-        "rule_title": ("Rule", "title"),
-        "rule_description": ("Rule", "description"),
-    }
-    missing_fields = [
-        field_name
-        for field_name, (row_key, attr_name) in field_sources.items()
-        if row_key not in row or not hasattr(row[row_key], attr_name)
-    ]
-    if missing_fields:
-        raise KeyError(
-            "Missing finding output fields in row: "
-            f"{missing_fields}. Row keys: {sorted(row.keys())}"
-        )
-
-    finding_out = {
-        field_name: getattr(row[row_key], attr_name)
-        for field_name, (row_key, attr_name) in field_sources.items()
-    }
-
-    return FindingOut.model_validate(finding_out)

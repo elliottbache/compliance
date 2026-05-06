@@ -9,13 +9,15 @@ from compliance.api.schemas import (
     AttachmentWithContextOut,
     FindingOut,
 )
+from compliance.services.findings import (
+    _build_finding_out,
+    _format_findings,
+)
 from compliance.services.records import (
     AttachmentCertificationNotFoundError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
-    _build_finding_out,
     _format_attachment,
-    _format_findings,
     _format_new_attachment_with_context,
     get_attachment_by_id,
     post_new_attachment,
