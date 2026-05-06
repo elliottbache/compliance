@@ -14,6 +14,7 @@ from compliance.services.findings import (
     FindingMissingCertificationError,
     FindingMissingRuleError,
     FindingMissingSiteError,
+    get_finding_by_id,
     get_findings,
     post_new_finding,
 )
@@ -44,8 +45,8 @@ def get_findings_route(
             resolution date.
 
     Returns:
-        Finding records serialized with certification, regulation, and rule
-        context.
+        Finding records serialized with certification, regulation, rule, and
+        linked attachment context.
 
     Raises:
         HTTPException: If a requested site, certification, rule, or attachment
@@ -71,6 +72,31 @@ def get_findings_route(
     return findings
 
 
+@router.get("/{finding_id}")
+def get_finding_by_id_route(finding_id: int, session: SessionDep) -> FindingOut:
+    """Return one finding by ID.
+
+    Args:
+        finding_id: Unique identifier for the finding to retrieve.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Finding details serialized with certification, regulation, rule, and
+        linked attachment context.
+
+    Raises:
+        HTTPException: If no finding exists for the requested ID.
+    """
+    finding = get_finding_by_id(finding_id, session)
+    if finding is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No finding for this id found: {finding_id}",
+        )
+
+    return finding
+
+
 @router.post("", status_code=201)
 def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> FindingOut:
     """Create a new finding record.
@@ -83,7 +109,8 @@ def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> Findi
         Created finding details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If the finding references missing parent data or
+        HTTPException: If the finding references missing certification, rule, or
+            attachment data, links an attachment from another certification, or
             another integrity conflict prevents creation.
     """
     try:
@@ -91,7 +118,7 @@ def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> Findi
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
-            status_code=409,
+            status_code=422,
             detail=str(err),
         ) from err
 

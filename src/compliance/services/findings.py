@@ -18,7 +18,6 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import get_constraint_name
 
 
 class FindingConflictError(Exception):
@@ -57,18 +56,31 @@ def get_findings(
     attachment_id: int | None,
     open_only: bool,
 ) -> list[FindingOut]:
-    """Retrieve findings with optional site, rule, and open-status filters.
+    """Retrieve findings with optional filters and linked attachment context.
 
     Args:
         session: Database session used to execute the finding query.
         site_id: Optional site identifier used to limit findings to one site.
+        certification_id: Optional certification identifier used to limit findings
+            to one certification.
         rule_id: Optional rule identifier used to limit findings to one rule.
+        attachment_id: Optional attachment identifier used to limit findings to one
+            attachment.
         open_only: When true, only return findings whose certification has no
             resolution date.
 
     Returns:
         Finding records serialized with certification, regulation, and rule
-        context, or an empty list if no matching findings exist.
+        context, including linked attachment summaries. Returns an empty list if
+        no matching findings exist.
+
+    Raises:
+        FindingMissingSiteError: If ``site_id`` is provided but no site exists.
+        FindingMissingCertificationError: If ``certification_id`` is provided but
+            no certification exists.
+        FindingMissingRuleError: If ``rule_id`` is provided but no rule exists.
+        FindingMissingAttachmentError: If ``attachment_id`` is provided but no
+            attachment exists.
     """
     stmt = (
         select(Finding, Certification, Regulation, Rule, Attachment)
@@ -114,20 +126,56 @@ def get_findings(
     return _format_findings(results)
 
 
+def get_finding_by_id(finding_id: int, session: Session) -> FindingOut | None:
+    """Return one finding with context by primary key.
+
+    Args:
+        finding_id: Unique identifier of the finding to retrieve.
+        session: Database session used to execute the finding query.
+
+    Returns:
+        Finding details serialized with certification, regulation, rule, and
+        linked attachment context, or ``None`` when no matching finding exists.
+    """
+    stmt = (
+        select(Finding, Certification, Regulation, Rule, Attachment)
+        .join(Finding.finding_certification_rel)
+        .join(Certification.certification_regulation_rel)
+        .join(Finding.finding_rule_rel)
+        .outerjoin(
+            FindingAttachment,
+            (FindingAttachment.finding_id == Finding.id)
+            & (FindingAttachment.certification_id == Finding.certification_id),
+        )
+        .outerjoin(
+            Attachment,
+            (Attachment.id == FindingAttachment.attachment_id)
+            & (Attachment.certification_id == FindingAttachment.certification_id),
+        )
+        .where(Finding.id == finding_id)
+    )
+    results = session.execute(stmt).mappings().all()
+    findings = _format_findings(results)
+    return findings[0] if findings else None
+
+
 def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
-    """Persist a new finding record.
+    """Persist a new finding record and optional attachment links.
 
     Args:
         finding: Finding creation data validated by the API layer.
         session: Database session used to add and commit the finding.
 
     Returns:
-        The created Finding ORM object.
+        The created finding serialized with certification, regulation, rule, and
+        linked attachment context.
 
     Raises:
-        FindingCertifierError: If the certifier ID does not exist.
-        FindingRegulationError: If the regulation ID does not exist.
-        FindingSiteError: If the site ID does not exist.
+        FindingMissingCertificationError: If the certification ID does not exist.
+        FindingMissingRuleError: If the rule ID does not exist.
+        FindingMissingAttachmentError: If a linked attachment ID does not exist.
+        FindingAttachmentCertificationMismatchError: If a linked attachment
+            belongs to another certification.
         FindingConflictError: If another integrity conflict prevents the insert.
     """
     finding_dict = finding.model_dump(exclude={"attachment_ids"})
@@ -140,6 +188,11 @@ def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
         raise FindingMissingCertificationError(
             f"Certification {finding.certification_id} does not exist."
         )
+
+    # check if rule exists
+    rule = session.get(Rule, finding.rule_id)
+    if rule is None:
+        raise FindingMissingRuleError(f"Rule {finding.rule_id} does not exist.")
 
     # check if attachments exist
     if finding.attachment_ids:
@@ -197,14 +250,6 @@ def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
     except IntegrityError as exc:
         session.rollback()
 
-        constraint_name = get_constraint_name(exc)
-
-        if constraint_name == "findings_certification_id_fkey":
-            raise FindingMissingCertificationError(finding.certification_id) from exc
-
-        if constraint_name == "findings_rule_id_fkey":
-            raise FindingMissingRuleError(finding.rule_id) from exc
-
         raise FindingConflictError() from exc
 
     return finding_out
@@ -215,10 +260,11 @@ def _format_findings(finding_list: Sequence[Mapping]) -> list[FindingOut]:
 
     Args:
         finding_list: Rows containing ``Finding``, ``Certification``,
-            ``Regulation``, and ``Rule`` ORM objects.
+            ``Regulation``, ``Rule``, and optional ``Attachment`` ORM objects.
 
     Returns:
-        Finding records serialized with certification and rule context.
+        Unique finding records serialized with certification, rule, and linked
+        attachment context.
 
     Raises:
         KeyError: If required row objects or nested fields are missing.
