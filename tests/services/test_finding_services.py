@@ -2,6 +2,8 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from compliance.api.schemas import FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,
@@ -9,7 +11,11 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services.findings import _format_findings, get_findings
+from compliance.services.findings import (
+    _build_finding_out,
+    _format_findings,
+    get_findings,
+)
 
 
 def finding_row(**overrides):
@@ -116,6 +122,51 @@ class TestGetFindings:
 
 
 class TestFormatFindings:
+    def test_formats_finding_rows(self) -> None:
+        rows = [
+            finding_row(),
+            finding_row(
+                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Rule=SimpleNamespace(
+                    id=6,
+                    rule_index="7 CFR 205.202",
+                    title="Land requirements",
+                    description="Land must meet organic requirements.",
+                ),
+            ),
+        ]
+
+        result = _format_findings(rows)
+
+        assert result == [
+            FindingOut(
+                finding_id=1,
+                finding="Missing document",
+                site_id=71,
+                certification_id=100,
+                certification_title="USDA Organic",
+                certification_resolution_date=date(2026, 4, 15),
+                rule_id=5,
+                rule_index="7 CFR 205.201",
+                rule_title="Organic plan",
+                rule_description="Producer must maintain an organic system plan.",
+                attachments=[],
+            ),
+            FindingOut(
+                finding_id=2,
+                finding="Incomplete record",
+                site_id=71,
+                certification_id=100,
+                certification_title="USDA Organic",
+                certification_resolution_date=date(2026, 4, 15),
+                rule_id=6,
+                rule_index="7 CFR 205.202",
+                rule_title="Land requirements",
+                rule_description="Land must meet organic requirements.",
+                attachments=[],
+            ),
+        ]
+
     def test_formats_finding_without_attachments(self) -> None:
         result = _format_findings([finding_row()])
 
@@ -173,3 +224,51 @@ class TestFormatFindings:
         assert [attachment.attachment_id for attachment in result[0].attachments] == [
             50
         ]
+
+    def test_returns_empty_list_when_rows_are_empty(self) -> None:
+        assert _format_findings([]) == []
+
+
+class TestBuildFindingOut:
+    def test_builds_finding_output_from_nested_row_objects(self) -> None:
+        result = _build_finding_out(finding_row())
+
+        assert result == FindingOut(
+            finding_id=1,
+            finding="Missing document",
+            site_id=71,
+            certification_id=100,
+            certification_title="USDA Organic",
+            certification_resolution_date=date(2026, 4, 15),
+            rule_id=5,
+            rule_index="7 CFR 205.201",
+            rule_title="Organic plan",
+            rule_description="Producer must maintain an organic system plan.",
+            attachments=[],
+        )
+
+    def test_raises_key_error_when_required_row_object_is_missing(self) -> None:
+        row = finding_row()
+        del row["Certification"]
+
+        with pytest.raises(KeyError, match="Missing finding output fields"):
+            _build_finding_out(row)
+
+    def test_raises_key_error_when_regulation_is_missing(self) -> None:
+        row = finding_row()
+        del row["Regulation"]
+
+        with pytest.raises(KeyError, match="certification_title"):
+            _build_finding_out(row)
+
+    def test_raises_key_error_when_required_rule_field_is_missing(self) -> None:
+        row = finding_row(
+            Rule=SimpleNamespace(
+                id=5,
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+            )
+        )
+
+        with pytest.raises(KeyError, match="rule_description"):
+            _build_finding_out(row)
