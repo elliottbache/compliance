@@ -196,6 +196,22 @@ def certifier_record_factory():
 
 
 @pytest.fixture
+def rule_record_factory():
+    def _rule_record(**overrides):
+        rule_record = SimpleNamespace(
+            id=20,
+            regulation_id=3,
+            rule_index="FS-101",
+            title="Equipment Maintenance",
+            description="Equipment must be maintained.",
+        )
+        rule_record.__dict__.update(**overrides)
+        return rule_record
+
+    return _rule_record
+
+
+@pytest.fixture
 def attachment_factory():
     def _attachment(**overrides):
         attachment = {

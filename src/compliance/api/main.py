@@ -8,6 +8,7 @@ from compliance.api.routers import (
     certifiers,
     clients,
     findings,
+    rules,
     sites,
 )
 from compliance.logging_utils import configure_logging
@@ -21,3 +22,4 @@ app.include_router(findings.router)
 app.include_router(attachments.router)
 app.include_router(clients.router)
 app.include_router(certifiers.router)
+app.include_router(rules.router)

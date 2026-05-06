@@ -51,6 +51,25 @@ class CertificationOut(CertificationCreate):
     id: int
 
 
+class RuleCreate(BaseModel):
+    """Public API input shape for creating a rule record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    regulation_id: int
+    rule_index: str = Field(min_length=1, max_length=10)
+    title: str | None = Field(default=None, max_length=80)
+    description: str | None = None
+
+
+class RuleOut(RuleCreate):
+    """Public API response shape for a rule record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
+
+
 class AttachmentWithContextOut(BaseModel):
     """Public API response shape for an attachment record."""
 
