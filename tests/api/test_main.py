@@ -9,3 +9,4 @@ def test_app_registers_expected_router_prefixes(main_module):
     assert any(path.startswith("/clients") for path in paths)
     assert any(path.startswith("/certifiers") for path in paths)
     assert any(path.startswith("/rules") for path in paths)
+    assert any(path.startswith("/regulations") for path in paths)

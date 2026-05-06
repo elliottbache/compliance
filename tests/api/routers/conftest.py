@@ -212,6 +212,21 @@ def rule_record_factory():
 
 
 @pytest.fixture
+def regulation_record_factory():
+    def _regulation_record(**overrides):
+        regulation_record = SimpleNamespace(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements for commercial sites.",
+            published_date=date(2026, 1, 15),
+        )
+        regulation_record.__dict__.update(**overrides)
+        return regulation_record
+
+    return _regulation_record
+
+
+@pytest.fixture
 def attachment_factory():
     def _attachment(**overrides):
         attachment = {

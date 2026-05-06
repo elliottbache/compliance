@@ -8,6 +8,7 @@ from compliance.api.routers import (
     certifiers,
     clients,
     findings,
+    regulations,
     rules,
     sites,
 )
@@ -23,3 +24,4 @@ app.include_router(attachments.router)
 app.include_router(clients.router)
 app.include_router(certifiers.router)
 app.include_router(rules.router)
+app.include_router(regulations.router)
