@@ -17,7 +17,7 @@ class RuleConflictError(Exception):
     """Raised when a rule cannot be created because of existing data."""
 
 
-class RuleRegulationError(RuleConflictError):
+class RuleRegulationNotFoundError(RuleConflictError):
     """Raised when a rule references a missing regulation."""
 
 
@@ -84,7 +84,7 @@ def post_new_rule(rule: RuleCreate, session: Session) -> Rule:
         The created Rule ORM object.
 
     Raises:
-        RuleRegulationError: If the regulation ID does not exist.
+        RuleRegulationNotFoundError: If the regulation ID does not exist.
         RuleIndexConflictError: If the rule index already exists for the
             regulation.
         RuleConflictError: If another integrity conflict prevents the insert.
@@ -100,7 +100,7 @@ def post_new_rule(rule: RuleCreate, session: Session) -> Rule:
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "rules_regulation_id_fkey":
-            raise RuleRegulationError(rule.regulation_id) from exc
+            raise RuleRegulationNotFoundError(rule.regulation_id) from exc
 
         if constraint_name in {
             "uq_regulation_id_rule_index",

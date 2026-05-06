@@ -57,8 +57,8 @@ class RegulationCreate(BaseModel):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     title: str = Field(min_length=1, max_length=80)
-    description: str | None = None
-    published_date: date | None = None
+    description: str
+    published_date: date
 
 
 class RegulationOut(RegulationCreate):
@@ -77,7 +77,7 @@ class RuleCreate(BaseModel):
     regulation_id: int
     rule_index: str = Field(min_length=1, max_length=10)
     title: str | None = Field(default=None, max_length=80)
-    description: str | None = None
+    description: str
 
 
 class RuleOut(RuleCreate):
@@ -158,7 +158,7 @@ class CertificationAttachmentsOut(BaseModel):
     attachments: list[AttachmentWithContextOut]
 
 
-class ClientInOut(BaseModel):
+class ClientCreate(BaseModel):
     """Public API input shape for a new client record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
@@ -168,6 +168,12 @@ class ClientInOut(BaseModel):
     contact_name: str
     email: str | None
     telephone: int | None
+
+
+class ClientOut(ClientCreate):
+    """Public API response shape for a client record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
 
 
 class CertifierCreate(BaseModel):

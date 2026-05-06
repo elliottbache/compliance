@@ -5,7 +5,6 @@ from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
     CertifierCreate,
-    CertifierOut,
 )
 from compliance.db.models import Certifier
 from compliance.services.certifiers import (
@@ -38,9 +37,7 @@ class TestGetCertifiers:
 
         result = get_certifiers(session, limit=10, offset=5)
 
-        assert result == [
-            CertifierOut.model_validate(certifier) for certifier in certifiers
-        ]
+        assert result == certifiers
 
     def test_orders_certifiers_by_organization_name_then_id(self) -> None:
         session = MagicMock()
@@ -60,7 +57,7 @@ class TestGetCertifierById:
 
         result = get_certifier_by_id(10, session)
 
-        assert result == CertifierOut.model_validate(certifier)
+        assert result is certifier
         session.get.assert_called_once_with(Certifier, 10)
 
     def test_returns_none_when_certifier_is_not_found(self) -> None:

@@ -275,7 +275,7 @@ class TestPostNewRuleRoute:
         )
 
         def fake_post_new_rule(rule_info, session):
-            raise rules_router.RuleRegulationError()
+            raise rules_router.RuleRegulationNotFoundError()
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 

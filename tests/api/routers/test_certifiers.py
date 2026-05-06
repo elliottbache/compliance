@@ -14,14 +14,10 @@ class TestGetCertifiersRoute:
             assert limit == 2
             assert offset == 1
             return [
-                certifiers_router.CertifierOut.model_validate(
-                    certifier_record_factory()
-                ),
-                certifiers_router.CertifierOut.model_validate(
-                    certifier_record_factory(
-                        id=11,
-                        organization_name="VoltGuard",
-                    )
+                certifier_record_factory(),
+                certifier_record_factory(
+                    id=11,
+                    organization_name="VoltGuard",
                 ),
             ]
 
@@ -49,15 +45,17 @@ class TestGetCertifiersRoute:
     # unittests
     def test_returns_certifiers(self, monkeypatch, certifier_record_factory) -> None:
         fake_session = object()
+        certifiers = [certifier_record_factory()]
         expected_certifiers = [
-            certifiers_router.CertifierOut.model_validate(certifier_record_factory())
+            certifiers_router.CertifierOut.model_validate(certifier)
+            for certifier in certifiers
         ]
 
         def fake_get_certifiers(session, limit, offset):
             assert session is fake_session
             assert limit == 10
             assert offset == 5
-            return expected_certifiers
+            return certifiers
 
         monkeypatch.setattr(certifiers_router, "get_certifiers", fake_get_certifiers)
 
@@ -86,9 +84,7 @@ class TestGetCertifierByIdRoute:
         def fake_get_certifier_by_id(certifier_id, session):
             assert certifier_id == 10
             assert session is mock_db
-            return certifiers_router.CertifierOut.model_validate(
-                certifier_record_factory()
-            )
+            return certifier_record_factory()
 
         monkeypatch.setattr(
             certifiers_router, "get_certifier_by_id", fake_get_certifier_by_id
@@ -129,14 +125,13 @@ class TestGetCertifierByIdRoute:
         self, monkeypatch, certifier_record_factory
     ) -> None:
         fake_session = object()
-        expected_certifier = certifiers_router.CertifierOut.model_validate(
-            certifier_record_factory()
-        )
+        certifier = certifier_record_factory()
+        expected_certifier = certifiers_router.CertifierOut.model_validate(certifier)
 
         def fake_get_certifier_by_id(certifier_id, session):
             assert certifier_id == 10
             assert session is fake_session
-            return expected_certifier
+            return certifier
 
         monkeypatch.setattr(
             certifiers_router, "get_certifier_by_id", fake_get_certifier_by_id

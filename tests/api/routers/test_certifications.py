@@ -516,7 +516,7 @@ class TestPostNewCertificationRoute:
         )
 
         def fake_post_new_certification(certification_info, session):
-            raise certifications_router.CertificationCertifierError()
+            raise certifications_router.CertificationCertifierNotFoundError()
 
         monkeypatch.setattr(
             certifications_router,
@@ -539,7 +539,7 @@ class TestPostNewCertificationRoute:
         )
 
         def fake_post_new_certification(certification_info, session):
-            raise certifications_router.CertificationRegulationError()
+            raise certifications_router.CertificationRegulationNotFoundError()
 
         monkeypatch.setattr(
             certifications_router,
@@ -562,7 +562,7 @@ class TestPostNewCertificationRoute:
         )
 
         def fake_post_new_certification(certification_info, session):
-            raise certifications_router.CertificationSiteError()
+            raise certifications_router.CertificationSiteNotFoundError()
 
         monkeypatch.setattr(
             certifications_router,

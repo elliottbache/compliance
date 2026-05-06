@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
-    ClientInOut,
+    ClientCreate,
 )
 from compliance.db.models import (
     Client,
@@ -23,7 +23,7 @@ class ClientCompanyNameConflictError(ClientConflictError):
     """Raised when a client company name already exists."""
 
 
-def get_clients(session: Session, limit: int | None, offset: int) -> list[ClientInOut]:
+def get_clients(session: Session, limit: int | None, offset: int) -> list[Client]:
     """Retrieve clients ordered by company name and NIF.
 
     Args:
@@ -33,8 +33,7 @@ def get_clients(session: Session, limit: int | None, offset: int) -> list[Client
         offset: Number of clients to skip before returning results.
 
     Returns:
-        Client records serialized with the public API schema, or an empty list
-        if no clients exist.
+        Client ORM objects, or an empty list if no clients exist.
     """
     stmt = (
         select(Client)
@@ -42,12 +41,10 @@ def get_clients(session: Session, limit: int | None, offset: int) -> list[Client
         .limit(limit)
         .offset(offset)
     )
-    clients = session.execute(stmt).scalars().all()
-
-    return [ClientInOut.model_validate(client) for client in clients]
+    return list(session.execute(stmt).scalars().all())
 
 
-def get_client_by_nif(nif: str, session: Session) -> ClientInOut | None:
+def get_client_by_nif(nif: str, session: Session) -> Client | None:
     """Retrieve one client by NIF.
 
     Args:
@@ -55,15 +52,12 @@ def get_client_by_nif(nif: str, session: Session) -> ClientInOut | None:
         session: Database session used to retrieve the client.
 
     Returns:
-        Client record serialized with the public API schema, or ``None`` if no
-        matching client exists.
+        Client ORM object, or ``None`` if no matching client exists.
     """
-    client_db = session.get(Client, nif)
-
-    return None if not client_db else ClientInOut.model_validate(client_db)
+    return session.get(Client, nif)
 
 
-def post_new_client(client: ClientInOut, session: Session) -> Client:
+def post_new_client(client: ClientCreate, session: Session) -> Client:
     """Persist a new client record.
 
     Args:
@@ -71,9 +65,12 @@ def post_new_client(client: ClientInOut, session: Session) -> Client:
         session: Database session used to add and commit the client.
 
     Returns:
-        The created Client ORM object, or ``None`` if an integrity conflict
-        prevents the insert.
+        The created Client ORM object.
 
+    Raises:
+        ClientNifConflictError: If the client NIF already exists.
+        ClientCompanyNameConflictError: If the company name already exists.
+        ClientConflictError: If another integrity conflict prevents the insert.
     """
     client_dict = client.model_dump()
     new_client = Client(**client_dict)

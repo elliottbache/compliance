@@ -9,10 +9,10 @@ from compliance.api.schemas import (
     CertificationOut,
 )
 from compliance.services.certifications import (
-    CertificationCertifierError,
+    CertificationCertifierNotFoundError,
     CertificationConflictError,
-    CertificationRegulationError,
-    CertificationSiteError,
+    CertificationRegulationNotFoundError,
+    CertificationSiteNotFoundError,
     get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications,
@@ -129,19 +129,19 @@ def post_new_certification_route(
     try:
         new_certification = post_new_certification(certification, session)
 
-    except CertificationCertifierError as err:
+    except CertificationCertifierNotFoundError as err:
         raise HTTPException(
             status_code=404,
             detail=f"Certifier {certification.certifier_id} does not exist.",
         ) from err
 
-    except CertificationRegulationError as err:
+    except CertificationRegulationNotFoundError as err:
         raise HTTPException(
             status_code=404,
             detail=f"Regulation {certification.regulation_id} does not exist.",
         ) from err
 
-    except CertificationSiteError as err:
+    except CertificationSiteNotFoundError as err:
         raise HTTPException(
             status_code=404,
             detail=f"Site {certification.site_id} does not exist.",

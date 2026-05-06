@@ -17,14 +17,12 @@ class TestGetSitesRoute:
             assert limit == 2
             assert offset == 1
             return [
-                sites_router.SiteOut.model_validate(site_factory()),
-                sites_router.SiteOut.model_validate(
-                    site_factory(
-                        id=13,
-                        city="Valencia",
-                        postal_code=46001,
-                        street="Carrer de Colon",  # codespell:ignore carrer
-                    )
+                site_factory(),
+                site_factory(
+                    id=13,
+                    city="Valencia",
+                    postal_code=46001,
+                    street="Carrer de Colon",  # codespell:ignore carrer
                 ),
             ]
 
@@ -64,14 +62,15 @@ class TestGetSitesRoute:
     # unittests
     def test_returns_sites(self, monkeypatch, site_factory) -> None:
         fake_session = object()
-        expected_sites = [sites_router.SiteOut.model_validate(site_factory())]
+        sites = [site_factory()]
+        expected_sites = [sites_router.SiteOut.model_validate(site) for site in sites]
 
         def fake_get_sites(session, nif, limit, offset):
             assert session is fake_session
             assert nif == "A1234567B"
             assert limit == 10
             assert offset == 5
-            return expected_sites
+            return sites
 
         monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
 
@@ -616,7 +615,7 @@ class TestPostNewSiteRoute:
     ):
         def fake_post_new_site(site, session):
             assert session is mock_db
-            return None
+            raise sites_router.SiteConflictError()
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
@@ -689,7 +688,7 @@ class TestPostNewSiteRoute:
         )
 
         def fake_post_new_site(site_info, session):
-            return None
+            raise sites_router.SiteConflictError()
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
@@ -698,6 +697,28 @@ class TestPostNewSiteRoute:
 
         assert exc_info.value.status_code == 409
         assert "Site was not added" in exc_info.value.detail
+
+    def test_returns_404_when_client_does_not_exist(self, monkeypatch) -> None:
+        site = sites_router.SiteCreate(
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+
+        def fake_post_new_site(site_info, session):
+            raise sites_router.SiteClientNotFoundError()
+
+        monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.post_new_site_route(site, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Client A1234567B does not exist."
 
     def test_registers_site_create_response_model_and_created_status(
         self, main_module

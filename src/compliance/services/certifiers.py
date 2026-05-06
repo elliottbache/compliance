@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
     CertifierCreate,
-    CertifierOut,
 )
 from compliance.db.models import (
     Certifier,
@@ -20,9 +19,7 @@ class CertifierOrganizationNameConflictError(CertifierConflictError):
     """Raised when a certifier organization name already exists."""
 
 
-def get_certifiers(
-    session: Session, limit: int | None, offset: int
-) -> list[CertifierOut]:
+def get_certifiers(session: Session, limit: int | None, offset: int) -> list[Certifier]:
     """Retrieve certifiers ordered by organization name and ID.
 
     Args:
@@ -32,8 +29,7 @@ def get_certifiers(
         offset: Number of certifiers to skip before returning results.
 
     Returns:
-        Certifier records serialized with the public API schema, or an empty
-        list if no certifiers exist.
+        Certifier ORM objects, or an empty list if no certifiers exist.
     """
     stmt = (
         select(Certifier)
@@ -41,12 +37,10 @@ def get_certifiers(
         .limit(limit)
         .offset(offset)
     )
-    certifiers = session.execute(stmt).scalars().all()
-
-    return [CertifierOut.model_validate(certifier) for certifier in certifiers]
+    return list(session.execute(stmt).scalars().all())
 
 
-def get_certifier_by_id(certifier_id: int, session: Session) -> CertifierOut | None:
+def get_certifier_by_id(certifier_id: int, session: Session) -> Certifier | None:
     """Retrieve one certifier by ID.
 
     Args:
@@ -54,12 +48,9 @@ def get_certifier_by_id(certifier_id: int, session: Session) -> CertifierOut | N
         session: Database session used to retrieve the certifier.
 
     Returns:
-        Certifier record serialized with the public API schema, or ``None`` if
-        no matching certifier exists.
+        Certifier ORM object, or ``None`` if no matching certifier exists.
     """
-    certifier_db = session.get(Certifier, certifier_id)
-
-    return None if not certifier_db else CertifierOut.model_validate(certifier_db)
+    return session.get(Certifier, certifier_id)
 
 
 def post_new_certifier(certifier: CertifierCreate, session: Session) -> Certifier:

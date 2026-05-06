@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
-    ClientInOut,
+    ClientCreate,
+    ClientOut,
 )
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
@@ -23,7 +24,7 @@ def get_clients_route(
     session: SessionDep,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[ClientInOut]:
+) -> list[ClientOut]:
     """Return clients with optional pagination.
 
     Args:
@@ -34,13 +35,14 @@ def get_clients_route(
     Returns:
         Client records serialized with the public API response schema.
     """
-    return get_clients(session, limit, offset)
+    clients = get_clients(session, limit, offset)
+    return [ClientOut.model_validate(client) for client in clients]
 
 
 @router.get("/{nif}")
 def get_clients_by_nif_route(
     nif: Annotated[str, Path(min_length=9, max_length=9)], session: SessionDep
-) -> ClientInOut:
+) -> ClientOut:
     """Return one client by NIF.
 
     Args:
@@ -57,11 +59,11 @@ def get_clients_by_nif_route(
     if result is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
-    return ClientInOut.model_validate(result)
+    return ClientOut.model_validate(result)
 
 
 @router.post("", status_code=201)
-def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInOut:
+def post_new_client_route(client: ClientCreate, session: SessionDep) -> ClientOut:
     """Create a new client record.
 
     Args:
@@ -95,4 +97,4 @@ def post_new_client_route(client: ClientInOut, session: SessionDep) -> ClientInO
             status_code=409, detail="Client was not added because of a data conflict."
         ) from err
 
-    return ClientInOut.model_validate(new_client)
+    return ClientOut.model_validate(new_client)

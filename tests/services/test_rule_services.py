@@ -12,7 +12,7 @@ from compliance.db.models import Regulation, Rule
 from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
-    RuleRegulationError,
+    RuleRegulationNotFoundError,
     get_rule_by_id,
     get_rules,
     post_new_rule,
@@ -146,7 +146,7 @@ class TestPostNewRule:
         session = MagicMock()
         session.commit.side_effect = _integrity_error("rules_regulation_id_fkey")
 
-        with pytest.raises(RuleRegulationError):
+        with pytest.raises(RuleRegulationNotFoundError):
             post_new_rule(_rule_create(), session)
 
         session.rollback.assert_called_once_with()

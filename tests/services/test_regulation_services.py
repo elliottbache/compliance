@@ -61,14 +61,17 @@ class TestGetRegulations:
             RegulationOut.model_validate(regulation) for regulation in regulations
         ]
 
-    def test_orders_regulations_by_title_then_id(self) -> None:
+    def test_orders_regulations_by_published_date_title_then_id(self) -> None:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
         get_regulations(session, certifier_id=None, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
-        assert "ORDER BY regulations.title, regulations.id" in str(stmt)
+        assert (
+            "ORDER BY regulations.published_date DESC, "
+            "regulations.title, regulations.id" in str(stmt)
+        )
 
     def test_filters_by_certifier_when_certifier_exists(self) -> None:
         session = MagicMock()

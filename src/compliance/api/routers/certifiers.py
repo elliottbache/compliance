@@ -34,7 +34,8 @@ def get_certifiers_route(
     Returns:
         Certifier records serialized with the public API response schema.
     """
-    return get_certifiers(session, limit, offset)
+    certifiers = get_certifiers(session, limit, offset)
+    return [CertifierOut.model_validate(certifier) for certifier in certifiers]
 
 
 @router.get("/{certifier_id}")

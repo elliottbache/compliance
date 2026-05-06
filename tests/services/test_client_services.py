@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
-    ClientInOut,
+    ClientCreate,
 )
 from compliance.db.models import Client
 from compliance.services.clients import (
@@ -41,7 +41,7 @@ class TestGetClients:
 
         result = get_clients(session, limit=10, offset=5)
 
-        assert result == [ClientInOut.model_validate(client) for client in clients]
+        assert result == clients
 
     def test_orders_clients_by_company_name_then_nif(self) -> None:
         session = MagicMock()
@@ -61,7 +61,7 @@ class TestGetClientByNif:
 
         result = get_client_by_nif("A1234567B", session)
 
-        assert result == ClientInOut.model_validate(client)
+        assert result is client
         session.get.assert_called_once_with(Client, "A1234567B")
 
     def test_returns_none_when_client_is_not_found(self) -> None:
@@ -77,7 +77,7 @@ class TestGetClientByNif:
 class TestPostNewClient:
     def test_adds_and_commits_new_client(self) -> None:
         session = MagicMock()
-        client = ClientInOut(
+        client = ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -102,7 +102,7 @@ class TestPostNewClient:
     ) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
-        client = ClientInOut(
+        client = ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -126,7 +126,7 @@ class TestPostNewClient:
     ) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
-        client = ClientInOut(
+        client = ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -150,7 +150,7 @@ class TestPostNewClient:
     ) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
-        client = ClientInOut(
+        client = ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",

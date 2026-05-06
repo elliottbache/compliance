@@ -28,15 +28,15 @@ class CertificationConflictError(Exception):
     """Raised when a certification cannot be created because of existing data."""
 
 
-class CertificationCertifierError(CertificationConflictError):
+class CertificationCertifierNotFoundError(CertificationConflictError):
     """Raised when a certification references a missing certifier."""
 
 
-class CertificationRegulationError(CertificationConflictError):
+class CertificationRegulationNotFoundError(CertificationConflictError):
     """Raised when a certification references a missing regulation."""
 
 
-class CertificationSiteError(CertificationConflictError):
+class CertificationSiteNotFoundError(CertificationConflictError):
     """Raised when a certification references a missing site."""
 
 
@@ -163,9 +163,9 @@ def post_new_certification(
         The created Certification ORM object.
 
     Raises:
-        CertificationCertifierError: If the certifier ID does not exist.
-        CertificationRegulationError: If the regulation ID does not exist.
-        CertificationSiteError: If the site ID does not exist.
+        CertificationCertifierNotFoundError: If the certifier ID does not exist.
+        CertificationRegulationNotFoundError: If the regulation ID does not exist.
+        CertificationSiteNotFoundError: If the site ID does not exist.
         CertificationConflictError: If another integrity conflict prevents the insert.
     """
     certification_dict = certification.model_dump()
@@ -179,13 +179,17 @@ def post_new_certification(
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "certifications_certifier_id_fkey":
-            raise CertificationCertifierError(certification.certifier_id) from exc
+            raise CertificationCertifierNotFoundError(
+                certification.certifier_id
+            ) from exc
 
         if constraint_name == "certifications_regulation_id_fkey":
-            raise CertificationRegulationError(certification.regulation_id) from exc
+            raise CertificationRegulationNotFoundError(
+                certification.regulation_id
+            ) from exc
 
         if constraint_name == "certifications_site_id_fkey":
-            raise CertificationSiteError(certification.site_id) from exc
+            raise CertificationSiteNotFoundError(certification.site_id) from exc
 
         raise CertificationConflictError() from exc
 

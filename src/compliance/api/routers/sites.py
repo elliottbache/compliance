@@ -23,6 +23,8 @@ from compliance.services.site_analysis import (
     summarize_previous_visits,
 )
 from compliance.services.sites import (
+    SiteClientNotFoundError,
+    SiteConflictError,
     format_site_certifications,
     get_site_attachments,
     get_site_by_id,
@@ -60,7 +62,7 @@ def get_sites_route(
     if sites is None:
         raise HTTPException(status_code=404, detail=f"No client with this NIF: {nif}.")
 
-    return sites
+    return [SiteOut.model_validate(site) for site in sites]
 
 
 @router.get("/{site_id}")
@@ -191,9 +193,19 @@ def post_new_site_route(site: SiteCreate, session: SessionDep) -> SiteOut:
         HTTPException: If the site cannot be created, such as when it conflicts
             with an existing record or references missing parent data.
     """
-    new_site = post_new_site(site, session)
-    if new_site is None:
-        raise HTTPException(status_code=409, detail=f"Site was not added: {site}.")
+    try:
+        new_site = post_new_site(site, session)
+
+    except SiteClientNotFoundError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Client {site.nif} does not exist.",
+        ) from err
+
+    except SiteConflictError as err:
+        raise HTTPException(
+            status_code=409, detail=f"Site was not added: {site}."
+        ) from err
 
     return SiteOut.model_validate(new_site)
 

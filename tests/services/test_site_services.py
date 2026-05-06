@@ -5,13 +5,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import SiteCertificationsOut, SiteCreate, SiteOut
+from compliance.api.schemas import SiteCertificationsOut, SiteCreate
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services._helpers import (
     _build_finding_history_from_site_attachments,
 )
 from compliance.services.sites import (
+    SiteClientNotFoundError,
+    SiteConflictError,
     _build_finding_history_from_site_history,
     _format_site_attachments,
     _format_site_history,
@@ -144,7 +146,7 @@ class TestGetSites:
 
         result = get_sites(session, nif=None, limit=10, offset=5)
 
-        assert result == [SiteOut.model_validate(site) for site in sites]
+        assert result == sites
 
     def test_orders_sites_by_city_nif_then_id(self) -> None:
         session = MagicMock()
@@ -187,7 +189,7 @@ class TestGetSiteById:
         result = get_site_by_id(12, session)
 
         session.get.assert_called_once_with(Site, 12)
-        assert result == SiteOut.model_validate(expected_site)
+        assert result is expected_site
 
     def test_returns_none_when_site_is_not_found(self) -> None:
         session = MagicMock()
@@ -218,16 +220,32 @@ class TestPostNewSite:
         assert added_site.suite is None
         assert added_site.address_info == "Main entrance"
 
-    def test_rolls_back_and_returns_none_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
         session = MagicMock()
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
         site = _site_create()
 
-        result = post_new_site(site, session)
+        with pytest.raises(SiteConflictError):
+            post_new_site(site, session)
 
-        assert result is None
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_raises_client_not_found_when_client_does_not_exist(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        session.commit.side_effect = IntegrityError("insert failed", {}, None)
+        site = _site_create()
+        monkeypatch.setattr(
+            "compliance.services.sites.get_constraint_name",
+            lambda exc: "sites_nif_fkey",
+        )
+
+        with pytest.raises(SiteClientNotFoundError):
+            post_new_site(site, session)
+
         session.rollback.assert_called_once_with()
 
 

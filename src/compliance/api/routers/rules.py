@@ -10,7 +10,7 @@ from compliance.api.schemas import (
 from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
-    RuleRegulationError,
+    RuleRegulationNotFoundError,
     get_rule_by_id,
     get_rules,
     post_new_rule,
@@ -93,7 +93,7 @@ def post_new_rule_route(rule: RuleCreate, session: SessionDep) -> RuleOut:
     try:
         new_rule = post_new_rule(rule, session)
 
-    except RuleRegulationError as err:
+    except RuleRegulationNotFoundError as err:
         raise HTTPException(
             status_code=404,
             detail=f"Regulation {rule.regulation_id} does not exist.",

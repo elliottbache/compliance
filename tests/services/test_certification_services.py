@@ -12,10 +12,10 @@ from compliance.api.schemas import (
 )
 from compliance.db.models import Certification, Site
 from compliance.services.certifications import (
-    CertificationCertifierError,
+    CertificationCertifierNotFoundError,
     CertificationConflictError,
-    CertificationRegulationError,
-    CertificationSiteError,
+    CertificationRegulationNotFoundError,
+    CertificationSiteNotFoundError,
     _format_certification_attachments,
     get_certification_attachments_by_id,
     get_certification_by_id,
@@ -235,7 +235,7 @@ class TestPostNewCertification:
             "certifications_certifier_id_fkey"
         )
 
-        with pytest.raises(CertificationCertifierError):
+        with pytest.raises(CertificationCertifierNotFoundError):
             post_new_certification(_certification_create(), session)
 
         session.rollback.assert_called_once_with()
@@ -246,7 +246,7 @@ class TestPostNewCertification:
             "certifications_regulation_id_fkey"
         )
 
-        with pytest.raises(CertificationRegulationError):
+        with pytest.raises(CertificationRegulationNotFoundError):
             post_new_certification(_certification_create(), session)
 
         session.rollback.assert_called_once_with()
@@ -255,7 +255,7 @@ class TestPostNewCertification:
         session = MagicMock()
         session.commit.side_effect = _integrity_error("certifications_site_id_fkey")
 
-        with pytest.raises(CertificationSiteError):
+        with pytest.raises(CertificationSiteNotFoundError):
             post_new_certification(_certification_create(), session)
 
         session.rollback.assert_called_once_with()

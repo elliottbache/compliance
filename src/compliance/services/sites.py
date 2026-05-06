@@ -8,7 +8,6 @@ from compliance.api.schemas import (
     SiteAttachmentsOut,
     SiteCertificationsOut,
     SiteCreate,
-    SiteOut,
 )
 from compliance.db.db_access import get_engine_metadata, get_tables
 from compliance.db.models import (
@@ -23,12 +22,20 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
-from compliance.services._helpers import _format_attachment
+from compliance.services._helpers import _format_attachment, get_constraint_name
+
+
+class SiteConflictError(Exception):
+    """Raised when a site cannot be created because of existing data."""
+
+
+class SiteClientNotFoundError(SiteConflictError):
+    """Raised when a site references a missing client."""
 
 
 def get_sites(
     session: Session, nif: str | None, limit: int | None, offset: int
-) -> list[SiteOut] | None:
+) -> list[Site] | None:
     """Retrieve sites with optional client filtering.
 
     Args:
@@ -40,9 +47,8 @@ def get_sites(
         offset: Number of sites to skip before returning results.
 
     Returns:
-        Site records serialized with the public API schema, or an empty list
-        if no sites match. Returns ``None`` when ``nif`` is supplied but no
-        matching client exists.
+        Site ORM objects, or an empty list if no sites match. Returns ``None``
+        when ``nif`` is supplied but no matching client exists.
     """
     stmt = select(Site)
     if nif is not None:
@@ -52,16 +58,12 @@ def get_sites(
 
     stmt = stmt.order_by(Site.city, Site.nif, Site.id).limit(limit).offset(offset)
 
-    sites = session.execute(stmt).scalars().all()
-
-    return [SiteOut.model_validate(site) for site in sites]
+    return list(session.execute(stmt).scalars().all())
 
 
-def get_site_by_id(site_id: int, session: Session) -> SiteOut | None:
+def get_site_by_id(site_id: int, session: Session) -> Site | None:
     """Return one site by primary key, or None when it does not exist."""
-    site = session.get(Site, site_id)
-
-    return None if not site else SiteOut.model_validate(site)
+    return session.get(Site, site_id)
 
 
 def get_site_history_legacy(site_id: int) -> SiteHistory | None:
@@ -231,7 +233,7 @@ def get_site_certifications(
     return list(session.execute(stmt).scalars().all())
 
 
-def post_new_site(site: SiteCreate, session: Session) -> Site | None:
+def post_new_site(site: SiteCreate, session: Session) -> Site:
     """Persist a new site record.
 
     Args:
@@ -239,18 +241,26 @@ def post_new_site(site: SiteCreate, session: Session) -> Site | None:
         session: Database session used to add and commit the site.
 
     Returns:
-        The created Site ORM object, or ``None`` if an integrity conflict
-        prevents the insert.
+        The created Site ORM object.
 
+    Raises:
+        SiteClientNotFoundError: If the client NIF does not exist.
+        SiteConflictError: If another integrity conflict prevents the insert.
     """
     site_dict = site.model_dump()
     new_site = Site(**site_dict)
     try:
         session.add(new_site)
         session.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         session.rollback()
-        return None
+
+        constraint_name = get_constraint_name(exc)
+
+        if constraint_name == "sites_nif_fkey":
+            raise SiteClientNotFoundError(site.nif) from exc
+
+        raise SiteConflictError() from exc
 
     return new_site
 

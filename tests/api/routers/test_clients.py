@@ -14,15 +14,13 @@ class TestGetClientsRoute:
             assert limit == 2
             assert offset == 1
             return [
-                clients_router.ClientInOut.model_validate(client_record_factory()),
-                clients_router.ClientInOut.model_validate(
-                    client_record_factory(
-                        nif="B1234567C",
-                        company_name="Beta Corp",
-                        contact_name="Jane Doe",
-                        email="jane.doe@beta.com",
-                        telephone=5550456,
-                    )
+                client_record_factory(),
+                client_record_factory(
+                    nif="B1234567C",
+                    company_name="Beta Corp",
+                    contact_name="Jane Doe",
+                    email="jane.doe@beta.com",
+                    telephone=5550456,
                 ),
             ]
 
@@ -56,15 +54,16 @@ class TestGetClientsRoute:
     # unittests
     def test_returns_clients(self, monkeypatch, client_record_factory) -> None:
         fake_session = object()
+        clients = [client_record_factory()]
         expected_clients = [
-            clients_router.ClientInOut.model_validate(client_record_factory())
+            clients_router.ClientOut.model_validate(client) for client in clients
         ]
 
         def fake_get_clients(session, limit, offset):
             assert session is fake_session
             assert limit == 10
             assert offset == 5
-            return expected_clients
+            return clients
 
         monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
 
@@ -80,7 +79,7 @@ class TestGetClientsRoute:
             and "GET" in getattr(route, "methods", set())
         )
 
-        assert route.response_model == list[clients_router.ClientInOut]
+        assert route.response_model == list[clients_router.ClientOut]
 
 
 class TestGetClientByNifRoute:
@@ -91,7 +90,7 @@ class TestGetClientByNifRoute:
         def fake_get_client_by_nif(nif, session):
             assert nif == "A1234567B"
             assert session is mock_db
-            return clients_router.ClientInOut.model_validate(client_record_factory())
+            return client_record_factory()
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
 
@@ -131,14 +130,13 @@ class TestGetClientByNifRoute:
         self, monkeypatch, client_record_factory
     ) -> None:
         fake_session = object()
-        expected_client = clients_router.ClientInOut.model_validate(
-            client_record_factory()
-        )
+        client = client_record_factory()
+        expected_client = clients_router.ClientOut.model_validate(client)
 
         def fake_get_client_by_nif(nif, session):
             assert nif == "A1234567B"
             assert session is fake_session
-            return expected_client
+            return client
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
 
@@ -165,7 +163,7 @@ class TestGetClientByNifRoute:
             if getattr(route, "path", None) == "/clients/{nif}"
         )
 
-        assert route.response_model is clients_router.ClientInOut
+        assert route.response_model is clients_router.ClientOut
 
 
 class TestPostNewClientRoute:
@@ -218,29 +216,30 @@ class TestPostNewClientRoute:
     # unittests
     def test_returns_created_client(self, main_module, monkeypatch) -> None:
         fake_session = object()
-        client = clients_router.ClientInOut(
+        client = clients_router.ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
             email="ada@example.com",
             telephone=123456789,
         )
+        expected_client = clients_router.ClientOut.model_validate(client)
 
         def fake_post_new_client(client_info, session):
             assert client_info is client
             assert session is fake_session
-            return client
+            return expected_client
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         result = clients_router.post_new_client_route(client, fake_session)
 
-        assert result == client
+        assert result == expected_client
 
     def test_returns_409_when_client_is_not_created(
         self, main_module, monkeypatch
     ) -> None:
-        client = clients_router.ClientInOut(
+        client = clients_router.ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -264,7 +263,7 @@ class TestPostNewClientRoute:
     def test_returns_409_when_client_nif_already_exists(
         self, main_module, monkeypatch
     ) -> None:
-        client = clients_router.ClientInOut(
+        client = clients_router.ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -286,7 +285,7 @@ class TestPostNewClientRoute:
     def test_returns_409_when_client_company_name_already_exists(
         self, main_module, monkeypatch
     ) -> None:
-        client = clients_router.ClientInOut(
+        client = clients_router.ClientCreate(
             nif="A1234567B",
             company_name="Acme Compliance",
             contact_name="Ada Lovelace",
@@ -318,5 +317,5 @@ class TestPostNewClientRoute:
             and "POST" in getattr(route, "methods", set())
         )
 
-        assert route.response_model is clients_router.ClientInOut
+        assert route.response_model is clients_router.ClientOut
         assert route.status_code == 201
