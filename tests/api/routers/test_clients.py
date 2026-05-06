@@ -166,6 +166,164 @@ class TestGetClientByNifRoute:
         assert route.response_model is clients_router.ClientOut
 
 
+class TestGetClientSitesRoute:
+    # TestClient
+    def test_client_returns_sites_json_when_client_is_found(
+        self, client, mock_db, monkeypatch, client_record_factory, site_factory
+    ):
+        def fake_get_client_by_nif(nif, session):
+            assert nif == "A1234567B"
+            assert session is mock_db
+            return client_record_factory()
+
+        def fake_get_sites(session, nif, limit, offset):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            assert limit is None
+            assert offset == 0
+            return [
+                site_factory(),
+                site_factory(
+                    id=13,
+                    city="Valencia",
+                    postal_code=46001,
+                    street="Carrer de Colon",  # codespell:ignore carrer
+                ),
+            ]
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+        monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
+
+        response = client.get("/clients/A1234567B/sites")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": 12,
+                "nif": "A1234567B",
+                "city": "Madrid",
+                "postal_code": 28013,
+                "street": "Gran Via",
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+            {
+                "id": 13,
+                "nif": "A1234567B",
+                "city": "Valencia",
+                "postal_code": 46001,
+                "street": "Carrer de Colon",  # codespell:ignore carrer
+                "street_number": None,
+                "suite": None,
+                "address_info": "Main entrance",
+            },
+        ]
+
+    def test_client_returns_empty_sites_json_when_client_has_no_sites(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        def fake_get_client_by_nif(nif, session):
+            assert session is mock_db
+            return client_record_factory()
+
+        def fake_get_sites(session, nif, limit, offset):
+            assert session is mock_db
+            return []
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+        monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
+
+        response = client.get("/clients/A1234567B/sites")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_client_returns_404_when_client_is_not_found(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_get_client_by_nif(nif, session):
+            assert nif == "A1234567B"
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+
+        response = client.get("/clients/A1234567B/sites")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Client A1234567B not found."}
+
+    def test_client_returns_422_when_nif_is_invalid(self, client):
+        response = client.get("/clients/short/sites")
+
+        assert response.status_code == 422
+
+    # unittests
+    def test_returns_sites_when_client_is_found(
+        self, monkeypatch, client_record_factory, site_factory
+    ) -> None:
+        fake_session = object()
+        sites = [site_factory()]
+        expected_sites = [clients_router.SiteOut.model_validate(site) for site in sites]
+
+        def fake_get_client_by_nif(nif, session):
+            assert nif == "A1234567B"
+            assert session is fake_session
+            return client_record_factory()
+
+        def fake_get_sites(session, nif, limit, offset):
+            assert session is fake_session
+            assert nif == "A1234567B"
+            assert limit is None
+            assert offset == 0
+            return sites
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+        monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
+
+        result = clients_router.get_client_sites_route("A1234567B", fake_session)
+
+        assert result == expected_sites
+
+    def test_returns_empty_list_when_client_has_no_sites(
+        self, monkeypatch, client_record_factory
+    ) -> None:
+        def fake_get_client_by_nif(nif, session):
+            return client_record_factory()
+
+        def fake_get_sites(session, nif, limit, offset):
+            return []
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+        monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
+
+        result = clients_router.get_client_sites_route("A1234567B", object())
+
+        assert result == []
+
+    def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
+        def fake_get_client_by_nif(nif, session):
+            return None
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.get_client_sites_route("A1234567B", object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Client A1234567B not found."
+
+    def test_registers_client_sites_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/clients/{nif}/sites"
+        )
+
+        assert route.response_model == list[clients_router.SiteOut]
+
+
 class TestPostNewClientRoute:
     # TestClient
     def test_client_returns_client_json_when_found(
