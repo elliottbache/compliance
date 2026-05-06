@@ -183,6 +183,19 @@ def client_record_factory():
 
 
 @pytest.fixture
+def certifier_record_factory():
+    def _certifier_record(**overrides):
+        certifier_record = SimpleNamespace(
+            id=10,
+            organization_name="SafeCheck Inc.",
+        )
+        certifier_record.__dict__.update(**overrides)
+        return certifier_record
+
+    return _certifier_record
+
+
+@pytest.fixture
 def attachment_factory():
     def _attachment(**overrides):
         attachment = {

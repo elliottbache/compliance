@@ -2,7 +2,14 @@
 
 from fastapi import FastAPI
 
-from compliance.api.routers import attachments, certifications, clients, findings, sites
+from compliance.api.routers import (
+    attachments,
+    certifications,
+    certifiers,
+    clients,
+    findings,
+    sites,
+)
 from compliance.logging_utils import configure_logging
 
 configure_logging(level="DEBUG")
@@ -13,3 +20,4 @@ app.include_router(certifications.router)
 app.include_router(findings.router)
 app.include_router(attachments.router)
 app.include_router(clients.router)
+app.include_router(certifiers.router)

@@ -133,6 +133,22 @@ class ClientInOut(BaseModel):
     telephone: int | None
 
 
+class CertifierCreate(BaseModel):
+    """Public API input shape for a new certifier record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    organization_name: str = Field(min_length=1, max_length=80)
+
+
+class CertifierOut(CertifierCreate):
+    """Public API response shape for a certifier record."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
+
+
 class FindingCreate(BaseModel):
     """Public API input shape for a finding metadata record."""
 
