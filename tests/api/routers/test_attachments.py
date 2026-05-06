@@ -6,6 +6,206 @@ from fastapi import HTTPException
 from compliance.api.routers import attachments as attachments_router
 
 
+def attachment_out_factory(**overrides):
+    """Build an attachment list response payload for route tests."""
+    data = {
+        "file_type": "pdf",
+        "file_name": "evidence",
+        "certification_id": 100,
+        "description": "Inspection evidence",
+        "finding_ids": [1],
+        "id": 50,
+        "uploaded_at": date(2026, 4, 3),
+        "inspection_date": date(2026, 4, 1),
+        "regulation_id": 5,
+        "regulation_title": "USDA Organic",
+    }
+    data.update(overrides)
+    return attachments_router.AttachmentOut.model_validate(data)
+
+
+class TestGetAttachmentsRoute:
+    def test_client_returns_attachments_json(self, client, mock_db, monkeypatch):
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            assert session is mock_db
+            assert site_id is None
+            assert certification_id is None
+            assert rule_id is None
+            assert finding_id is None
+            return [attachment_out_factory()]
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        response = client.get("/attachments")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "file_type": "pdf",
+                "file_name": "evidence",
+                "certification_id": 100,
+                "description": "Inspection evidence",
+                "finding_ids": [1],
+                "id": 50,
+                "uploaded_at": "2026-04-03",
+                "inspection_date": "2026-04-01",
+                "regulation_id": 5,
+                "regulation_title": "USDA Organic",
+            }
+        ]
+
+    def test_client_passes_query_filters_to_service(self, client, mock_db, monkeypatch):
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            assert session is mock_db
+            assert site_id == 71
+            assert certification_id == 100
+            assert rule_id == 5
+            assert finding_id == 1
+            return []
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        response = client.get(
+            "/attachments?site_id=71&certification_id=100&rule_id=5&finding_id=1"
+        )
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_client_returns_422_when_filter_type_is_invalid(self, client):
+        response = client.get("/attachments?site_id=not-an-int")
+
+        assert response.status_code == 422
+
+    def test_returns_attachments_from_service(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = [attachment_out_factory()]
+
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            assert session is fake_session
+            assert site_id == 71
+            assert certification_id == 100
+            assert rule_id == 5
+            assert finding_id == 1
+            return expected
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        result = attachments_router.get_attachments_route(
+            fake_session,
+            site_id=71,
+            certification_id=100,
+            rule_id=5,
+            finding_id=1,
+        )
+
+        assert result == expected
+
+    def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            raise attachments_router.AttachmentSiteNotFoundError(site_id)
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachments_route(object(), site_id=999)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Missing site 999."
+
+    def test_returns_404_when_certification_filter_does_not_exist(
+        self, monkeypatch
+    ) -> None:
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            raise attachments_router.AttachmentCertificationNotFoundError(
+                certification_id
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachments_route(object(), certification_id=999)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Missing certification 999."
+
+    def test_returns_404_when_rule_filter_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            raise attachments_router.AttachmentRuleNotFoundError(rule_id)
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachments_route(object(), rule_id=999)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Missing rule 999."
+
+    def test_returns_404_when_finding_filter_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_attachments(
+            session, site_id, certification_id, rule_id, finding_id
+        ):
+            raise attachments_router.AttachmentFindingNotFoundError(finding_id)
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachments",
+            fake_get_attachments,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachments_route(object(), finding_id=999)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Missing finding 999."
+
+    def test_registers_attachments_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None) == "/attachments"
+            and "GET" in getattr(route, "methods", set())
+        )
+
+        assert route.response_model == list[attachments_router.AttachmentOut]
+
+
 class TestGetAttachmentByIdRoute:
     def test_client_returns_attachment_without_findings(
         self, main_module, client, mock_db, monkeypatch, attachment_factory
