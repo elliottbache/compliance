@@ -98,6 +98,29 @@ class TestGetAttachments:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "JOIN sites" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+
+    def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachments(
+            session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+        )
+
+        statement_text = str(session.execute.call_args.args[0])
+
+        assert "LEFT OUTER JOIN findings" in statement_text
+        assert "findings.archived_at IS NULL" in statement_text
+        assert "LEFT OUTER JOIN rules" in statement_text
+        assert "rules.archived_at IS NULL" in statement_text
+        assert "AND (findings.id IS NULL" not in statement_text
+        assert "AND (rules.id IS NULL" not in statement_text
 
     def test_includes_archived_attachments_when_requested(self) -> None:
         session = MagicMock()
@@ -114,6 +137,9 @@ class TestGetAttachments:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "rules.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatAttachments:
@@ -191,6 +217,23 @@ class TestGetAttachmentById:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "JOIN sites" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+
+    def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachment_by_id(50, session)
+
+        statement_text = str(session.execute.call_args.args[0])
+
+        assert "LEFT OUTER JOIN findings" in statement_text
+        assert "findings.archived_at IS NULL" in statement_text
+        assert "LEFT OUTER JOIN rules" in statement_text
+        assert "rules.archived_at IS NULL" in statement_text
+        assert "AND (findings.id IS NULL" not in statement_text
+        assert "AND (rules.id IS NULL" not in statement_text
 
     def test_includes_archived_attachment_when_requested(self) -> None:
         session = MagicMock()
@@ -200,6 +243,9 @@ class TestGetAttachmentById:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "rules.archived_at IS NULL" not in str(stmt)
 
 
 class TestPostNewAttachment:
