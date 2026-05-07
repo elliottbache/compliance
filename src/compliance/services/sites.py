@@ -22,7 +22,11 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
-from compliance.services._helpers import _format_attachment, get_constraint_name
+from compliance.services._helpers import (
+    _format_attachment,
+    get_constraint_name,
+    record_is_visible,
+)
 
 
 class SiteConflictError(Exception):
@@ -34,7 +38,11 @@ class SiteClientNotFoundError(SiteConflictError):
 
 
 def get_sites(
-    session: Session, nif: str | None, limit: int | None, offset: int
+    session: Session,
+    nif: str | None,
+    limit: int | None,
+    offset: int,
+    include_archived: bool = False,
 ) -> list[Site] | None:
     """Retrieve sites with optional client filtering.
 
@@ -45,14 +53,19 @@ def get_sites(
         limit: Maximum number of sites to return. If ``None``, all sites
             are returned.
         offset: Number of sites to skip before returning results.
+        include_archived: When true, include archived sites in the results.
 
     Returns:
         Site ORM objects, or an empty list if no sites match. Returns ``None``
         when ``nif`` is supplied but no matching client exists.
     """
     stmt = select(Site)
+    if not include_archived:
+        stmt = stmt.where(Site.archived_at.is_(None))
+
     if nif is not None:
-        if session.get(Client, nif) is None:
+        client = session.get(Client, nif)
+        if not record_is_visible(client, include_archived):
             return None
         stmt = stmt.where(Site.nif == nif)
 
@@ -61,9 +74,12 @@ def get_sites(
     return list(session.execute(stmt).scalars().all())
 
 
-def get_site_by_id(site_id: int, session: Session) -> Site | None:
+def get_site_by_id(
+    site_id: int, session: Session, include_archived: bool = False
+) -> Site | None:
     """Return one site by primary key, or None when it does not exist."""
-    return session.get(Site, site_id)
+    site = session.get(Site, site_id)
+    return site if record_is_visible(site, include_archived) else None
 
 
 def get_site_history_legacy(site_id: int) -> SiteHistory | None:
@@ -125,7 +141,9 @@ def get_site_history_legacy(site_id: int) -> SiteHistory | None:
         return _format_site_history(results)
 
 
-def get_site_history(site_id: int, session: Session) -> SiteHistory | None:
+def get_site_history(
+    site_id: int, session: Session, include_archived: bool = False
+) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
     Queries certification records for the given site using the provided session,
@@ -135,6 +153,8 @@ def get_site_history(site_id: int, session: Session) -> SiteHistory | None:
     Args:
         site_id: Unique identifier of the site whose certification history
             should be retrieved.
+        include_archived: When true, include archived site, certification,
+            regulation, certifier, finding, and rule records.
 
     Returns:
         A formatted site history containing certification and related
@@ -142,6 +162,10 @@ def get_site_history(site_id: int, session: Session) -> SiteHistory | None:
     """
 
     # perform query
+    site = session.get(Site, site_id)
+    if not record_is_visible(site, include_archived):
+        return None
+
     stmt = (
         select(
             Certification.site_id,
@@ -165,24 +189,39 @@ def get_site_history(site_id: int, session: Session) -> SiteHistory | None:
         .outerjoin(Finding.finding_rule_rel)
         .order_by(Certification.inspection_date)
     )
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Certifier.archived_at.is_(None))
+        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
+        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
+
     results = session.execute(stmt).mappings().all()
     if not results:
         return None
     return _format_site_history(results)
 
 
-def get_site_attachments(site_id: int, session: Session) -> SiteAttachmentsOut | None:
+def get_site_attachments(
+    site_id: int, session: Session, include_archived: bool = False
+) -> SiteAttachmentsOut | None:
     """Retrieve attachment records for a site with certification and finding context.
 
     Args:
         site_id: Unique identifier of the site whose attachments should be
             retrieved.
         session: Database session used to execute the attachment query.
+        include_archived: When true, include archived site, certification,
+            attachment, regulation, rule, and finding records.
 
     Returns:
         A formatted attachment collection for the site, or ``None`` if no
         matching attachment records exist.
     """
+    site = session.get(Site, site_id)
+    if not record_is_visible(site, include_archived):
+        return None
+
     stmt = (
         select(
             Attachment,
@@ -199,6 +238,13 @@ def get_site_attachments(site_id: int, session: Session) -> SiteAttachmentsOut |
         .outerjoin(FindingAttachment.finding_attachment_finding_rel)
         .outerjoin(Finding.finding_rule_rel)
     )
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Attachment.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
+        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
+
     results = session.execute(stmt).mappings().all()
     if not results:
         return None
@@ -206,7 +252,11 @@ def get_site_attachments(site_id: int, session: Session) -> SiteAttachmentsOut |
 
 
 def get_site_certifications(
-    site_id: int, session: Session, limit: int | None, offset: int
+    site_id: int,
+    session: Session,
+    limit: int | None,
+    offset: int,
+    include_archived: bool = False,
 ) -> list[Certification]:
     """Retrieve certifications for one site ordered by latest resolution date.
 
@@ -218,6 +268,7 @@ def get_site_certifications(
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
             results.
+        include_archived: When true, include archived certifications in the results.
 
     Returns:
         A list of certification ORM objects ordered by resolution date
@@ -230,6 +281,9 @@ def get_site_certifications(
         .limit(limit)
         .offset(offset)
     )
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
+
     return list(session.execute(stmt).scalars().all())
 
 

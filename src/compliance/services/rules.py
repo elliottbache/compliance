@@ -10,7 +10,7 @@ from compliance.db.models import (
     Regulation,
     Rule,
 )
-from compliance.services._helpers import get_constraint_name
+from compliance.services._helpers import get_constraint_name, record_is_visible
 
 
 class RuleConflictError(Exception):
@@ -30,6 +30,7 @@ def get_rules(
     regulation_id: int | None,
     limit: int | None,
     offset: int,
+    include_archived: bool = False,
 ) -> list[RuleOut] | None:
     """Retrieve rules with optional regulation filtering and pagination.
 
@@ -40,6 +41,7 @@ def get_rules(
         limit: Maximum number of rules to return. If ``None``, all matching
             rules are returned.
         offset: Number of rules to skip before returning results.
+        include_archived: When true, include archived rules in the results.
 
     Returns:
         Rule records serialized with the public API schema, or an empty list if
@@ -47,9 +49,12 @@ def get_rules(
         no matching regulation exists.
     """
     stmt = select(Rule)
+    if not include_archived:
+        stmt = stmt.where(Rule.archived_at.is_(None))
 
     if regulation_id is not None:
-        if session.get(Regulation, regulation_id) is None:
+        regulation = session.get(Regulation, regulation_id)
+        if not record_is_visible(regulation, include_archived):
             return None
         stmt = stmt.where(Rule.regulation_id == regulation_id)
 
@@ -68,9 +73,12 @@ def get_rules(
     return [RuleOut.model_validate(rule) for rule in rules]
 
 
-def get_rule_by_id(rule_id: int, session: Session) -> Rule | None:
+def get_rule_by_id(
+    rule_id: int, session: Session, include_archived: bool = False
+) -> Rule | None:
     """Return one rule by primary key, or None when it does not exist."""
-    return session.get(Rule, rule_id)
+    rule = session.get(Rule, rule_id)
+    return rule if record_is_visible(rule, include_archived) else None
 
 
 def post_new_rule(rule: RuleCreate, session: Session) -> Rule:

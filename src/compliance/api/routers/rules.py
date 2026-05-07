@@ -25,6 +25,7 @@ def get_rules_route(
     regulation_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[RuleOut]:
     """Return rules with optional filters and pagination.
 
@@ -34,6 +35,7 @@ def get_rules_route(
             regulation.
         limit: Maximum number of rules to return.
         offset: Number of rules to skip before returning results.
+        include_archived: When true, include archived rules.
 
     Returns:
         Rule records serialized with the public API response schema.
@@ -42,7 +44,7 @@ def get_rules_route(
         HTTPException: If ``regulation_id`` is provided and no matching
             regulation exists.
     """
-    rules_list = get_rules(session, regulation_id, limit, offset)
+    rules_list = get_rules(session, regulation_id, limit, offset, include_archived)
     if rules_list is None:
         raise HTTPException(
             status_code=404, detail=f"Regulation does not exist: {regulation_id}"
@@ -52,12 +54,17 @@ def get_rules_route(
 
 
 @router.get("/{rule_id}")
-def get_rule_by_id_route(rule_id: int, session: SessionDep) -> RuleOut:
+def get_rule_by_id_route(
+    rule_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
+) -> RuleOut:
     """Return one rule by ID.
 
     Args:
         rule_id: Unique identifier for the rule to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived rules.
 
     Returns:
         Rule details serialized with the public API response schema.
@@ -65,7 +72,7 @@ def get_rule_by_id_route(rule_id: int, session: SessionDep) -> RuleOut:
     Raises:
         HTTPException: If no rule exists for the requested ID.
     """
-    rule = get_rule_by_id(rule_id, session)
+    rule = get_rule_by_id(rule_id, session, include_archived)
     if rule is None:
         raise HTTPException(
             status_code=404,

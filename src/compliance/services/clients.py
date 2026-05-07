@@ -8,7 +8,7 @@ from compliance.api.schemas import (
 from compliance.db.models import (
     Client,
 )
-from compliance.services._helpers import get_constraint_name
+from compliance.services._helpers import get_constraint_name, record_is_visible
 
 
 class ClientConflictError(Exception):
@@ -23,7 +23,9 @@ class ClientCompanyNameConflictError(ClientConflictError):
     """Raised when a client company name already exists."""
 
 
-def get_clients(session: Session, limit: int | None, offset: int) -> list[Client]:
+def get_clients(
+    session: Session, limit: int | None, offset: int, include_archived: bool = False
+) -> list[Client]:
     """Retrieve clients ordered by company name and NIF.
 
     Args:
@@ -31,30 +33,34 @@ def get_clients(session: Session, limit: int | None, offset: int) -> list[Client
         limit: Maximum number of clients to return. If ``None``, all clients
             are returned.
         offset: Number of clients to skip before returning results.
+        include_archived: When true, include archived clients in the results.
 
     Returns:
         Client ORM objects, or an empty list if no clients exist.
     """
-    stmt = (
-        select(Client)
-        .order_by(Client.company_name, Client.nif)
-        .limit(limit)
-        .offset(offset)
-    )
+    stmt = select(Client)
+    if not include_archived:
+        stmt = stmt.where(Client.archived_at.is_(None))
+
+    stmt = stmt.order_by(Client.company_name, Client.nif).limit(limit).offset(offset)
     return list(session.execute(stmt).scalars().all())
 
 
-def get_client_by_nif(nif: str, session: Session) -> Client | None:
+def get_client_by_nif(
+    nif: str, session: Session, include_archived: bool = False
+) -> Client | None:
     """Retrieve one client by NIF.
 
     Args:
         nif: Unique fiscal identifier for the client.
         session: Database session used to retrieve the client.
+        include_archived: When true, return archived clients.
 
     Returns:
         Client ORM object, or ``None`` if no matching client exists.
     """
-    return session.get(Client, nif)
+    client = session.get(Client, nif)
+    return client if record_is_visible(client, include_archived) else None
 
 
 def post_new_client(client: ClientCreate, session: Session) -> Client:

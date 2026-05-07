@@ -8,7 +8,9 @@ class TestGetRulesRoute:
     def test_client_returns_rules_json(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
-        def fake_get_rules(session, regulation_id, limit, offset):
+        def fake_get_rules(
+            session, regulation_id, limit, offset, include_archived=False
+        ):
             assert session is mock_db
             assert regulation_id == 3
             assert limit == 2
@@ -57,7 +59,9 @@ class TestGetRulesRoute:
             rules_router.RuleOut.model_validate(rule_record_factory()),
         ]
 
-        def fake_get_rules(session, regulation_id, limit, offset):
+        def fake_get_rules(
+            session, regulation_id, limit, offset, include_archived=False
+        ):
             assert session is fake_session
             assert regulation_id == 3
             assert limit == 10
@@ -75,7 +79,9 @@ class TestGetRulesRoute:
     def test_returns_404_when_regulation_filter_does_not_exist(
         self, monkeypatch
     ) -> None:
-        def fake_get_rules(session, regulation_id, limit, offset):
+        def fake_get_rules(
+            session, regulation_id, limit, offset, include_archived=False
+        ):
             assert regulation_id == 999
             return None
 
@@ -104,7 +110,7 @@ class TestGetRuleByIdRoute:
     def test_client_returns_rule_json_when_found(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
-        def fake_get_rule_by_id(rule_id, session):
+        def fake_get_rule_by_id(rule_id, session, include_archived=False):
             assert rule_id == 20
             assert session is mock_db
             return rule_record_factory()
@@ -125,7 +131,7 @@ class TestGetRuleByIdRoute:
     def test_client_returns_404_when_rule_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_rule_by_id(rule_id, session):
+        def fake_get_rule_by_id(rule_id, session, include_archived=False):
             assert rule_id == 999
             assert session is mock_db
             return None
@@ -146,7 +152,7 @@ class TestGetRuleByIdRoute:
         fake_session = object()
         rule = rule_record_factory()
 
-        def fake_get_rule_by_id(rule_id, session):
+        def fake_get_rule_by_id(rule_id, session, include_archived=False):
             assert rule_id == 20
             assert session is fake_session
             return rule
@@ -158,7 +164,7 @@ class TestGetRuleByIdRoute:
         assert result == rules_router.RuleOut.model_validate(rule)
 
     def test_returns_404_when_rule_is_not_found(self, monkeypatch) -> None:
-        def fake_get_rule_by_id(rule_id, session):
+        def fake_get_rule_by_id(rule_id, session, include_archived=False):
             return None
 
         monkeypatch.setattr(rules_router, "get_rule_by_id", fake_get_rule_by_id)

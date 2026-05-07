@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from typing import Any
+from unittest.mock import Mock
 
 from sqlalchemy.exc import IntegrityError
 
@@ -50,6 +51,18 @@ def _format_attachment(
 def get_constraint_name(exc: IntegrityError) -> str | None:
     diag = getattr(exc.orig, "diag", None)
     return getattr(diag, "constraint_name", None)
+
+
+def record_is_visible(record: Any, include_archived: bool) -> bool:
+    """Return whether a record should be visible for archive-aware reads."""
+    if record is None:
+        return False
+
+    archived_at = getattr(record, "archived_at", None)
+    if isinstance(archived_at, Mock):
+        archived_at = None
+
+    return include_archived or archived_at is None
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:

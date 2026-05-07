@@ -9,10 +9,11 @@ class TestGetClientsRoute:
     def test_client_returns_client_json(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_get_clients(session, limit, offset):
+        def fake_get_clients(session, limit, offset, include_archived=False):
             assert session is mock_db
             assert limit == 2
             assert offset == 1
+            assert include_archived is False
             return [
                 client_record_factory(),
                 client_record_factory(
@@ -46,6 +47,23 @@ class TestGetClientsRoute:
             },
         ]
 
+    def test_client_passes_include_archived_to_service(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_get_clients(session, limit, offset, include_archived=False):
+            assert session is mock_db
+            assert limit is None
+            assert offset == 0
+            assert include_archived is True
+            return []
+
+        monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
+
+        response = client.get("/clients?include_archived=true")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
     def test_client_returns_422_when_limit_is_invalid(self, client):
         response = client.get("/clients?limit=0")
 
@@ -59,10 +77,11 @@ class TestGetClientsRoute:
             clients_router.ClientOut.model_validate(client) for client in clients
         ]
 
-        def fake_get_clients(session, limit, offset):
+        def fake_get_clients(session, limit, offset, include_archived=False):
             assert session is fake_session
             assert limit == 10
             assert offset == 5
+            assert include_archived is False
             return clients
 
         monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
@@ -87,7 +106,7 @@ class TestGetClientByNifRoute:
     def test_client_returns_client_json_when_found(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return client_record_factory()
@@ -108,7 +127,7 @@ class TestGetClientByNifRoute:
     def test_client_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return None
@@ -133,7 +152,7 @@ class TestGetClientByNifRoute:
         client = client_record_factory()
         expected_client = clients_router.ClientOut.model_validate(client)
 
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is fake_session
             return client
@@ -145,7 +164,7 @@ class TestGetClientByNifRoute:
         assert result == expected_client
 
     def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             return None
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
@@ -171,12 +190,12 @@ class TestGetClientSitesRoute:
     def test_client_returns_sites_json_when_client_is_found(
         self, client, mock_db, monkeypatch, client_record_factory, site_factory
     ):
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return client_record_factory()
 
-        def fake_get_sites(session, nif, limit, offset):
+        def fake_get_sites(session, nif, limit, offset, include_archived=False):
             assert session is mock_db
             assert nif == "A1234567B"
             assert limit is None
@@ -223,11 +242,11 @@ class TestGetClientSitesRoute:
     def test_client_returns_empty_sites_json_when_client_has_no_sites(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert session is mock_db
             return client_record_factory()
 
-        def fake_get_sites(session, nif, limit, offset):
+        def fake_get_sites(session, nif, limit, offset, include_archived=False):
             assert session is mock_db
             return []
 
@@ -242,7 +261,7 @@ class TestGetClientSitesRoute:
     def test_client_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return None
@@ -267,12 +286,12 @@ class TestGetClientSitesRoute:
         sites = [site_factory()]
         expected_sites = [clients_router.SiteOut.model_validate(site) for site in sites]
 
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             assert nif == "A1234567B"
             assert session is fake_session
             return client_record_factory()
 
-        def fake_get_sites(session, nif, limit, offset):
+        def fake_get_sites(session, nif, limit, offset, include_archived=False):
             assert session is fake_session
             assert nif == "A1234567B"
             assert limit is None
@@ -289,10 +308,10 @@ class TestGetClientSitesRoute:
     def test_returns_empty_list_when_client_has_no_sites(
         self, monkeypatch, client_record_factory
     ) -> None:
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             return client_record_factory()
 
-        def fake_get_sites(session, nif, limit, offset):
+        def fake_get_sites(session, nif, limit, offset, include_archived=False):
             return []
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
@@ -303,7 +322,7 @@ class TestGetClientSitesRoute:
         assert result == []
 
     def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
-        def fake_get_client_by_nif(nif, session):
+        def fake_get_client_by_nif(nif, session, include_archived=False):
             return None
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)

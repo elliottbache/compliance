@@ -23,6 +23,7 @@ def get_certifiers_route(
     session: SessionDep,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[CertifierOut]:
     """Return certifiers with optional pagination.
 
@@ -30,23 +31,27 @@ def get_certifiers_route(
         session: Database session provided by FastAPI dependency injection.
         limit: Maximum number of certifiers to return.
         offset: Number of certifiers to skip before returning results.
+        include_archived: When true, include archived certifiers.
 
     Returns:
         Certifier records serialized with the public API response schema.
     """
-    certifiers = get_certifiers(session, limit, offset)
+    certifiers = get_certifiers(session, limit, offset, include_archived)
     return [CertifierOut.model_validate(certifier) for certifier in certifiers]
 
 
 @router.get("/{certifier_id}")
 def get_certifiers_by_id_route(
-    certifier_id: Annotated[int, Path(ge=1)], session: SessionDep
+    certifier_id: Annotated[int, Path(ge=1)],
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> CertifierOut:
     """Return one certifier by ID.
 
     Args:
         certifier_id: Primary key for the certifier.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived certifiers.
 
     Returns:
         Certifier record serialized with the public API response schema.
@@ -54,7 +59,7 @@ def get_certifiers_by_id_route(
     Raises:
         HTTPException: If no certifier exists for the requested ID.
     """
-    result = get_certifier_by_id(certifier_id, session)
+    result = get_certifier_by_id(certifier_id, session, include_archived)
     if result is None:
         raise HTTPException(
             status_code=404, detail=f"Certifier {certifier_id} not found."

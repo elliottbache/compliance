@@ -84,6 +84,37 @@ class TestGetAttachments:
         session.get.assert_called_once_with(Finding, 1)
         assert "finding_attachments.finding_id = :finding_id_1" in str(stmt)
 
+    def test_excludes_archived_attachments_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachments(
+            session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_attachments_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachments(
+            session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+            include_archived=True,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" not in str(stmt)
+
 
 class TestFormatAttachments:
     def test_formats_attachment_without_finding_ids(
@@ -151,6 +182,24 @@ class TestGetAttachmentById:
 
         session.execute.assert_called_once()
         assert result == _format_attachment(rows)
+
+    def test_excludes_archived_attachment_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachment_by_id(50, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_attachment_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_attachment_by_id(50, session, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" not in str(stmt)
 
 
 class TestPostNewAttachment:

@@ -1,3 +1,4 @@
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -70,6 +71,30 @@ class TestGetRules:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY rules.regulation_id, rules.rule_index, rules.id" in str(stmt)
 
+    def test_excludes_archived_rules_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_rules(session, regulation_id=None, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "rules.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_rules_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_rules(
+            session,
+            regulation_id=None,
+            limit=None,
+            offset=0,
+            include_archived=True,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "rules.archived_at IS NULL" not in str(stmt)
+
     def test_filters_by_regulation_when_regulation_exists(self) -> None:
         session = MagicMock()
         session.get.return_value = MagicMock(spec=Regulation)
@@ -80,7 +105,7 @@ class TestGetRules:
         stmt = session.execute.call_args.args[0]
         assert result == []
         session.get.assert_called_once_with(Regulation, 3)
-        assert "WHERE rules.regulation_id = :regulation_id_1" in str(stmt)
+        assert "rules.regulation_id = :regulation_id_1" in str(stmt)
 
     def test_returns_none_when_regulation_filter_does_not_exist(self) -> None:
         session = MagicMock()
@@ -112,6 +137,24 @@ class TestGetRuleById:
 
         session.get.assert_called_once_with(Rule, 999)
         assert result is None
+
+    def test_returns_none_when_rule_is_archived_by_default(self) -> None:
+        session = MagicMock()
+        rule = _rule(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = rule
+
+        result = get_rule_by_id(20, session)
+
+        assert result is None
+
+    def test_returns_archived_rule_when_requested(self) -> None:
+        session = MagicMock()
+        rule = _rule(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = rule
+
+        result = get_rule_by_id(20, session, include_archived=True)
+
+        assert result is rule
 
 
 class TestPostNewRule:

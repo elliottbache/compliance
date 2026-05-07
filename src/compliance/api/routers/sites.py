@@ -43,6 +43,7 @@ def get_sites_route(
     nif: Annotated[str | None, Query(min_length=9, max_length=9)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[SiteOut]:
     """Return sites with optional client filtering and pagination.
 
@@ -51,6 +52,7 @@ def get_sites_route(
         nif: Optional client NIF used to return sites for one client.
         limit: Maximum number of sites to return.
         offset: Number of sites to skip before returning results.
+        include_archived: When true, include archived sites.
 
     Returns:
         Site records serialized with the public API response schema.
@@ -58,7 +60,7 @@ def get_sites_route(
     Raises:
         HTTPException: If ``nif`` is provided and no matching client exists.
     """
-    sites = get_sites(session, nif, limit, offset)
+    sites = get_sites(session, nif, limit, offset, include_archived)
     if sites is None:
         raise HTTPException(status_code=404, detail=f"No client with this NIF: {nif}.")
 
@@ -66,12 +68,17 @@ def get_sites_route(
 
 
 @router.get("/{site_id}")
-def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOut:
+def get_site_by_id_route(
+    site_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
+) -> SiteOut:
     """Return one site by ID.
 
     Args:
         site_id: Unique identifier for the site to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived sites.
 
     Returns:
         Site details serialized with the public API response schema.
@@ -79,7 +86,7 @@ def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOut:
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session)
+    site = get_site_by_id(site_id, session, include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
@@ -89,13 +96,19 @@ def get_site_by_id_route(site_id: int, session: SessionDep) -> SiteOut:
 
 
 @router.get("/{site_id}/attachments")
-def get_site_attachments_route(site_id: int, session: SessionDep) -> SiteAttachmentsOut:
+def get_site_attachments_route(
+    site_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
+) -> SiteAttachmentsOut:
     """Return attachment details for one site.
 
     Args:
         site_id: Unique identifier for the site whose attachments should be
             retrieved.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, include archived site, certification,
+            attachment, and finding records.
 
     Returns:
         Site attachments serialized with certification, regulation, and finding
@@ -105,13 +118,13 @@ def get_site_attachments_route(site_id: int, session: SessionDep) -> SiteAttachm
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session)
+    site = get_site_by_id(site_id, session, include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
-    site_attachments = get_site_attachments(site_id, session)
+    site_attachments = get_site_attachments(site_id, session, include_archived)
     if site_attachments is None:
         return SiteAttachmentsOut(site_id=site_id, attachments=[])
 
@@ -124,6 +137,7 @@ def get_site_certifications_route(
     session: SessionDep,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> SiteCertificationsOut:
     """Return certifications for one site.
 
@@ -135,6 +149,8 @@ def get_site_certifications_route(
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
             results.
+        include_archived: When true, include archived site and certification
+            records.
 
     Returns:
         Site certifications serialized with the public API response schema, or
@@ -143,24 +159,30 @@ def get_site_certifications_route(
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session)
+    site = get_site_by_id(site_id, session, include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
-    results = get_site_certifications(site_id, session, limit, offset)
+    results = get_site_certifications(site_id, session, limit, offset, include_archived)
 
     return format_site_certifications(site_id, results)
 
 
 @router.get("/{site_id}/history")
-def get_site_history_route(site_id: int, session: SessionDep) -> SiteHistory:
+def get_site_history_route(
+    site_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
+) -> SiteHistory:
     """Return certification history for one site.
 
     Args:
         site_id: Unique identifier for the site whose history should be retrieved.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, include archived site, certification, and
+            finding records.
 
     Returns:
         Site history serialized with certification and finding details.
@@ -168,7 +190,7 @@ def get_site_history_route(site_id: int, session: SessionDep) -> SiteHistory:
     Raises:
         HTTPException: If no certification history exists for the requested site.
     """
-    site_history = get_site_history(site_id, session)
+    site_history = get_site_history(site_id, session, include_archived)
     if site_history is None:
         raise HTTPException(
             status_code=404,

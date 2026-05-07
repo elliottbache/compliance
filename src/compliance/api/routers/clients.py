@@ -26,6 +26,7 @@ def get_clients_route(
     session: SessionDep,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[ClientOut]:
     """Return clients with optional pagination.
 
@@ -33,23 +34,27 @@ def get_clients_route(
         session: Database session provided by FastAPI dependency injection.
         limit: Maximum number of clients to return.
         offset: Number of clients to skip before returning results.
+        include_archived: When true, include archived clients.
 
     Returns:
         Client records serialized with the public API response schema.
     """
-    clients = get_clients(session, limit, offset)
+    clients = get_clients(session, limit, offset, include_archived)
     return [ClientOut.model_validate(client) for client in clients]
 
 
 @router.get("/{nif}")
 def get_clients_by_nif_route(
-    nif: Annotated[str, Path(min_length=9, max_length=9)], session: SessionDep
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> ClientOut:
     """Return one client by NIF.
 
     Args:
         nif: Unique fiscal identifier for the client.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived clients.
 
     Returns:
         Client record serialized with the public API response schema.
@@ -57,7 +62,7 @@ def get_clients_by_nif_route(
     Raises:
         HTTPException: If no client exists for the requested NIF.
     """
-    result = get_client_by_nif(nif, session)
+    result = get_client_by_nif(nif, session, include_archived)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
@@ -66,7 +71,9 @@ def get_clients_by_nif_route(
 
 @router.get("/{nif}/sites")
 def get_client_sites_route(
-    nif: Annotated[str, Path(min_length=9, max_length=9)], session: SessionDep
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[SiteOut]:
     """Return sites for one client by NIF.
 
@@ -74,6 +81,7 @@ def get_client_sites_route(
         nif: Unique fiscal identifier for the client whose sites should be
             retrieved.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, include archived client and site records.
 
     Returns:
         Site records serialized with the public API response schema, or an
@@ -82,11 +90,13 @@ def get_client_sites_route(
     Raises:
         HTTPException: If no client exists for the requested NIF.
     """
-    client = get_client_by_nif(nif, session)
+    client = get_client_by_nif(nif, session, include_archived)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
-    sites = get_sites(session, nif=nif, limit=None, offset=0)
+    sites = get_sites(
+        session, nif=nif, limit=None, offset=0, include_archived=include_archived
+    )
     if sites is None:
         return []
 

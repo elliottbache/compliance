@@ -11,7 +11,7 @@ from compliance.db.models import (
     Certifier,
     Regulation,
 )
-from compliance.services._helpers import get_constraint_name
+from compliance.services._helpers import get_constraint_name, record_is_visible
 
 
 class RegulationConflictError(Exception):
@@ -27,6 +27,7 @@ def get_regulations(
     certifier_id: int | None,
     limit: int | None,
     offset: int,
+    include_archived: bool = False,
 ) -> list[RegulationOut] | None:
     """Retrieve regulations with optional certifier filtering and pagination.
 
@@ -38,6 +39,8 @@ def get_regulations(
         limit: Maximum number of regulations to return. If ``None``, all
             matching regulations are returned.
         offset: Number of regulations to skip before returning results.
+        include_archived: When true, include archived regulations and, when
+            filtering by certifier, archived certification links.
 
     Returns:
         Regulation records serialized with the public API schema, or an empty
@@ -45,15 +48,20 @@ def get_regulations(
         supplied but no matching certifier exists.
     """
     stmt = select(Regulation)
+    if not include_archived:
+        stmt = stmt.where(Regulation.archived_at.is_(None))
 
     if certifier_id is not None:
-        if session.get(Certifier, certifier_id) is None:
+        certifier = session.get(Certifier, certifier_id)
+        if not record_is_visible(certifier, include_archived):
             return None
         stmt = (
             stmt.join(Regulation.regulation_certification_rel)
             .where(Certification.certifier_id == certifier_id)
             .distinct()
         )
+        if not include_archived:
+            stmt = stmt.where(Certification.archived_at.is_(None))
 
     stmt = (
         stmt.order_by(
@@ -70,9 +78,12 @@ def get_regulations(
     return [RegulationOut.model_validate(regulation) for regulation in regulations]
 
 
-def get_regulation_by_id(regulation_id: int, session: Session) -> Regulation | None:
+def get_regulation_by_id(
+    regulation_id: int, session: Session, include_archived: bool = False
+) -> Regulation | None:
     """Return one regulation by primary key, or None when it does not exist."""
-    return session.get(Regulation, regulation_id)
+    regulation = session.get(Regulation, regulation_id)
+    return regulation if record_is_visible(regulation, include_archived) else None
 
 
 def post_new_regulation(regulation: RegulationCreate, session: Session) -> Regulation:

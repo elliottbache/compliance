@@ -14,6 +14,7 @@ from compliance.db.models import (
 from compliance.services.findings import (
     _build_finding_out,
     _format_findings,
+    get_finding_by_id,
     get_findings,
 )
 
@@ -75,6 +76,39 @@ class TestGetFindings:
         assert "LEFT OUTER JOIN finding_attachments" in str(stmt)
         assert "LEFT OUTER JOIN attachments" in str(stmt)
 
+    def test_excludes_archived_findings_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_findings(
+            session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "findings.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_findings_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_findings(
+            session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+            include_archived=True,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "findings.archived_at IS NULL" not in str(stmt)
+
     def test_filters_by_attachment_id_when_attachment_exists(self) -> None:
         session = MagicMock()
         session.get.return_value = MagicMock(spec=Attachment)
@@ -119,6 +153,26 @@ class TestGetFindings:
             ((Rule, 5),),
             ((Attachment, 50),),
         ]
+
+
+class TestGetFindingById:
+    def test_excludes_archived_finding_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_finding_by_id(1, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "findings.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_finding_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_finding_by_id(1, session, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "findings.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatFindings:

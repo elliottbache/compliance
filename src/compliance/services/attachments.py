@@ -20,7 +20,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import _format_attachment
+from compliance.services._helpers import _format_attachment, record_is_visible
 
 
 class AttachmentCreateError(Exception):
@@ -57,6 +57,7 @@ def get_attachments(
     certification_id: int | None,
     rule_id: int | None,
     finding_id: int | None,
+    include_archived: bool = False,
 ) -> list[AttachmentOut]:
     """Retrieve attachments with optional filters and linked finding context.
 
@@ -68,6 +69,8 @@ def get_attachments(
         rule_id: Optional rule identifier used to limit attachments to one rule.
         attachment_id: Optional finding identifier used to limit attachments to one
             finding.
+        include_archived: When true, include archived attachments and related
+            certification, regulation, rule, and finding context in the results.
 
     Returns:
         Attachments records serialized with certification, regulation, and rule
@@ -98,23 +101,34 @@ def get_attachments(
         )
         .outerjoin(Rule, Rule.id == Finding.rule_id)
     )
+    if not include_archived:
+        stmt = stmt.where(Attachment.archived_at.is_(None))
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
+        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
+
     if site_id is not None:
-        if session.get(Site, site_id) is None:
+        site = session.get(Site, site_id)
+        if not record_is_visible(site, include_archived):
             raise AttachmentSiteNotFoundError(site_id)
         stmt = stmt.where(Certification.site_id == site_id)
 
     if certification_id is not None:
-        if session.get(Certification, certification_id) is None:
+        certification = session.get(Certification, certification_id)
+        if not record_is_visible(certification, include_archived):
             raise AttachmentCertificationNotFoundError(certification_id)
         stmt = stmt.where(Certification.id == certification_id)
 
     if rule_id is not None:
-        if session.get(Rule, rule_id) is None:
+        rule = session.get(Rule, rule_id)
+        if not record_is_visible(rule, include_archived):
             raise AttachmentRuleNotFoundError(rule_id)
         stmt = stmt.where(Rule.id == rule_id)
 
     if finding_id is not None:
-        if session.get(Finding, finding_id) is None:
+        finding = session.get(Finding, finding_id)
+        if not record_is_visible(finding, include_archived):
             raise AttachmentFindingNotFoundError(finding_id)
         stmt = stmt.where(FindingAttachment.finding_id == finding_id)
 
@@ -126,13 +140,15 @@ def get_attachments(
 
 
 def get_attachment_by_id(
-    attachment_id: int, session: Session
+    attachment_id: int, session: Session, include_archived: bool = False
 ) -> AttachmentWithContextOut | None:
     """Retrieve one attachment with certification, regulation, and finding context.
 
     Args:
         attachment_id: Unique identifier of the attachment to retrieve.
         session: Database session used to execute the attachment query.
+        include_archived: When true, return archived attachments and related
+            certification, regulation, rule, and finding context.
 
     Returns:
         A formatted attachment response containing certification, regulation,
@@ -154,6 +170,13 @@ def get_attachment_by_id(
         .outerjoin(FindingAttachment.finding_attachment_finding_rel)
         .outerjoin(Finding.finding_rule_rel)
     )
+    if not include_archived:
+        stmt = stmt.where(Attachment.archived_at.is_(None))
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
+        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
+
     rows = session.execute(stmt).mappings().all()
     return None if not rows else _format_attachment(rows)
 

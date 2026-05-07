@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -48,6 +49,24 @@ class TestGetCertifiers:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifiers.organization_name, certifiers.id" in str(stmt)
 
+    def test_excludes_archived_certifiers_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_certifiers(session, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifiers.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_certifiers_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_certifiers(session, limit=None, offset=0, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifiers.archived_at IS NULL" not in str(stmt)
+
 
 class TestGetCertifierById:
     def test_returns_certifier_when_found(self) -> None:
@@ -68,6 +87,24 @@ class TestGetCertifierById:
 
         assert result is None
         session.get.assert_called_once_with(Certifier, 10)
+
+    def test_returns_none_when_certifier_is_archived_by_default(self) -> None:
+        session = MagicMock()
+        certifier = _certifier(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = certifier
+
+        result = get_certifier_by_id(10, session)
+
+        assert result is None
+
+    def test_returns_archived_certifier_when_requested(self) -> None:
+        session = MagicMock()
+        certifier = _certifier(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = certifier
+
+        result = get_certifier_by_id(10, session, include_archived=True)
+
+        assert result is certifier
 
 
 class TestPostNewCertifier:

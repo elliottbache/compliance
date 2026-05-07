@@ -27,7 +27,12 @@ def attachment_out_factory(**overrides):
 class TestGetAttachmentsRoute:
     def test_client_returns_attachments_json(self, client, mock_db, monkeypatch):
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             assert session is mock_db
             assert site_id is None
@@ -62,13 +67,19 @@ class TestGetAttachmentsRoute:
 
     def test_client_passes_query_filters_to_service(self, client, mock_db, monkeypatch):
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             assert session is mock_db
             assert site_id == 71
             assert certification_id == 100
             assert rule_id == 5
             assert finding_id == 1
+            assert include_archived is True
             return []
 
         monkeypatch.setattr(
@@ -78,7 +89,8 @@ class TestGetAttachmentsRoute:
         )
 
         response = client.get(
-            "/attachments?site_id=71&certification_id=100&rule_id=5&finding_id=1"
+            "/attachments?site_id=71&certification_id=100&rule_id=5"
+            "&finding_id=1&include_archived=true"
         )
 
         assert response.status_code == 200
@@ -94,7 +106,12 @@ class TestGetAttachmentsRoute:
         expected = [attachment_out_factory()]
 
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             assert session is fake_session
             assert site_id == 71
@@ -121,7 +138,12 @@ class TestGetAttachmentsRoute:
 
     def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             raise attachments_router.AttachmentSiteNotFoundError(site_id)
 
@@ -141,7 +163,12 @@ class TestGetAttachmentsRoute:
         self, monkeypatch
     ) -> None:
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             raise attachments_router.AttachmentCertificationNotFoundError(
                 certification_id
@@ -161,7 +188,12 @@ class TestGetAttachmentsRoute:
 
     def test_returns_404_when_rule_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             raise attachments_router.AttachmentRuleNotFoundError(rule_id)
 
@@ -179,7 +211,12 @@ class TestGetAttachmentsRoute:
 
     def test_returns_404_when_finding_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived=False,
         ):
             raise attachments_router.AttachmentFindingNotFoundError(finding_id)
 
@@ -210,7 +247,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_attachment_without_findings(
         self, main_module, client, mock_db, monkeypatch, attachment_factory
     ):
-        def fake_get_attachment_by_id(attachment_id, session):
+        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
             assert attachment_id == 50
             assert session is mock_db
             return attachment_factory()
@@ -238,7 +275,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_attachment_with_two_findings(
         self, main_module, client, mock_db, monkeypatch, attachment_factory
     ):
-        def fake_get_attachment_by_id(attachment_id, session):
+        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
             assert attachment_id == 50
             assert session is mock_db
             return attachment_factory(
@@ -277,7 +314,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_404_when_attachment_is_not_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_attachment_by_id(attachment_id, session):
+        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
             assert attachment_id == 999
             assert session is mock_db
             return None
@@ -301,7 +338,7 @@ class TestGetAttachmentByIdRoute:
     ) -> None:
         fake_session = object()
 
-        def fake_get_attachment_by_id(attachment_id, session):
+        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
             assert attachment_id == 50
             assert session is fake_session
             return attachment_factory()
@@ -319,7 +356,7 @@ class TestGetAttachmentByIdRoute:
     def test_returns_404_when_attachment_is_not_found(
         self, main_module, monkeypatch
     ) -> None:
-        def fake_get_attachment_by_id(attachment_id, session):
+        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
             return None
 
         monkeypatch.setattr(

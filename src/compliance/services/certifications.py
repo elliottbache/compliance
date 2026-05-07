@@ -19,7 +19,11 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import _format_attachment, get_constraint_name
+from compliance.services._helpers import (
+    _format_attachment,
+    get_constraint_name,
+    record_is_visible,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,7 @@ def get_certifications(
     open_only: bool,
     limit: int | None,
     offset: int,
+    include_archived: bool = False,
 ) -> list[CertificationOut] | None:
     """Retrieve certifications with optional site and open-only filters.
 
@@ -58,6 +63,7 @@ def get_certifications(
         limit: Maximum number of certifications to return. If ``None``, all
             certifications are returned.
         offset: Number of certifications to skip before returning results.
+        include_archived: When true, include archived certifications in the results.
 
     Returns:
         Certification records serialized with the public API schema, or an
@@ -65,9 +71,12 @@ def get_certifications(
         is supplied but no matching site exists.
     """
     stmt = select(Certification)
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
 
     if site_id is not None:
-        if session.get(Site, site_id) is None:
+        site = session.get(Site, site_id)
+        if not record_is_visible(site, include_archived):
             return None
         stmt = stmt.where(Certification.site_id == site_id)
 
@@ -93,14 +102,15 @@ def get_certifications(
 
 
 def get_certification_by_id(
-    certification_id: int, session: Session
+    certification_id: int, session: Session, include_archived: bool = False
 ) -> Certification | None:
     """Return one certification by primary key, or None when it does not exist."""
-    return session.get(Certification, certification_id)
+    certification = session.get(Certification, certification_id)
+    return certification if record_is_visible(certification, include_archived) else None
 
 
 def get_certification_attachments_by_id(
-    certification_id: int, session: Session
+    certification_id: int, session: Session, include_archived: bool = False
 ) -> CertificationAttachmentsOut | None:
     """Retrieve attachment records for one certification.
 
@@ -113,6 +123,8 @@ def get_certification_attachments_by_id(
             attachments should be retrieved.
         session: Database session used to check the certification and execute
             the attachment query.
+        include_archived: When true, include archived certification, attachment,
+            regulation, rule, and finding records.
 
     Returns:
         A formatted attachment collection for the certification, an empty
@@ -121,7 +133,7 @@ def get_certification_attachments_by_id(
     """
     # check if certification exists
     certification = session.get(Certification, certification_id)
-    if certification is None:
+    if not record_is_visible(certification, include_archived):
         return None
 
     # get attachments for certification
@@ -142,6 +154,13 @@ def get_certification_attachments_by_id(
         .outerjoin(Finding.finding_rule_rel)
         .order_by(Attachment.id, Finding.id)
     )
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Attachment.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
+        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
+
     results = session.execute(stmt).mappings().all()
     if results == []:
         return CertificationAttachmentsOut.model_validate(

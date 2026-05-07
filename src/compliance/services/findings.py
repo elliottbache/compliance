@@ -18,6 +18,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
+from compliance.services._helpers import record_is_visible
 
 
 class FindingConflictError(Exception):
@@ -55,6 +56,7 @@ def get_findings(
     rule_id: int | None,
     attachment_id: int | None,
     open_only: bool,
+    include_archived: bool = False,
 ) -> list[FindingOut]:
     """Retrieve findings with optional filters and linked attachment context.
 
@@ -68,6 +70,8 @@ def get_findings(
             attachment.
         open_only: When true, only return findings whose certification has no
             resolution date.
+        include_archived: When true, include archived findings and related
+            certification, regulation, rule, and attachment context.
 
     Returns:
         Finding records serialized with certification, regulation, and rule
@@ -98,23 +102,34 @@ def get_findings(
             & (Attachment.certification_id == FindingAttachment.certification_id),
         )
     )
+    if not include_archived:
+        stmt = stmt.where(Finding.archived_at.is_(None))
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Rule.archived_at.is_(None))
+        stmt = stmt.where(Attachment.id.is_(None) | Attachment.archived_at.is_(None))
+
     if site_id is not None:
-        if session.get(Site, site_id) is None:
+        site = session.get(Site, site_id)
+        if not record_is_visible(site, include_archived):
             raise FindingMissingSiteError(site_id)
         stmt = stmt.where(Certification.site_id == site_id)
 
     if certification_id is not None:
-        if session.get(Certification, certification_id) is None:
+        certification = session.get(Certification, certification_id)
+        if not record_is_visible(certification, include_archived):
             raise FindingMissingCertificationError(certification_id)
         stmt = stmt.where(Certification.id == certification_id)
 
     if rule_id is not None:
-        if session.get(Rule, rule_id) is None:
+        rule = session.get(Rule, rule_id)
+        if not record_is_visible(rule, include_archived):
             raise FindingMissingRuleError(rule_id)
         stmt = stmt.where(Rule.id == rule_id)
 
     if attachment_id is not None:
-        if session.get(Attachment, attachment_id) is None:
+        attachment = session.get(Attachment, attachment_id)
+        if not record_is_visible(attachment, include_archived):
             raise FindingMissingAttachmentError(attachment_id)
         stmt = stmt.where(FindingAttachment.attachment_id == attachment_id)
 
@@ -126,12 +141,16 @@ def get_findings(
     return _format_findings(results)
 
 
-def get_finding_by_id(finding_id: int, session: Session) -> FindingOut | None:
+def get_finding_by_id(
+    finding_id: int, session: Session, include_archived: bool = False
+) -> FindingOut | None:
     """Return one finding with context by primary key.
 
     Args:
         finding_id: Unique identifier of the finding to retrieve.
         session: Database session used to execute the finding query.
+        include_archived: When true, return archived findings and related
+            certification, regulation, rule, and attachment context.
 
     Returns:
         Finding details serialized with certification, regulation, rule, and
@@ -154,6 +173,13 @@ def get_finding_by_id(finding_id: int, session: Session) -> FindingOut | None:
         )
         .where(Finding.id == finding_id)
     )
+    if not include_archived:
+        stmt = stmt.where(Finding.archived_at.is_(None))
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Rule.archived_at.is_(None))
+        stmt = stmt.where(Attachment.id.is_(None) | Attachment.archived_at.is_(None))
+
     results = session.execute(stmt).mappings().all()
     findings = _format_findings(results)
     return findings[0] if findings else None
@@ -214,7 +240,6 @@ def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
         session.flush()
 
         if attachment_ids:
-
             # add new findingAttachment
             for attachment_id in attachment_ids:
                 new_finding_attachment = FindingAttachment(

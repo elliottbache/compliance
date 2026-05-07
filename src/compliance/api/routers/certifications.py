@@ -31,6 +31,7 @@ def get_certifications_route(
     open_only: Annotated[bool, Query()] = False,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[CertificationOut]:
     """Return certifications with optional filters and pagination.
 
@@ -40,6 +41,7 @@ def get_certifications_route(
         open_only: When true, return certifications without a resolution date.
         limit: Maximum number of certifications to return.
         offset: Number of certifications to skip before returning results.
+        include_archived: When true, include archived certifications.
 
     Returns:
         Certification records serialized with the public API response schema.
@@ -47,7 +49,9 @@ def get_certifications_route(
     Raises:
         HTTPException: If ``site_id`` is provided and no matching site exists.
     """
-    certifications_list = get_certifications(session, site_id, open_only, limit, offset)
+    certifications_list = get_certifications(
+        session, site_id, open_only, limit, offset, include_archived
+    )
     if certifications_list is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}")
 
@@ -56,13 +60,16 @@ def get_certifications_route(
 
 @router.get("/{certification_id}")
 def get_certification_by_id_route(
-    certification_id: int, session: SessionDep
+    certification_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> CertificationOut:
     """Return one certification by ID.
 
     Args:
         certification_id: Unique identifier for the certification to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived certifications.
 
     Returns:
         Certification details serialized with the public API response schema.
@@ -70,7 +77,7 @@ def get_certification_by_id_route(
     Raises:
         HTTPException: If no certification exists for the requested ID.
     """
-    certification = get_certification_by_id(certification_id, session)
+    certification = get_certification_by_id(certification_id, session, include_archived)
     if certification is None:
         raise HTTPException(
             status_code=404,
@@ -82,7 +89,9 @@ def get_certification_by_id_route(
 
 @router.get("/{certification_id}/attachments")
 def get_certification_attachments_by_id_route(
-    certification_id: int, session: SessionDep
+    certification_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> CertificationAttachmentsOut:
     """Return attachment details for one certification by ID.
 
@@ -90,6 +99,8 @@ def get_certification_attachments_by_id_route(
         certification_id: Unique identifier for the certification whose
             attachments should be retrieved.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, include archived certification, attachment,
+            and finding records.
 
     Returns:
         Certification attachments serialized with certification, regulation,
@@ -100,7 +111,7 @@ def get_certification_attachments_by_id_route(
         HTTPException: If no certification exists for the requested ID.
     """
     certification_attachments = get_certification_attachments_by_id(
-        certification_id, session
+        certification_id, session, include_archived
     )
     if certification_attachments is None:
         raise HTTPException(
@@ -113,7 +124,9 @@ def get_certification_attachments_by_id_route(
 
 @router.get("/{certification_id}/findings")
 def get_certification_findings_route(
-    certification_id: int, session: SessionDep
+    certification_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[FindingOut]:
     """Return findings for one certification by ID.
 
@@ -121,6 +134,8 @@ def get_certification_findings_route(
         certification_id: Unique identifier for the certification whose
             findings should be retrieved.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, include archived certification and finding
+            records.
 
     Returns:
         Finding records serialized with certification, regulation, rule, and
@@ -130,7 +145,7 @@ def get_certification_findings_route(
     Raises:
         HTTPException: If no certification exists for the requested ID.
     """
-    certification = get_certification_by_id(certification_id, session)
+    certification = get_certification_by_id(certification_id, session, include_archived)
     if certification is None:
         raise HTTPException(
             status_code=404,
@@ -144,6 +159,7 @@ def get_certification_findings_route(
         rule_id=None,
         attachment_id=None,
         open_only=False,
+        include_archived=include_archived,
     )
 
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -52,6 +53,24 @@ class TestGetClients:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY clients.company_name, clients.nif" in str(stmt)
 
+    def test_excludes_archived_clients_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_clients(session, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "clients.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_clients_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_clients(session, limit=None, offset=0, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "clients.archived_at IS NULL" not in str(stmt)
+
 
 class TestGetClientByNif:
     def test_returns_client_when_found(self) -> None:
@@ -72,6 +91,24 @@ class TestGetClientByNif:
 
         assert result is None
         session.get.assert_called_once_with(Client, "A1234567B")
+
+    def test_returns_none_when_client_is_archived_by_default(self) -> None:
+        session = MagicMock()
+        client = _client(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = client
+
+        result = get_client_by_nif("A1234567B", session)
+
+        assert result is None
+
+    def test_returns_archived_client_when_requested(self) -> None:
+        session = MagicMock()
+        client = _client(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = client
+
+        result = get_client_by_nif("A1234567B", session, include_archived=True)
+
+        assert result is client
 
 
 class TestPostNewClient:

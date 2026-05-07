@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -101,7 +101,7 @@ class TestGetCertifications:
         stmt = session.execute.call_args.args[0]
         assert result == []
         session.get.assert_called_once_with(Site, 12)
-        assert "WHERE certifications.site_id = :site_id_1" in str(stmt)
+        assert "certifications.site_id = :site_id_1" in str(stmt)
 
     def test_returns_none_when_site_filter_does_not_exist(self) -> None:
         session = MagicMock()
@@ -124,6 +124,31 @@ class TestGetCertifications:
         stmt = session.execute.call_args.args[0]
         assert "certifications.resolution_date IS NULL" in str(stmt)
 
+    def test_excludes_archived_certifications_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_certifications(session, site_id=None, open_only=False, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_certifications_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_certifications(
+            session,
+            site_id=None,
+            open_only=False,
+            limit=None,
+            offset=0,
+            include_archived=True,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" not in str(stmt)
+
 
 class TestGetCertificationById:
     def test_gets_certification_by_id_from_session(self) -> None:
@@ -144,6 +169,24 @@ class TestGetCertificationById:
 
         session.get.assert_called_once_with(Certification, 999)
         assert result is None
+
+    def test_returns_none_when_certification_is_archived_by_default(self) -> None:
+        session = MagicMock()
+        certification = _certification(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = certification
+
+        result = get_certification_by_id(42, session)
+
+        assert result is None
+
+    def test_returns_archived_certification_when_requested(self) -> None:
+        session = MagicMock()
+        certification = _certification(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = certification
+
+        result = get_certification_by_id(42, session, include_archived=True)
+
+        assert result is certification
 
 
 class TestGetCertificationAttachmentsById:
@@ -196,6 +239,26 @@ class TestGetCertificationAttachmentsById:
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY attachments.id, findings.id" in str(stmt)
+
+    def test_excludes_archived_attachments_by_default(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Certification)
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_certification_attachments_by_id(100, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_attachments_when_requested(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(spec=Certification)
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_certification_attachments_by_id(100, session, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" not in str(stmt)
 
 
 class TestPostNewCertification:

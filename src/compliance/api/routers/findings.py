@@ -30,6 +30,7 @@ def get_findings_route(
     rule_id: Annotated[int | None, Query(gt=0)] = None,
     attachment_id: Annotated[int | None, Query(gt=0)] = None,
     open_only: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[FindingOut]:
     """Return findings with optional filters.
 
@@ -43,6 +44,7 @@ def get_findings_route(
             attachment.
         open_only: When true, only return findings whose certification has no
             resolution date.
+        include_archived: When true, include archived findings.
 
     Returns:
         Finding records serialized with certification, regulation, rule, and
@@ -54,7 +56,13 @@ def get_findings_route(
     """
     try:
         findings = get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived,
         )
     except FindingMissingSiteError as err:
         raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
@@ -73,12 +81,17 @@ def get_findings_route(
 
 
 @router.get("/{finding_id}")
-def get_finding_by_id_route(finding_id: int, session: SessionDep) -> FindingOut:
+def get_finding_by_id_route(
+    finding_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
+) -> FindingOut:
     """Return one finding by ID.
 
     Args:
         finding_id: Unique identifier for the finding to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived findings.
 
     Returns:
         Finding details serialized with certification, regulation, rule, and
@@ -87,7 +100,7 @@ def get_finding_by_id_route(finding_id: int, session: SessionDep) -> FindingOut:
     Raises:
         HTTPException: If no finding exists for the requested ID.
     """
-    finding = get_finding_by_id(finding_id, session)
+    finding = get_finding_by_id(finding_id, session, include_archived)
     if finding is None:
         raise HTTPException(
             status_code=404,

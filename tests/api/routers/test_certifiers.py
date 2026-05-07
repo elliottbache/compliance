@@ -9,7 +9,7 @@ class TestGetCertifiersRoute:
     def test_client_returns_certifier_json(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
-        def fake_get_certifiers(session, limit, offset):
+        def fake_get_certifiers(session, limit, offset, include_archived=False):
             assert session is mock_db
             assert limit == 2
             assert offset == 1
@@ -51,7 +51,7 @@ class TestGetCertifiersRoute:
             for certifier in certifiers
         ]
 
-        def fake_get_certifiers(session, limit, offset):
+        def fake_get_certifiers(session, limit, offset, include_archived=False):
             assert session is fake_session
             assert limit == 10
             assert offset == 5
@@ -81,7 +81,7 @@ class TestGetCertifierByIdRoute:
     def test_client_returns_certifier_json_when_found(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
-        def fake_get_certifier_by_id(certifier_id, session):
+        def fake_get_certifier_by_id(certifier_id, session, include_archived=False):
             assert certifier_id == 10
             assert session is mock_db
             return certifier_record_factory()
@@ -101,7 +101,7 @@ class TestGetCertifierByIdRoute:
     def test_client_returns_404_when_certifier_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_certifier_by_id(certifier_id, session):
+        def fake_get_certifier_by_id(certifier_id, session, include_archived=False):
             assert certifier_id == 10
             assert session is mock_db
             return None
@@ -128,7 +128,7 @@ class TestGetCertifierByIdRoute:
         certifier = certifier_record_factory()
         expected_certifier = certifiers_router.CertifierOut.model_validate(certifier)
 
-        def fake_get_certifier_by_id(certifier_id, session):
+        def fake_get_certifier_by_id(certifier_id, session, include_archived=False):
             assert certifier_id == 10
             assert session is fake_session
             return certifier
@@ -142,7 +142,7 @@ class TestGetCertifierByIdRoute:
         assert result == expected_certifier
 
     def test_returns_404_when_certifier_is_not_found(self, monkeypatch) -> None:
-        def fake_get_certifier_by_id(certifier_id, session):
+        def fake_get_certifier_by_id(certifier_id, session, include_archived=False):
             return None
 
         monkeypatch.setattr(

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -137,6 +137,30 @@ class TestGetSites:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
 
+    def test_excludes_archived_sites_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_sites(session, nif=None, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "sites.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_sites_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_sites(
+            session,
+            nif=None,
+            limit=None,
+            offset=0,
+            include_archived=True,
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "sites.archived_at IS NULL" not in str(stmt)
+
     def test_filters_by_client_nif_when_client_exists(self) -> None:
         session = MagicMock()
         session.get.return_value = MagicMock(spec=Client)
@@ -147,7 +171,7 @@ class TestGetSites:
         stmt = session.execute.call_args.args[0]
         assert result == []
         session.get.assert_called_once_with(Client, "A1234567B")
-        assert "WHERE sites.nif = :nif_1" in str(stmt)
+        assert "sites.nif = :nif_1" in str(stmt)
 
     def test_returns_none_when_client_filter_does_not_exist(self) -> None:
         session = MagicMock()
@@ -179,6 +203,24 @@ class TestGetSiteById:
 
         session.get.assert_called_once_with(Site, 999)
         assert result is None
+
+    def test_returns_none_when_site_is_archived_by_default(self) -> None:
+        session = MagicMock()
+        site = _site(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = site
+
+        result = get_site_by_id(12, session)
+
+        assert result is None
+
+    def test_returns_archived_site_when_requested(self) -> None:
+        session = MagicMock()
+        site = _site(archived_at=datetime(2026, 5, 7))
+        session.get.return_value = site
+
+        result = get_site_by_id(12, session, include_archived=True)
+
+        assert result is site
 
 
 class TestPostNewSite:
@@ -280,6 +322,26 @@ class TestGetSiteCertifications:
         assert "LIMIT" in statement_text
         assert "OFFSET" in statement_text
 
+    def test_excludes_archived_certifications_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_site_certifications(12, session, limit=None, offset=0)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_certifications_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.all.return_value = []
+
+        get_site_certifications(
+            12, session, limit=None, offset=0, include_archived=True
+        )
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" not in str(stmt)
+
 
 class TestFormatSiteCertifications:
     def test_wraps_certifications_in_site_response(self) -> None:
@@ -332,6 +394,24 @@ class TestGetSiteHistoryForSite:
         session.execute.assert_called_once()
         assert result == _format_site_history(rows)
 
+    def test_excludes_archived_history_records_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_site_history(71, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_history_records_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_site_history(71, session, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" not in str(stmt)
+
 
 class TestGetSiteAttachments:
     def test_returns_none_when_query_returns_no_rows(self) -> None:
@@ -354,6 +434,24 @@ class TestGetSiteAttachments:
 
         session.execute.assert_called_once()
         assert result == _format_site_attachments(rows)
+
+    def test_excludes_archived_attachments_by_default(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_site_attachments(71, session)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" in str(stmt)
+
+    def test_includes_archived_attachments_when_requested(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.mappings.return_value.all.return_value = []
+
+        get_site_attachments(71, session, include_archived=True)
+
+        stmt = session.execute.call_args.args[0]
+        assert "attachments.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatSiteHistory:

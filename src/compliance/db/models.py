@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import (
     CheckConstraint,
@@ -30,6 +30,8 @@ class Client(Base):
     contact_name: Mapped[str] = mapped_column(String(80))
     email: Mapped[str | None] = mapped_column(String(80))
     telephone: Mapped[int | None]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     client_site_rel: Mapped[list["Site"]] = relationship(
         back_populates="site_client_rel"
@@ -49,6 +51,8 @@ class Site(Base):
     street_number: Mapped[int | None]
     suite: Mapped[str | None] = mapped_column(String(10))
     address_info: Mapped[str | None] = mapped_column(String(80))
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     site_client_rel: Mapped["Client"] = relationship(back_populates="client_site_rel")
     site_certification_rel: Mapped[list["Certification"]] = relationship(
@@ -63,6 +67,8 @@ class Certifier(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_name: Mapped[str] = mapped_column(String(80), unique=True)
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     certifier_certification_rel: Mapped[list["Certification"]] = relationship(
         back_populates="certification_certifier_rel"
@@ -78,6 +84,8 @@ class Regulation(Base):
     title: Mapped[str] = mapped_column(String(80), unique=True)
     description: Mapped[str]
     published_date: Mapped[date]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     regulation_rule_rel: Mapped[list["Rule"]] = relationship(
         back_populates="rule_regulation_rel"
@@ -102,6 +110,8 @@ class Rule(Base):
     rule_index: Mapped[str] = mapped_column(String(10))
     title: Mapped[str | None] = mapped_column(String(80))
     description: Mapped[str]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     rule_regulation_rel: Mapped["Regulation"] = relationship(
         back_populates="regulation_rule_rel"
@@ -126,6 +136,8 @@ class Certification(Base):
     result: Mapped[str | None] = mapped_column(String(80))
     inspection_date: Mapped[date | None]
     resolution_date: Mapped[date | None]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     certification_certifier_rel: Mapped["Certifier"] = relationship(
         back_populates="certifier_certification_rel"
@@ -166,6 +178,8 @@ class Attachment(Base):
     file_path: Mapped[str] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(String(80))
     uploaded_at: Mapped[date]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     attachment_certification_rel: Mapped["Certification"] = relationship(
         back_populates="certification_attachment_rel"
@@ -196,6 +210,8 @@ class Finding(Base):
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"))
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
     finding: Mapped[str]
+    archived_at: Mapped[datetime | None]
+    archive_reason: Mapped[str | None] = mapped_column(String(160))
 
     finding_certification_rel: Mapped["Certification"] = relationship(
         back_populates="certification_finding_rel"

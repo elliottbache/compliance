@@ -9,7 +9,13 @@ class TestGetFindingsRoute:
         self, main_module, client, mock_db, monkeypatch, finding_factory
     ):
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             assert session is mock_db
             assert site_id is None
@@ -44,7 +50,13 @@ class TestGetFindingsRoute:
         self, main_module, client, mock_db, monkeypatch
     ):
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             assert session is mock_db
             assert site_id == 12
@@ -76,7 +88,13 @@ class TestGetFindingsRoute:
         expected = [finding_factory()]
 
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             assert session is fake_session
             assert site_id == 12
@@ -101,7 +119,13 @@ class TestGetFindingsRoute:
 
     def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             raise findings_router.FindingMissingSiteError(site_id)
 
@@ -117,7 +141,13 @@ class TestGetFindingsRoute:
         self, monkeypatch
     ) -> None:
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             raise findings_router.FindingMissingCertificationError(certification_id)
 
@@ -131,7 +161,13 @@ class TestGetFindingsRoute:
 
     def test_returns_404_when_rule_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             raise findings_router.FindingMissingRuleError(rule_id)
 
@@ -147,7 +183,13 @@ class TestGetFindingsRoute:
         self, monkeypatch
     ) -> None:
         def fake_get_findings(
-            session, site_id, certification_id, rule_id, attachment_id, open_only
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
         ):
             raise findings_router.FindingMissingAttachmentError(attachment_id)
 

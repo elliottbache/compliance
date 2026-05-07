@@ -30,6 +30,7 @@ def get_attachments_route(
     certification_id: Annotated[int | None, Query(gt=0)] = None,
     rule_id: Annotated[int | None, Query(gt=0)] = None,
     finding_id: Annotated[int | None, Query(gt=0)] = None,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> list[AttachmentOut]:
     """Return attachments with optional filters.
 
@@ -41,6 +42,7 @@ def get_attachments_route(
         rule_id: Optional rule identifier used to limit attachments to one rule.
         finding_id: Optional finding identifier used to limit attachments to one
             finding.
+        include_archived: When true, include archived attachments.
 
     Returns:
         Attachment records serialized with certification, regulation, and linked
@@ -52,7 +54,12 @@ def get_attachments_route(
     """
     try:
         attachments = get_attachments(
-            session, site_id, certification_id, rule_id, finding_id
+            session,
+            site_id,
+            certification_id,
+            rule_id,
+            finding_id,
+            include_archived,
         )
     except AttachmentSiteNotFoundError as err:
         raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
@@ -72,13 +79,16 @@ def get_attachments_route(
 
 @router.get("/{attachment_id}")
 def get_attachment_by_id_route(
-    attachment_id: int, session: SessionDep
+    attachment_id: int,
+    session: SessionDep,
+    include_archived: Annotated[bool, Query()] = False,
 ) -> AttachmentWithContextOut:
     """Return one attachment with certification, regulation, and finding context.
 
     Args:
         attachment_id: Unique identifier for the attachment to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        include_archived: When true, return archived attachments.
 
     Returns:
         Attachment details serialized with certification, regulation, and
@@ -87,7 +97,7 @@ def get_attachment_by_id_route(
     Raises:
         HTTPException: If no attachment exists for the requested ID.
     """
-    result = get_attachment_by_id(attachment_id, session)
+    result = get_attachment_by_id(attachment_id, session, include_archived)
     if result is None:
         raise HTTPException(
             status_code=404, detail=f"Attachment {attachment_id} not found."
