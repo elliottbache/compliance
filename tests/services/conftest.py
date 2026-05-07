@@ -106,7 +106,7 @@ def site_analysis_factory(evidence_ref_factory):
 
 
 @pytest.fixture
-def site_attachment_row_factory():
+def attachment_row_factory():
     def _build(**overrides):
         row = {
             "Attachment": SimpleNamespace(
@@ -133,6 +133,7 @@ def site_attachment_row_factory():
             ),
             "FindingAttachment": MagicMock(),
             "Rule": SimpleNamespace(
+                id=10,
                 rule_index="7 CFR 205.201",
                 title="Organic plan",
                 description="Producer must maintain an organic system plan.",

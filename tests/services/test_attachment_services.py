@@ -23,45 +23,11 @@ from compliance.services.attachments import (
 )
 
 
-def attachment_list_row(**overrides):
-    row = {
-        "Attachment": SimpleNamespace(
-            id=50,
-            file_type="pdf",
-            file_path="dummy/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=date(2026, 4, 3),
-            certification_id=100,
-        ),
-        "Certification": SimpleNamespace(
-            site_id=71,
-            id=100,
-            regulation_id=5,
-            inspection_date=date(2026, 4, 1),
-        ),
-        "Regulation": SimpleNamespace(
-            id=5,
-            title="USDA Organic",
-        ),
-        "FindingAttachment": MagicMock(),
-        "Finding": SimpleNamespace(
-            id=1,
-            finding="Missing document",
-        ),
-        "Rule": SimpleNamespace(
-            id=10,
-            rule_index="7 CFR 205.201",
-            title="Organic plan",
-            description="Producer must maintain an organic system plan.",
-        ),
-    }
-    row.update(overrides)
-    return row
-
-
 class TestGetAttachments:
-    def test_returns_formatted_attachments_from_session(self) -> None:
-        rows = [attachment_list_row()]
+    def test_returns_formatted_attachments_from_session(
+        self, attachment_row_factory
+    ) -> None:
+        rows = [attachment_row_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -120,8 +86,10 @@ class TestGetAttachments:
 
 
 class TestFormatAttachments:
-    def test_formats_attachment_without_finding_ids(self) -> None:
-        result = _format_attachments([attachment_list_row(Finding=None)])
+    def test_formats_attachment_without_finding_ids(
+        self, attachment_row_factory
+    ) -> None:
+        result = _format_attachments([attachment_row_factory(Finding=None)])
 
         assert result == [
             AttachmentOut(
@@ -138,10 +106,12 @@ class TestFormatAttachments:
             )
         ]
 
-    def test_groups_finding_ids_under_one_attachment(self) -> None:
+    def test_groups_finding_ids_under_one_attachment(
+        self, attachment_row_factory
+    ) -> None:
         rows = [
-            attachment_list_row(),
-            attachment_list_row(Finding=SimpleNamespace(id=2)),
+            attachment_row_factory(),
+            attachment_row_factory(Finding=SimpleNamespace(id=2)),
         ]
 
         result = _format_attachments(rows)
@@ -149,10 +119,10 @@ class TestFormatAttachments:
         assert len(result) == 1
         assert result[0].finding_ids == [1, 2]
 
-    def test_deduplicates_repeated_finding_ids(self) -> None:
+    def test_deduplicates_repeated_finding_ids(self, attachment_row_factory) -> None:
         rows = [
-            attachment_list_row(),
-            attachment_list_row(),
+            attachment_row_factory(),
+            attachment_row_factory(),
         ]
 
         result = _format_attachments(rows)
@@ -171,9 +141,9 @@ class TestGetAttachmentById:
         assert result is None
 
     def test_formats_attachment_when_query_returns_rows(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        rows = [site_attachment_row_factory()]
+        rows = [attachment_row_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -276,9 +246,9 @@ class TestFormatNewAttachmentWithContext:
 
 class TestFormatAttachment:
     def test_creates_attachment_without_finding_links(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        rows = [site_attachment_row_factory(Finding=None, Rule=None)]
+        rows = [attachment_row_factory(Finding=None, Rule=None)]
 
         result = _format_attachment(rows)
 
@@ -296,11 +266,11 @@ class TestFormatAttachment:
         )
 
     def test_collects_two_finding_links_for_attachment(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
         rows = [
-            site_attachment_row_factory(),
-            site_attachment_row_factory(
+            attachment_row_factory(),
+            attachment_row_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",

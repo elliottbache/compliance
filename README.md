@@ -23,8 +23,8 @@ comparison of past certifications while keeping factual retrieval and validation
 - Add function to return differences in regulation since last visit.
 - Add stop_reason: "refusal" and stop_reason: "max_tokens" and others to requerying on failure in anthropic_api.py
 - Add migration
-- Add wrapper to SiteAnalysis to include disclaimer that it is AI-generated, human-review-only, not an official compliance decision
 - Add LLM to parse regulation into database.
+- Add LLM to compare current regulation with last regulation
 
 ## Database description
 ### Notes

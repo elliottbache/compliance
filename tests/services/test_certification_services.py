@@ -174,9 +174,9 @@ class TestGetCertificationAttachmentsById:
         )
 
     def test_formats_certification_attachments_when_query_returns_rows(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        rows = [site_attachment_row_factory()]
+        rows = [attachment_row_factory()]
         session = MagicMock()
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = rows
@@ -263,9 +263,9 @@ class TestPostNewCertification:
 
 class TestFormatCertificationAttachmentsOut:
     def test_creates_certification_attachments_with_finding_link(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        result = _format_certification_attachments([site_attachment_row_factory()])
+        result = _format_certification_attachments([attachment_row_factory()])
 
         assert result.certification_id == 100
         assert len(result.attachments) == 1
@@ -275,11 +275,11 @@ class TestFormatCertificationAttachmentsOut:
         assert result.attachments[0].finding_links[0].finding_id == 1
 
     def test_groups_multiple_findings_under_same_attachment(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
         rows = [
-            site_attachment_row_factory(),
-            site_attachment_row_factory(
+            attachment_row_factory(),
+            attachment_row_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -297,7 +297,7 @@ class TestFormatCertificationAttachmentsOut:
         ] == [1, 2]
 
     def test_groups_attachments_by_id_without_reordering(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
@@ -308,9 +308,9 @@ class TestFormatCertificationAttachmentsOut:
             certification_id=100,
         )
         rows = [
-            site_attachment_row_factory(Attachment=second_attachment),
-            site_attachment_row_factory(),
-            site_attachment_row_factory(
+            attachment_row_factory(Attachment=second_attachment),
+            attachment_row_factory(),
+            attachment_row_factory(
                 Attachment=second_attachment,
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(

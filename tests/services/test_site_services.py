@@ -34,17 +34,17 @@ def site_history_row_factory():
         row = {
             "site_id": 71,
             "cert_id": 100,
-            "result": "pass",
+            "result": "Pass",
             "resolution_date": None,
             "reg_title": "USDA Organic",
             "reg_description": "Organic certification",
             "certifier_org_name": "Org A",
-            "inspection_date": None,
+            "inspection_date": date(2026, 4, 1),
             "finding_id": 1,
-            "finding": "Issue A",
+            "finding": "Missing document",
             "rule_index": "7 CFR 205.201",
-            "rule_title": "Rule A",
-            "rule_description": "Rule description A",
+            "rule_title": "Organic plan",
+            "rule_description": "Producer must maintain an organic system plan.",
         }
         row.update(overrides)
         return row
@@ -113,26 +113,6 @@ def _site_create(**overrides) -> SiteCreate:
     }
     data.update(overrides)
     return SiteCreate(**data)
-
-
-def site_history_row(**overrides):
-    row = {
-        "site_id": 71,
-        "cert_id": 100,
-        "result": "Pass",
-        "resolution_date": None,
-        "reg_title": "USDA Organic",
-        "reg_description": "Organic certification",
-        "certifier_org_name": "Org A",
-        "inspection_date": date(2026, 4, 1),
-        "finding_id": 1,
-        "finding": "Missing document",
-        "rule_index": "7 CFR 205.201",
-        "rule_title": "Organic plan",
-        "rule_description": "Producer must maintain an organic system plan.",
-    }
-    row.update(overrides)
-    return row
 
 
 class TestGetSites:
@@ -332,9 +312,11 @@ class TestGetSiteHistoryForSite:
         session.execute.assert_called_once()
         assert result is None
 
-    def test_formats_site_history_when_query_returns_rows(self) -> None:
+    def test_formats_site_history_when_query_returns_rows(
+        self, site_history_row_factory
+    ) -> None:
         rows = [
-            site_history_row(
+            site_history_row_factory(
                 finding_id=None,
                 finding=None,
                 rule_index=None,
@@ -362,9 +344,9 @@ class TestGetSiteAttachments:
         assert result is None
 
     def test_formats_site_attachments_when_query_returns_rows(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        rows = [site_attachment_row_factory()]
+        rows = [attachment_row_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -375,8 +357,10 @@ class TestGetSiteAttachments:
 
 
 class TestFormatSiteHistory:
-    def test_creates_site_history_with_certification_and_finding(self) -> None:
-        result = _format_site_history([site_history_row()])
+    def test_creates_site_history_with_certification_and_finding(
+        self, site_history_row_factory
+    ) -> None:
+        result = _format_site_history([site_history_row_factory()])
 
         assert isinstance(result, SiteHistory)
         assert result.site_id == 71
@@ -387,10 +371,12 @@ class TestFormatSiteHistory:
         assert len(result.certifications[0].findings) == 1
         assert result.certifications[0].findings[0].finding_id == 1
 
-    def test_appends_findings_to_existing_certification(self) -> None:
+    def test_appends_findings_to_existing_certification(
+        self, site_history_row_factory
+    ) -> None:
         rows = [
-            site_history_row(finding_id=1, finding="Missing document"),
-            site_history_row(finding_id=2, finding="Incomplete record"),
+            site_history_row_factory(finding_id=1, finding="Missing document"),
+            site_history_row_factory(finding_id=2, finding="Incomplete record"),
         ]
 
         result = _format_site_history(rows)
@@ -403,11 +389,17 @@ class TestFormatSiteHistory:
             2,
         ]
 
-    def test_groups_certifications_by_id_without_reordering(self) -> None:
+    def test_groups_certifications_by_id_without_reordering(
+        self, site_history_row_factory
+    ) -> None:
         rows = [
-            site_history_row(cert_id=200, finding_id=2, finding="Second cert finding"),
-            site_history_row(cert_id=100, finding_id=1, finding="First cert finding"),
-            site_history_row(
+            site_history_row_factory(
+                cert_id=200, finding_id=2, finding="Second cert finding"
+            ),
+            site_history_row_factory(
+                cert_id=100, finding_id=1, finding="First cert finding"
+            ),
+            site_history_row_factory(
                 cert_id=200,
                 finding_id=3,
                 finding="Another second cert finding",
@@ -423,15 +415,17 @@ class TestFormatSiteHistory:
 
 
 class TestBuildFindingHistoryFromSiteHistory:
-    def test_builds_finding_history_from_row(self) -> None:
-        result = _build_finding_history_from_site_history(site_history_row())
+    def test_builds_finding_history_from_row(self, site_history_row_factory) -> None:
+        result = _build_finding_history_from_site_history(site_history_row_factory())
 
         assert isinstance(result, FindingHistory)
         assert result.finding_id == 1
         assert result.rule_index == "7 CFR 205.201"
 
-    def test_raises_key_error_when_required_finding_field_is_missing(self) -> None:
-        row = site_history_row()
+    def test_raises_key_error_when_required_finding_field_is_missing(
+        self, site_history_row_factory
+    ) -> None:
+        row = site_history_row_factory()
         del row["rule_description"]
 
         with pytest.raises(KeyError, match="Missing finding fields"):
@@ -440,11 +434,9 @@ class TestBuildFindingHistoryFromSiteHistory:
 
 class TestBuildFindingHistoryFromSiteAttachmentsOut:
     def test_builds_finding_history_from_nested_row_objects(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        result = _build_finding_history_from_site_attachments(
-            site_attachment_row_factory()
-        )
+        result = _build_finding_history_from_site_attachments(attachment_row_factory())
 
         assert result == FindingHistory(
             finding_id=1,
@@ -455,18 +447,18 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
         )
 
     def test_raises_key_error_when_required_row_object_is_missing(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        row = site_attachment_row_factory()
+        row = attachment_row_factory()
         del row["Rule"]
 
         with pytest.raises(KeyError, match="Missing finding history fields"):
             _build_finding_history_from_site_attachments(row)
 
     def test_raises_key_error_when_required_finding_history_field_is_missing(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        row = site_attachment_row_factory(
+        row = attachment_row_factory(
             Rule=SimpleNamespace(
                 rule_index="7 CFR 205.201",
                 title="Organic plan",
@@ -479,9 +471,9 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
 
 class TestFormatSiteAttachmentsOut:
     def test_creates_site_attachments_with_finding_link(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
-        result = _format_site_attachments([site_attachment_row_factory()])
+        result = _format_site_attachments([attachment_row_factory()])
 
         assert result.site_id == 71
         assert len(result.attachments) == 1
@@ -491,11 +483,11 @@ class TestFormatSiteAttachmentsOut:
         assert result.attachments[0].finding_links[0].finding_id == 1
 
     def test_groups_multiple_findings_under_same_attachment(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
         rows = [
-            site_attachment_row_factory(),
-            site_attachment_row_factory(
+            attachment_row_factory(),
+            attachment_row_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -513,7 +505,7 @@ class TestFormatSiteAttachmentsOut:
         ] == [1, 2]
 
     def test_groups_attachments_by_id_without_reordering(
-        self, site_attachment_row_factory
+        self, attachment_row_factory
     ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
@@ -524,9 +516,9 @@ class TestFormatSiteAttachmentsOut:
             certification_id=100,
         )
         rows = [
-            site_attachment_row_factory(Attachment=second_attachment),
-            site_attachment_row_factory(),
-            site_attachment_row_factory(
+            attachment_row_factory(Attachment=second_attachment),
+            attachment_row_factory(),
+            attachment_row_factory(
                 Attachment=second_attachment,
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
