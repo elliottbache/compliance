@@ -29,7 +29,7 @@ def get_certifiers(
         limit: Maximum number of certifiers to return. If ``None``, all
             certifiers are returned.
         offset: Number of certifiers to skip before returning results.
-        include_archived: When true, include archived certifiers in the results.
+        include_archived: When true, include archived certifiers in addition to active certifiers.
 
     Returns:
         Certifier ORM objects, or an empty list if no certifiers exist.
