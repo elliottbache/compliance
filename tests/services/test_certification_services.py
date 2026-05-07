@@ -398,7 +398,7 @@ class TestFormatCertificationAttachmentsOut:
             file_type="pdf",
             file_path="dummy/second.pdf",
             description="Second attachment",
-            uploaded_at=date(2026, 4, 4),
+            uploaded_at=datetime(2026, 4, 4, 9, 30),
             archived_at=None,
             archive_reason=None,
             certification_id=100,

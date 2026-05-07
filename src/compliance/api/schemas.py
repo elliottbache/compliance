@@ -105,7 +105,7 @@ class AttachmentWithContextOut(BaseModel):
     file_type: str
     file_path: str
     description: str | None
-    uploaded_at: date
+    uploaded_at: datetime
     archived_at: datetime | None
     archive_reason: str | None
 
@@ -135,7 +135,7 @@ class AttachmentOut(AttachmentCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    uploaded_at: date
+    uploaded_at: datetime
     inspection_date: date | None
     regulation_id: int
     regulation_title: str
@@ -228,7 +228,7 @@ class FindingAttachmentOut(BaseModel):
     file_type: str
     file_path: str
     description: str | None
-    uploaded_at: date
+    uploaded_at: datetime
     archived_at: datetime | None
     archive_reason: str | None
 

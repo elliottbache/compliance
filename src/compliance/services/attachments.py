@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -245,7 +245,7 @@ def post_new_attachment(
         + attachment_dict["file_name"]
         + "."
         + attachment_dict["file_type"],
-        "uploaded_at": date.today(),
+        "uploaded_at": datetime.now(),
     }
     new_attachment = Attachment(**orm_data)
 

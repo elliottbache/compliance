@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -114,7 +114,7 @@ def attachment_row_factory():
                 file_type="pdf",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
-                uploaded_at=date(2026, 4, 3),
+                uploaded_at=datetime(2026, 4, 3, 9, 30),
                 archived_at=None,
                 archive_reason=None,
                 certification_id=100,
