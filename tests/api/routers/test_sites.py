@@ -130,6 +130,8 @@ class TestGetSiteByIdRoute:
             "street_number": None,
             "suite": None,
             "address_info": "Main entrance",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_site_is_not_found(
@@ -175,6 +177,8 @@ class TestGetSiteByIdRoute:
             street_number=None,
             suite=None,
             address_info="Main entrance",
+            archived_at=None,
+            archive_reason=None,
         )
 
         def fake_get_site_by_id(site_id, session, *, include_archived=False):
@@ -254,6 +258,8 @@ class TestGetSiteCertificationsRoute:
                     "result": "Pass",
                     "inspection_date": "2023-10-15",
                     "resolution_date": "2023-10-20",
+                    "archived_at": None,
+                    "archive_reason": None,
                 },
                 {
                     "id": 101,
@@ -263,6 +269,8 @@ class TestGetSiteCertificationsRoute:
                     "result": "Pass",
                     "inspection_date": "2023-10-15",
                     "resolution_date": "2023-10-20",
+                    "archived_at": None,
+                    "archive_reason": None,
                 },
             ],
         }
@@ -334,6 +342,8 @@ class TestGetSiteCertificationsRoute:
                 result="Pass",
                 inspection_date=date(2026, 4, 1),
                 resolution_date=date(2026, 4, 15),
+                archived_at=None,
+                archive_reason=None,
             ),
             SimpleNamespace(
                 id=43,
@@ -343,6 +353,8 @@ class TestGetSiteCertificationsRoute:
                 result="Fail",
                 inspection_date=date(2026, 5, 1),
                 resolution_date=None,
+                archived_at=None,
+                archive_reason=None,
             ),
         ]
 
@@ -626,6 +638,8 @@ class TestPostNewSiteRoute:
             "street_number": None,
             "suite": None,
             "address_info": "Main entrance",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_site_is_not_created(

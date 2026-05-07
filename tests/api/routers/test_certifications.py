@@ -132,6 +132,8 @@ class TestGetCertificationByIdRoute:
                 result="Pass",
                 inspection_date=date(2026, 4, 1),
                 resolution_date=None,
+                archived_at=None,
+                archive_reason=None,
             )
 
         monkeypatch.setattr(
@@ -151,6 +153,8 @@ class TestGetCertificationByIdRoute:
             "result": "Pass",
             "inspection_date": "2026-04-01",
             "resolution_date": None,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_certification_is_not_found(
@@ -189,6 +193,8 @@ class TestGetCertificationByIdRoute:
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
+            archived_at=None,
+            archive_reason=None,
         )
 
         def fake_get_certification_by_id(
@@ -633,6 +639,8 @@ class TestPostNewCertificationRoute:
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
+            archived_at=None,
+            archive_reason=None,
         )
 
         def fake_post_new_certification(certification, session):
@@ -669,6 +677,8 @@ class TestPostNewCertificationRoute:
             "result": "Pass",
             "inspection_date": "2026-04-01",
             "resolution_date": None,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_certification_conflicts(
@@ -721,6 +731,8 @@ class TestPostNewCertificationRoute:
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
+            archived_at=None,
+            archive_reason=None,
         )
         created_certification = SimpleNamespace(
             id=42,
@@ -730,6 +742,8 @@ class TestPostNewCertificationRoute:
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
+            archived_at=None,
+            archive_reason=None,
         )
 
         def fake_post_new_certification(certification_info, session):

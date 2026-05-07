@@ -255,6 +255,8 @@ class TestPostNewFindingRoute:
             "rule_title": "Organic plan",
             "rule_description": "Producer must maintain an organic system plan.",
             "attachments": [],
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_422_when_body_is_invalid(self, client):

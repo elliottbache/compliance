@@ -115,6 +115,8 @@ def attachment_row_factory():
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=date(2026, 4, 3),
+                archived_at=None,
+                archive_reason=None,
                 certification_id=100,
             ),
             "Certification": SimpleNamespace(

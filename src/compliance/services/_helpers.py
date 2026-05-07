@@ -33,6 +33,8 @@ def _format_attachment(
                 "file_path": row["Attachment"].file_path,
                 "description": row["Attachment"].description,
                 "uploaded_at": row["Attachment"].uploaded_at,
+                "archived_at": row["Attachment"].archived_at,
+                "archive_reason": row["Attachment"].archive_reason,
                 "certification_id": row["Attachment"].certification_id,
                 "inspection_date": row["Certification"].inspection_date,
                 "regulation_id": row["Certification"].regulation_id,

@@ -330,6 +330,8 @@ def _format_new_attachment_with_context(
         inspection_date=certification.inspection_date,
         regulation_id=certification.regulation_id,
         regulation_title=certification.certification_regulation_rel.title,
+        archived_at=attachment.archived_at,
+        archive_reason=attachment.archive_reason,
     )
 
 
@@ -369,4 +371,6 @@ def _build_attachment_out(rows: Sequence[Mapping]) -> AttachmentOut:
         inspection_date=certification.inspection_date,
         regulation_id=certification.regulation_id,
         regulation_title=regulation.title,
+        archived_at=attachment.archived_at,
+        archive_reason=attachment.archive_reason,
     )

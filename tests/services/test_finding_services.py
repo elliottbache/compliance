@@ -24,6 +24,8 @@ def finding_row(**overrides):
         "Finding": SimpleNamespace(
             id=1,
             finding="Missing document",
+            archived_at=None,
+            archive_reason=None,
         ),
         "Certification": SimpleNamespace(
             id=100,
@@ -52,6 +54,8 @@ def attachment(**overrides):
         "file_path": "dummy/evidence.pdf",
         "description": "Inspection evidence",
         "uploaded_at": date(2026, 4, 3),
+        "archived_at": None,
+        "archive_reason": None,
     }
     data.update(overrides)
     return SimpleNamespace(**data)
@@ -190,7 +194,12 @@ class TestFormatFindings:
         rows = [
             finding_row(),
             finding_row(
-                Finding=SimpleNamespace(id=2, finding="Incomplete record"),
+                Finding=SimpleNamespace(
+                    id=2,
+                    finding="Incomplete record",
+                    archived_at=None,
+                    archive_reason=None,
+                ),
                 Rule=SimpleNamespace(
                     id=6,
                     rule_index="7 CFR 205.202",
@@ -215,6 +224,8 @@ class TestFormatFindings:
                 rule_title="Organic plan",
                 rule_description="Producer must maintain an organic system plan.",
                 attachments=[],
+                archived_at=None,
+                archive_reason=None,
             ),
             FindingOut(
                 finding_id=2,
@@ -228,6 +239,8 @@ class TestFormatFindings:
                 rule_title="Land requirements",
                 rule_description="Land must meet organic requirements.",
                 attachments=[],
+                archived_at=None,
+                archive_reason=None,
             ),
         ]
 
@@ -247,6 +260,8 @@ class TestFormatFindings:
                 rule_title="Organic plan",
                 rule_description="Producer must maintain an organic system plan.",
                 attachments=[],
+                archived_at=None,
+                archive_reason=None,
             )
         ]
 
@@ -267,6 +282,8 @@ class TestFormatFindings:
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=date(2026, 4, 3),
+                archived_at=None,
+                archive_reason=None,
             ),
             FindingAttachmentOut(
                 attachment_id=51,
@@ -274,6 +291,8 @@ class TestFormatFindings:
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=date(2026, 4, 3),
+                archived_at=None,
+                archive_reason=None,
             ),
         ]
 
@@ -309,6 +328,8 @@ class TestBuildFindingOut:
             rule_title="Organic plan",
             rule_description="Producer must maintain an organic system plan.",
             attachments=[],
+            archived_at=None,
+            archive_reason=None,
         )
 
     def test_raises_key_error_when_required_row_object_is_missing(self) -> None:

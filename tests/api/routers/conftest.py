@@ -47,6 +47,8 @@ def site_factory():
             street_number=None,
             suite=None,
             address_info="Main entrance",
+            archived_at=None,
+            archive_reason=None,
         )
         site.__dict__.update(**overrides)
         return site
@@ -159,6 +161,8 @@ def certifications_factory():
                 result="Pass",
                 inspection_date=date(2023, 10, 15),
                 resolution_date=date(2023, 10, 20),
+                archived_at=None,
+                archive_reason=None,
             )
             cert.__dict__.update(**overrides)
             certifications.append(cert)
@@ -176,6 +180,8 @@ def client_record_factory():
             contact_name="John Doe",
             email="john.doe@acme.com",
             telephone=5550123,
+            archived_at=None,
+            archive_reason=None,
         )
         client_record.__dict__.update(**overrides)
         return client_record
@@ -189,6 +195,8 @@ def certifier_record_factory():
         certifier_record = SimpleNamespace(
             id=10,
             organization_name="SafeCheck Inc.",
+            archived_at=None,
+            archive_reason=None,
         )
         certifier_record.__dict__.update(**overrides)
         return certifier_record
@@ -205,6 +213,8 @@ def rule_record_factory():
             rule_index="FS-101",
             title="Equipment Maintenance",
             description="Equipment must be maintained.",
+            archived_at=None,
+            archive_reason=None,
         )
         rule_record.__dict__.update(**overrides)
         return rule_record
@@ -220,6 +230,8 @@ def regulation_record_factory():
             title="Fire Safety 2026",
             description="Fire safety requirements for commercial sites.",
             published_date=date(2026, 1, 15),
+            archived_at=None,
+            archive_reason=None,
         )
         regulation_record.__dict__.update(**overrides)
         return regulation_record
@@ -236,6 +248,8 @@ def attachment_factory():
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
             "uploaded_at": date(2026, 4, 3),
+            "archived_at": None,
+            "archive_reason": None,
             "certification_id": 100,
             "inspection_date": date(2026, 4, 1),
             "regulation_id": 5,
@@ -275,6 +289,8 @@ def finding_factory():
             "rule_index": "7 CFR 205.201",
             "rule_title": "Organic plan",
             "rule_description": "Producer must maintain an organic system plan.",
+            "archived_at": None,
+            "archive_reason": None,
         }
         finding.update(overrides)
         return FindingOut.model_validate(finding)
@@ -290,6 +306,8 @@ def attachment_create_factory():
             "file_name": "evidence",
             "certification_id": 100,
             "description": "Inspection evidence",
+            "archived_at": None,
+            "archive_reason": None,
             "finding_ids": [],
         }
         attachment.update(overrides)

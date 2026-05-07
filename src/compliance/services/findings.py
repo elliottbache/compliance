@@ -346,6 +346,8 @@ def _build_finding_out(row: Mapping) -> FindingOut:
         "rule_index": ("Rule", "rule_index"),
         "rule_title": ("Rule", "title"),
         "rule_description": ("Rule", "description"),
+        "archived_at": ("Finding", "archived_at"),
+        "archive_reason": ("Finding", "archive_reason"),
     }
     missing_fields = [
         field_name
@@ -384,6 +386,8 @@ def _build_finding_attachments(rows: Sequence[Mapping]) -> list[FindingAttachmen
                     "file_path": attachment.file_path,
                     "description": attachment.description,
                     "uploaded_at": attachment.uploaded_at,
+                    "archived_at": attachment.archived_at,
+                    "archive_reason": attachment.archive_reason,
                 }
             )
         )

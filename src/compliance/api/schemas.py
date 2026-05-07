@@ -28,6 +28,8 @@ class SiteOut(SiteCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class CertificationCreate(BaseModel):
@@ -49,6 +51,8 @@ class CertificationOut(CertificationCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class RegulationCreate(BaseModel):
@@ -67,6 +71,8 @@ class RegulationOut(RegulationCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class RuleCreate(BaseModel):
@@ -86,6 +92,8 @@ class RuleOut(RuleCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class AttachmentWithContextOut(BaseModel):
@@ -98,6 +106,8 @@ class AttachmentWithContextOut(BaseModel):
     file_path: str
     description: str | None
     uploaded_at: date
+    archived_at: date | None
+    archive_reason: str | None
 
     certification_id: int
     inspection_date: date | None
@@ -129,6 +139,8 @@ class AttachmentOut(AttachmentCreate):
     inspection_date: date | None
     regulation_id: int
     regulation_title: str
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class SiteAttachmentsOut(BaseModel):
@@ -174,6 +186,8 @@ class ClientOut(ClientCreate):
     """Public API response shape for a client record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class CertifierCreate(BaseModel):
@@ -190,6 +204,8 @@ class CertifierOut(CertifierCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class FindingCreate(BaseModel):
@@ -213,6 +229,8 @@ class FindingAttachmentOut(BaseModel):
     file_path: str
     description: str | None
     uploaded_at: date
+    archived_at: date | None
+    archive_reason: str | None
 
 
 class FindingOut(BaseModel):
@@ -231,3 +249,5 @@ class FindingOut(BaseModel):
     rule_title: str | None
     rule_description: str
     attachments: list[FindingAttachmentOut] = Field(default_factory=list)
+    archived_at: date | None
+    archive_reason: str | None

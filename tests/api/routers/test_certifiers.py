@@ -96,6 +96,8 @@ class TestGetCertifierByIdRoute:
         assert response.json() == {
             "organization_name": "SafeCheck Inc.",
             "id": 10,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_certifier_is_not_found(
@@ -188,6 +190,8 @@ class TestPostNewCertifierRoute:
         assert response.json() == {
             "organization_name": "SafeCheck Inc.",
             "id": 10,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_certifier_already_exists(
@@ -225,6 +229,8 @@ class TestPostNewCertifierRoute:
         expected_certifier = certifiers_router.CertifierOut(
             id=10,
             organization_name="SafeCheck Inc.",
+            archived_at=None,
+            archive_reason=None,
         )
 
         def fake_post_new_certifier(certifier_info, session):

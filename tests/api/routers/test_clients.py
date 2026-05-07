@@ -122,6 +122,8 @@ class TestGetClientByNifRoute:
             "contact_name": "John Doe",
             "email": "john.doe@acme.com",
             "telephone": 5550123,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_client_is_not_found(
@@ -365,6 +367,8 @@ class TestPostNewClientRoute:
             "contact_name": "John Doe",
             "email": "john.doe@acme.com",
             "telephone": 5550123,
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_client_already_exists(

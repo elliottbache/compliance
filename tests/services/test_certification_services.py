@@ -399,6 +399,8 @@ class TestFormatCertificationAttachmentsOut:
             file_path="dummy/second.pdf",
             description="Second attachment",
             uploaded_at=date(2026, 4, 4),
+            archived_at=None,
+            archive_reason=None,
             certification_id=100,
         )
         rows = [

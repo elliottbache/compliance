@@ -130,6 +130,8 @@ class TestGetRegulationByIdRoute:
             "title": "Fire Safety 2026",
             "description": "Fire safety requirements for commercial sites.",
             "published_date": "2026-01-15",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_regulation_is_not_found(
@@ -233,6 +235,8 @@ class TestPostNewRegulationRoute:
             "title": "Fire Safety 2026",
             "description": "Fire safety requirements for commercial sites.",
             "published_date": "2026-01-15",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_regulation_conflicts(

@@ -160,6 +160,8 @@ class TestFormatAttachments:
                 inspection_date=date(2026, 4, 1),
                 regulation_id=5,
                 regulation_title="USDA Organic",
+                archived_at=None,
+                archive_reason=None,
             )
         ]
 
@@ -318,6 +320,8 @@ class TestFormatNewAttachmentWithContext:
             file_path="/path/placeholder/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=date(2026, 4, 3),
+            archived_at=None,
+            archive_reason=None,
         )
         certification = SimpleNamespace(
             inspection_date=date(2026, 4, 1),
@@ -353,6 +357,8 @@ class TestFormatAttachment:
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=date(2026, 4, 3),
+            archived_at=None,
+            archive_reason=None,
             certification_id=100,
             inspection_date=date(2026, 4, 1),
             regulation_id=5,

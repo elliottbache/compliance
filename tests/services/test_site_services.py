@@ -45,6 +45,8 @@ def site_history_row_factory():
             "rule_index": "7 CFR 205.201",
             "rule_title": "Organic plan",
             "rule_description": "Producer must maintain an organic system plan.",
+            "archived_at": None,
+            "archive_reason": None,
         }
         row.update(overrides)
         return row
@@ -83,6 +85,48 @@ def db_access_mocks():
         "tables": mock_tables,
         "stmt": mock_stmt,
     }
+
+
+@pytest.fixture
+def attachment_row_factory():
+    def _build(**overrides):
+        row = {
+            "Attachment": SimpleNamespace(
+                id=50,
+                file_type="pdf",
+                file_path="dummy/evidence.pdf",
+                description="Inspection evidence",
+                uploaded_at=date(2026, 4, 3),
+                archived_at=None,
+                archive_reason=None,
+                certification_id=100,
+            ),
+            "Certification": SimpleNamespace(
+                site_id=71,
+                id=100,
+                regulation_id=5,
+                inspection_date=date(2026, 4, 1),
+            ),
+            "Regulation": SimpleNamespace(
+                id=5,
+                title="USDA Organic",
+            ),
+            "Finding": SimpleNamespace(
+                id=1,
+                finding="Missing document",
+            ),
+            "FindingAttachment": MagicMock(),
+            "Rule": SimpleNamespace(
+                id=10,
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+                description="Producer must maintain an organic system plan.",
+            ),
+        }
+        row.update(overrides)
+        return row
+
+    return _build
 
 
 def _site(**overrides) -> Site:
@@ -367,6 +411,8 @@ class TestFormatSiteCertifications:
                 result="Pass",
                 inspection_date=date(2023, 10, 15),
                 resolution_date=date(2023, 10, 20),
+                archived_at=None,
+                archive_reason=None,
             )
         ]
 
@@ -630,6 +676,8 @@ class TestFormatSiteAttachmentsOut:
             file_path="dummy/second.pdf",
             description="Second attachment",
             uploaded_at=date(2026, 4, 4),
+            archived_at=None,
+            archive_reason=None,
             certification_id=100,
         )
         rows = [

@@ -126,6 +126,8 @@ class TestGetRuleByIdRoute:
             "rule_index": "FS-101",
             "title": "Equipment Maintenance",
             "description": "Equipment must be maintained.",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_rule_is_not_found(
@@ -216,6 +218,8 @@ class TestPostNewRuleRoute:
             "rule_index": "FS-101",
             "title": "Equipment Maintenance",
             "description": "Equipment must be maintained.",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_409_when_rule_conflicts(self, client, mock_db, monkeypatch):

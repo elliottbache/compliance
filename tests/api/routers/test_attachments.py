@@ -16,6 +16,8 @@ def attachment_out_factory(**overrides):
         "finding_ids": [1],
         "id": 50,
         "uploaded_at": date(2026, 4, 3),
+        "archived_at": None,
+        "archive_reason": None,
         "inspection_date": date(2026, 4, 1),
         "regulation_id": 5,
         "regulation_title": "USDA Organic",
@@ -265,6 +267,8 @@ class TestGetAttachmentByIdRoute:
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
             "uploaded_at": "2026-04-03",
+            "archived_at": None,
+            "archive_reason": None,
             "certification_id": 100,
             "inspection_date": "2026-04-01",
             "regulation_id": 5,
@@ -421,6 +425,8 @@ class TestPostNewAttachmentRoute:
             "inspection_date": "2026-04-01",
             "regulation_id": 5,
             "regulation_title": "USDA Organic",
+            "archived_at": None,
+            "archive_reason": None,
         }
 
     def test_client_returns_404_when_certification_is_not_found(
