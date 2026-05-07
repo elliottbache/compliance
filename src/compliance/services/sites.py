@@ -76,7 +76,7 @@ def get_sites(
 
 
 def get_site_by_id(
-    site_id: int, session: Session, include_archived: bool = False
+    site_id: int, session: Session, *, include_archived: bool = False
 ) -> Site | None:
     """Return one site by primary key, or None when it does not exist."""
     site = session.get(Site, site_id)
@@ -143,7 +143,7 @@ def get_site_history_legacy(site_id: int) -> SiteHistory | None:
 
 
 def get_site_history(
-    site_id: int, session: Session, include_archived: bool = False
+    site_id: int, session: Session, *, include_archived: bool = False
 ) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
@@ -204,7 +204,7 @@ def get_site_history(
 
 
 def get_site_attachments(
-    site_id: int, session: Session, include_archived: bool = False
+    site_id: int, session: Session, *, include_archived: bool = False
 ) -> SiteAttachmentsOut | None:
     """Retrieve attachment records for a site with certification and finding context.
 
@@ -255,6 +255,7 @@ def get_site_attachments(
 def get_site_certifications(
     site_id: int,
     session: Session,
+    *,
     limit: int | None,
     offset: int,
     include_archived: bool = False,

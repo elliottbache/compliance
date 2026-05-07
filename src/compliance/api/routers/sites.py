@@ -88,7 +88,7 @@ def get_site_by_id_route(
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived)
+    site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
@@ -120,13 +120,15 @@ def get_site_attachments_route(
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived)
+    site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
-    site_attachments = get_site_attachments(site_id, session, include_archived)
+    site_attachments = get_site_attachments(
+        site_id, session, include_archived=include_archived
+    )
     if site_attachments is None:
         return SiteAttachmentsOut(site_id=site_id, attachments=[])
 
@@ -161,13 +163,19 @@ def get_site_certifications_route(
     Raises:
         HTTPException: If no site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived)
+    site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
-    results = get_site_certifications(site_id, session, limit, offset, include_archived)
+    results = get_site_certifications(
+        site_id,
+        session,
+        limit=limit,
+        offset=offset,
+        include_archived=include_archived,
+    )
 
     return format_site_certifications(site_id, results)
 
@@ -192,7 +200,7 @@ def get_site_history_route(
     Raises:
         HTTPException: If no certification history exists for the requested site.
     """
-    site_history = get_site_history(site_id, session, include_archived)
+    site_history = get_site_history(site_id, session, include_archived=include_archived)
     if site_history is None:
         raise HTTPException(
             status_code=404,

@@ -11,7 +11,7 @@ from compliance.api.routers import sites as sites_router
 class TestGetSitesRoute:
     # TestClient
     def test_client_returns_site_json(self, client, mock_db, monkeypatch, site_factory):
-        def fake_get_sites(session, nif, limit, offset, include_archived=False):
+        def fake_get_sites(session, *, nif, limit, offset, include_archived=False):
             assert session is mock_db
             assert nif is None
             assert limit == 2
@@ -65,7 +65,7 @@ class TestGetSitesRoute:
         sites = [site_factory()]
         expected_sites = [sites_router.SiteOut.model_validate(site) for site in sites]
 
-        def fake_get_sites(session, nif, limit, offset, include_archived=False):
+        def fake_get_sites(session, *, nif, limit, offset, include_archived=False):
             assert session is fake_session
             assert nif == "A1234567B"
             assert limit == 10
@@ -81,7 +81,7 @@ class TestGetSitesRoute:
         assert result == expected_sites
 
     def test_returns_404_when_client_filter_does_not_exist(self, monkeypatch) -> None:
-        def fake_get_sites(session, nif, limit, offset, include_archived=False):
+        def fake_get_sites(session, *, nif, limit, offset, include_archived=False):
             assert nif == "A1234567B"
             return None
 
@@ -111,7 +111,7 @@ class TestGetSiteByIdRoute:
     def test_client_returns_site_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_factory
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return site_factory()
@@ -137,7 +137,7 @@ class TestGetSiteByIdRoute:
     ):
         fake_site = None
 
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return fake_site
@@ -152,7 +152,7 @@ class TestGetSiteByIdRoute:
     def test_client_returns_422_when_site_id_is_not_an_int(
         self, main_module, client, mock_db, monkeypatch, site_factory
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return site_factory()
@@ -177,7 +177,7 @@ class TestGetSiteByIdRoute:
             address_info="Main entrance",
         )
 
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is fake_session
             return site
@@ -189,7 +189,7 @@ class TestGetSiteByIdRoute:
         assert result == sites_router.SiteOut.model_validate(site)
 
     def test_returns_404_when_site_is_not_found(self, main_module, monkeypatch) -> None:
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             return None
 
         monkeypatch.setattr(sites_router, "get_site_by_id", fake_get_site_by_id)
@@ -215,14 +215,14 @@ class TestGetSiteCertificationsRoute:
     def test_client_returns_certifications_json_when_found(
         self, main_module, client, mock_db, monkeypatch, certifications_factory
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             assert include_archived is True
             return SimpleNamespace(id=site_id)
 
         def fake_get_site_certifications(
-            site_id, session, limit, offset, include_archived=False
+            site_id, session, *, limit, offset, include_archived=False
         ):
             assert site_id == 12
             assert session is mock_db
@@ -270,13 +270,13 @@ class TestGetSiteCertificationsRoute:
     def test_client_returns_empty_list_when_site_has_no_certifications(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return SimpleNamespace(id=site_id)
 
         def fake_get_site_certifications(
-            site_id, session, limit, offset, include_archived=False
+            site_id, session, *, limit, offset, include_archived=False
         ):
             assert site_id == 999
             assert session is mock_db
@@ -301,7 +301,7 @@ class TestGetSiteCertificationsRoute:
     def test_client_returns_404_when_site_is_not_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return None
@@ -347,7 +347,7 @@ class TestGetSiteCertificationsRoute:
         ]
 
         def fake_get_site_certifications(
-            site_id, session, limit, offset, include_archived=False
+            site_id, session, *, limit, offset, include_archived=False
         ):
             assert site_id == 12
             assert session is fake_session
@@ -358,7 +358,7 @@ class TestGetSiteCertificationsRoute:
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: SimpleNamespace(
+            lambda site_id, session, *, include_archived=False: SimpleNamespace(
                 id=site_id
             ),
         )
@@ -378,7 +378,7 @@ class TestGetSiteCertificationsRoute:
         fake_session = object()
 
         def fake_get_site_certifications(
-            site_id, session, limit, offset, include_archived=False
+            site_id, session, *, limit, offset, include_archived=False
         ):
             assert site_id == 12
             assert session is fake_session
@@ -389,7 +389,7 @@ class TestGetSiteCertificationsRoute:
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: SimpleNamespace(
+            lambda site_id, session, *, include_archived=False: SimpleNamespace(
                 id=site_id
             ),
         )
@@ -411,14 +411,14 @@ class TestGetSiteCertificationsRoute:
         self, main_module, monkeypatch
     ) -> None:
         def fake_get_site_certifications(
-            site_id, session, limit, offset, include_archived=False
+            site_id, session, *, limit, offset, include_archived=False
         ):
             return []
 
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: SimpleNamespace(
+            lambda site_id, session, *, include_archived=False: SimpleNamespace(
                 id=site_id
             ),
         )
@@ -438,7 +438,7 @@ class TestGetSiteCertificationsRoute:
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: None,
+            lambda site_id, session, *, include_archived=False: None,
         )
 
         with pytest.raises(HTTPException) as exc_info:
@@ -462,7 +462,7 @@ class TestGetSiteHistoryRoute:
     def test_client_returns_site_history_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_history_factory
     ):
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return site_history_factory()
@@ -513,7 +513,7 @@ class TestGetSiteHistoryRoute:
     ):
         fake_site = None
 
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return fake_site
@@ -528,7 +528,7 @@ class TestGetSiteHistoryRoute:
     def test_client_returns_422_when_site_id_is_not_an_int(
         self, client, mock_db, monkeypatch, site_history_factory
     ):
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return site_history_factory()
@@ -549,7 +549,7 @@ class TestGetSiteHistoryRoute:
             latest_inspection_date=None,
         )
 
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is fake_session
             return site_history
@@ -565,7 +565,7 @@ class TestGetSiteHistoryRoute:
         assert result == site_history
 
     def test_returns_404_when_site_history_is_not_found(self, monkeypatch) -> None:
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             return None
 
         monkeypatch.setattr(
@@ -1065,7 +1065,7 @@ class TestCreateSiteAnalysis:
         site_history = site_history_factory()
         site_analysis = site_analysis_factory()
 
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             assert site_id == 101
             assert session is fake_session
             return site_history
@@ -1102,7 +1102,7 @@ class TestCreateSiteAnalysis:
     def test_returns_404_when_site_history_is_not_found(
         self, main_module, monkeypatch
     ) -> None:
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             return None
 
         monkeypatch.setattr(
@@ -1137,7 +1137,7 @@ class TestCreateSiteAnalysis:
     ) -> None:
         site_history = site_history_factory()
 
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             return site_history
 
         def fake_summarize_previous_visits(history):
@@ -1166,7 +1166,7 @@ class TestCreateSiteAnalysis:
         site_history = site_history_factory()
         site_analysis = site_analysis_factory()
 
-        def fake_get_site_history(site_id, session, include_archived=False):
+        def fake_get_site_history(site_id, session, *, include_archived=False):
             return site_history
 
         def fake_summarize_previous_visits(history):
@@ -1209,12 +1209,12 @@ class TestGetSiteAttachmentsRoute:
             attachments=[],
         )
 
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return SimpleNamespace(id=site_id)
 
-        def fake_get_site_attachments(site_id, session, include_archived=False):
+        def fake_get_site_attachments(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             return site_attachments
@@ -1238,12 +1238,12 @@ class TestGetSiteAttachmentsRoute:
     def test_client_returns_empty_attachment_list_when_site_has_none(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return SimpleNamespace(id=site_id)
 
-        def fake_get_site_attachments(site_id, session, include_archived=False):
+        def fake_get_site_attachments(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return None
@@ -1267,7 +1267,7 @@ class TestGetSiteAttachmentsRoute:
     def test_client_returns_404_when_site_is_not_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_site_by_id(site_id, session, include_archived=False):
+        def fake_get_site_by_id(site_id, session, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
             return None
@@ -1297,7 +1297,7 @@ class TestGetSiteAttachmentsRoute:
             attachments=[],
         )
 
-        def fake_get_site_attachments(site_id, session, include_archived=False):
+        def fake_get_site_attachments(site_id, session, *, include_archived=False):
             assert site_id == 12
             assert session is fake_session
             return site_attachments
@@ -1305,7 +1305,7 @@ class TestGetSiteAttachmentsRoute:
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: SimpleNamespace(
+            lambda site_id, session, *, include_archived=False: SimpleNamespace(
                 id=site_id
             ),
         )
@@ -1322,13 +1322,13 @@ class TestGetSiteAttachmentsRoute:
     def test_returns_empty_attachment_list_when_site_has_none(
         self, main_module, monkeypatch
     ) -> None:
-        def fake_get_site_attachments(site_id, session, include_archived=False):
+        def fake_get_site_attachments(site_id, session, *, include_archived=False):
             return None
 
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: SimpleNamespace(
+            lambda site_id, session, *, include_archived=False: SimpleNamespace(
                 id=site_id
             ),
         )
@@ -1346,7 +1346,7 @@ class TestGetSiteAttachmentsRoute:
         monkeypatch.setattr(
             sites_router,
             "get_site_by_id",
-            lambda site_id, session, include_archived=False: None,
+            lambda site_id, session, *, include_archived=False: None,
         )
 
         with pytest.raises(HTTPException) as exc_info:
