@@ -31,3 +31,4 @@ comparison of past certifications while keeping factual retrieval and validation
 - Historical records are not hard-deleted by normal users.
 - Important records are archived or deletion-restricted.
 - Link rows may be deleted/unlinked where safe.
+- Finding-attachment links are managed through finding and attachment creation endpoints. Standalone link CRUD is deferred until there is a real UX need.
