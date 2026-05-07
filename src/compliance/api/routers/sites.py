@@ -60,7 +60,9 @@ def get_sites_route(
     Raises:
         HTTPException: If ``nif`` is provided and no matching client exists.
     """
-    sites = get_sites(session, nif, limit, offset, include_archived)
+    sites = get_sites(
+        session, nif=nif, limit=limit, offset=offset, include_archived=include_archived
+    )
     if sites is None:
         raise HTTPException(status_code=404, detail=f"No client with this NIF: {nif}.")
 

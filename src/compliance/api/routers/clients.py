@@ -39,7 +39,9 @@ def get_clients_route(
     Returns:
         Client records serialized with the public API response schema.
     """
-    clients = get_clients(session, limit, offset, include_archived)
+    clients = get_clients(
+        session, limit=limit, offset=offset, include_archived=include_archived
+    )
     return [ClientOut.model_validate(client) for client in clients]
 
 
@@ -62,7 +64,7 @@ def get_clients_by_nif_route(
     Raises:
         HTTPException: If no client exists for the requested NIF.
     """
-    result = get_client_by_nif(nif, session, include_archived)
+    result = get_client_by_nif(nif, session, include_archived=include_archived)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
@@ -90,7 +92,7 @@ def get_client_sites_route(
     Raises:
         HTTPException: If no client exists for the requested NIF.
     """
-    client = get_client_by_nif(nif, session, include_archived)
+    client = get_client_by_nif(nif, session, include_archived=include_archived)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 

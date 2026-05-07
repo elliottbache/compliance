@@ -24,7 +24,7 @@ class ClientCompanyNameConflictError(ClientConflictError):
 
 
 def get_clients(
-    session: Session, limit: int | None, offset: int, include_archived: bool = False
+    session: Session, *, limit: int | None, offset: int, include_archived: bool = False
 ) -> list[Client]:
     """Retrieve clients ordered by company name and NIF.
 
@@ -47,7 +47,7 @@ def get_clients(
 
 
 def get_client_by_nif(
-    nif: str, session: Session, include_archived: bool = False
+    nif: str, session: Session, *, include_archived: bool = False
 ) -> Client | None:
     """Retrieve one client by NIF.
 

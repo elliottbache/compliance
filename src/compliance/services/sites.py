@@ -39,6 +39,7 @@ class SiteClientNotFoundError(SiteConflictError):
 
 def get_sites(
     session: Session,
+    *,
     nif: str | None,
     limit: int | None,
     offset: int,
