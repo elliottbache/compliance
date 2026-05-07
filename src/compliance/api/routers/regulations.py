@@ -44,7 +44,11 @@ def get_regulations_route(
             certifier exists.
     """
     regulations_list = get_regulations(
-        session, certifier_id, limit, offset, include_archived
+        session,
+        certifier_id=certifier_id,
+        limit=limit,
+        offset=offset,
+        include_archived=include_archived,
     )
     if regulations_list is None:
         raise HTTPException(
@@ -73,7 +77,9 @@ def get_regulation_by_id_route(
     Raises:
         HTTPException: If no regulation exists for the requested ID.
     """
-    regulation = get_regulation_by_id(regulation_id, session, include_archived)
+    regulation = get_regulation_by_id(
+        regulation_id, session, include_archived=include_archived
+    )
     if regulation is None:
         raise HTTPException(
             status_code=404,

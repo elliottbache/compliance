@@ -44,7 +44,13 @@ def get_rules_route(
         HTTPException: If ``regulation_id`` is provided and no matching
             regulation exists.
     """
-    rules_list = get_rules(session, regulation_id, limit, offset, include_archived)
+    rules_list = get_rules(
+        session,
+        regulation_id=regulation_id,
+        limit=limit,
+        offset=offset,
+        include_archived=include_archived,
+    )
     if rules_list is None:
         raise HTTPException(
             status_code=404, detail=f"Regulation does not exist: {regulation_id}"
@@ -72,7 +78,7 @@ def get_rule_by_id_route(
     Raises:
         HTTPException: If no rule exists for the requested ID.
     """
-    rule = get_rule_by_id(rule_id, session, include_archived)
+    rule = get_rule_by_id(rule_id, session, include_archived=include_archived)
     if rule is None:
         raise HTTPException(
             status_code=404,

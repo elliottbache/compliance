@@ -46,6 +46,7 @@ class CertificationSiteNotFoundError(CertificationConflictError):
 
 def get_certifications(
     session: Session,
+    *,
     site_id: int | None,
     open_only: bool,
     limit: int | None,
@@ -102,7 +103,7 @@ def get_certifications(
 
 
 def get_certification_by_id(
-    certification_id: int, session: Session, include_archived: bool = False
+    certification_id: int, session: Session, *, include_archived: bool = False
 ) -> Certification | None:
     """Return one certification by primary key, or None when it does not exist."""
     certification = session.get(Certification, certification_id)
@@ -110,7 +111,7 @@ def get_certification_by_id(
 
 
 def get_certification_attachments_by_id(
-    certification_id: int, session: Session, include_archived: bool = False
+    certification_id: int, session: Session, *, include_archived: bool = False
 ) -> CertificationAttachmentsOut | None:
     """Retrieve attachment records for one certification.
 

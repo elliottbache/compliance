@@ -12,7 +12,7 @@ class TestGetCertificationsRoute:
         self, client, mock_db, monkeypatch, certifications_factory
     ):
         def fake_get_certifications(
-            session, site_id, open_only, limit, offset, include_archived=False
+            session, *, site_id, open_only, limit, offset, include_archived=False
         ):
             assert session is mock_db
             assert site_id is None
@@ -66,7 +66,7 @@ class TestGetCertificationsRoute:
         ]
 
         def fake_get_certifications(
-            session, site_id, open_only, limit, offset, include_archived=False
+            session, *, site_id, open_only, limit, offset, include_archived=False
         ):
             assert session is fake_session
             assert site_id == 12
@@ -87,7 +87,7 @@ class TestGetCertificationsRoute:
 
     def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_certifications(
-            session, site_id, open_only, limit, offset, include_archived=False
+            session, *, site_id, open_only, limit, offset, include_archived=False
         ):
             assert site_id == 999
             return None
@@ -120,7 +120,7 @@ class TestGetCertificationByIdRoute:
         self, main_module, client, mock_db, monkeypatch
     ):
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 42
             assert session is mock_db
@@ -157,7 +157,7 @@ class TestGetCertificationByIdRoute:
         self, main_module, client, mock_db, monkeypatch
     ):
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 999
             assert session is mock_db
@@ -192,7 +192,7 @@ class TestGetCertificationByIdRoute:
         )
 
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 42
             assert session is fake_session
@@ -214,7 +214,7 @@ class TestGetCertificationByIdRoute:
         self, main_module, monkeypatch
     ) -> None:
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             return None
 
@@ -250,7 +250,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         certification_attachments_factory,
     ):
         def fake_get_certification_attachments_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is mock_db
@@ -292,7 +292,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         certification_attachments_factory,
     ):
         def fake_get_certification_attachments_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is mock_db
@@ -313,7 +313,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         self, main_module, client, mock_db, monkeypatch
     ):
         def fake_get_certification_attachments_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 999
             assert session is mock_db
@@ -344,7 +344,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         fake_session = object()
 
         def fake_get_certification_attachments_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is fake_session
@@ -371,7 +371,7 @@ class TestGetCertificationAttachmentsByIdRoute:
         self, main_module, monkeypatch
     ) -> None:
         def fake_get_certification_attachments_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             return None
 
@@ -407,7 +407,7 @@ class TestGetCertificationFindingsRoute:
         self, client, mock_db, monkeypatch, finding_factory
     ):
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is mock_db
@@ -415,6 +415,7 @@ class TestGetCertificationFindingsRoute:
 
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -460,13 +461,14 @@ class TestGetCertificationFindingsRoute:
         self, client, mock_db, monkeypatch
     ):
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert session is mock_db
             return SimpleNamespace(id=certification_id)
 
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -493,7 +495,7 @@ class TestGetCertificationFindingsRoute:
         self, client, mock_db, monkeypatch
     ):
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 999
             assert session is mock_db
@@ -522,7 +524,7 @@ class TestGetCertificationFindingsRoute:
         expected_findings = [finding_factory()]
 
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is fake_session
@@ -530,6 +532,7 @@ class TestGetCertificationFindingsRoute:
 
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -562,12 +565,13 @@ class TestGetCertificationFindingsRoute:
         self, monkeypatch
     ) -> None:
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             return SimpleNamespace(id=certification_id)
 
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -590,7 +594,7 @@ class TestGetCertificationFindingsRoute:
 
     def test_returns_404_when_certification_is_not_found(self, monkeypatch) -> None:
         def fake_get_certification_by_id(
-            certification_id, session, include_archived=False
+            certification_id, session, *, include_archived=False
         ):
             return None
 

@@ -51,6 +51,7 @@ class FindingAttachmentCertificationMismatchError(FindingMissingAttachmentError)
 
 def get_findings(
     session: Session,
+    *,
     site_id: int | None,
     certification_id: int | None,
     rule_id: int | None,
@@ -142,7 +143,7 @@ def get_findings(
 
 
 def get_finding_by_id(
-    finding_id: int, session: Session, include_archived: bool = False
+    finding_id: int, session: Session, *, include_archived: bool = False
 ) -> FindingOut | None:
     """Return one finding with context by primary key.
 

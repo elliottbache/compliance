@@ -57,12 +57,12 @@ def get_findings_route(
     try:
         findings = get_findings(
             session,
-            site_id,
-            certification_id,
-            rule_id,
-            attachment_id,
-            open_only,
-            include_archived,
+            site_id=site_id,
+            certification_id=certification_id,
+            rule_id=rule_id,
+            attachment_id=attachment_id,
+            open_only=open_only,
+            include_archived=include_archived,
         )
     except FindingMissingSiteError as err:
         raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
@@ -100,7 +100,7 @@ def get_finding_by_id_route(
     Raises:
         HTTPException: If no finding exists for the requested ID.
     """
-    finding = get_finding_by_id(finding_id, session, include_archived)
+    finding = get_finding_by_id(finding_id, session, include_archived=include_archived)
     if finding is None:
         raise HTTPException(
             status_code=404,

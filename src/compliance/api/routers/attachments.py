@@ -55,11 +55,11 @@ def get_attachments_route(
     try:
         attachments = get_attachments(
             session,
-            site_id,
-            certification_id,
-            rule_id,
-            finding_id,
-            include_archived,
+            site_id=site_id,
+            certification_id=certification_id,
+            rule_id=rule_id,
+            finding_id=finding_id,
+            include_archived=include_archived,
         )
     except AttachmentSiteNotFoundError as err:
         raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
@@ -97,7 +97,9 @@ def get_attachment_by_id_route(
     Raises:
         HTTPException: If no attachment exists for the requested ID.
     """
-    result = get_attachment_by_id(attachment_id, session, include_archived)
+    result = get_attachment_by_id(
+        attachment_id, session, include_archived=include_archived
+    )
     if result is None:
         raise HTTPException(
             status_code=404, detail=f"Attachment {attachment_id} not found."

@@ -20,7 +20,7 @@ class CertifierOrganizationNameConflictError(CertifierConflictError):
 
 
 def get_certifiers(
-    session: Session, limit: int | None, offset: int, include_archived: bool = False
+    session: Session, *, limit: int | None, offset: int, include_archived: bool = False
 ) -> list[Certifier]:
     """Retrieve certifiers ordered by organization name and ID.
 
@@ -47,7 +47,7 @@ def get_certifiers(
 
 
 def get_certifier_by_id(
-    certifier_id: int, session: Session, include_archived: bool = False
+    certifier_id: int, session: Session, *, include_archived: bool = False
 ) -> Certifier | None:
     """Retrieve one certifier by ID.
 

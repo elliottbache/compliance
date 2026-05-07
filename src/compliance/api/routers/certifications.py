@@ -50,7 +50,12 @@ def get_certifications_route(
         HTTPException: If ``site_id`` is provided and no matching site exists.
     """
     certifications_list = get_certifications(
-        session, site_id, open_only, limit, offset, include_archived
+        session,
+        site_id=site_id,
+        open_only=open_only,
+        limit=limit,
+        offset=offset,
+        include_archived=include_archived,
     )
     if certifications_list is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}")
@@ -77,7 +82,9 @@ def get_certification_by_id_route(
     Raises:
         HTTPException: If no certification exists for the requested ID.
     """
-    certification = get_certification_by_id(certification_id, session, include_archived)
+    certification = get_certification_by_id(
+        certification_id, session, include_archived=include_archived
+    )
     if certification is None:
         raise HTTPException(
             status_code=404,
@@ -111,7 +118,7 @@ def get_certification_attachments_by_id_route(
         HTTPException: If no certification exists for the requested ID.
     """
     certification_attachments = get_certification_attachments_by_id(
-        certification_id, session, include_archived
+        certification_id, session, include_archived=include_archived
     )
     if certification_attachments is None:
         raise HTTPException(
@@ -145,7 +152,9 @@ def get_certification_findings_route(
     Raises:
         HTTPException: If no certification exists for the requested ID.
     """
-    certification = get_certification_by_id(certification_id, session, include_archived)
+    certification = get_certification_by_id(
+        certification_id, session, include_archived=include_archived
+    )
     if certification is None:
         raise HTTPException(
             status_code=404,

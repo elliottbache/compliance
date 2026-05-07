@@ -27,6 +27,7 @@ class RuleIndexConflictError(RuleConflictError):
 
 def get_rules(
     session: Session,
+    *,
     regulation_id: int | None,
     limit: int | None,
     offset: int,
@@ -74,7 +75,7 @@ def get_rules(
 
 
 def get_rule_by_id(
-    rule_id: int, session: Session, include_archived: bool = False
+    rule_id: int, session: Session, *, include_archived: bool = False
 ) -> Rule | None:
     """Return one rule by primary key, or None when it does not exist."""
     rule = session.get(Rule, rule_id)

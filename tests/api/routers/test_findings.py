@@ -10,6 +10,7 @@ class TestGetFindingsRoute:
     ):
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -51,6 +52,7 @@ class TestGetFindingsRoute:
     ):
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -89,6 +91,7 @@ class TestGetFindingsRoute:
 
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -120,6 +123,7 @@ class TestGetFindingsRoute:
     def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -142,6 +146,7 @@ class TestGetFindingsRoute:
     ) -> None:
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -162,6 +167,7 @@ class TestGetFindingsRoute:
     def test_returns_404_when_rule_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,
@@ -184,6 +190,7 @@ class TestGetFindingsRoute:
     ) -> None:
         def fake_get_findings(
             session,
+            *,
             site_id,
             certification_id,
             rule_id,

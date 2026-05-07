@@ -36,7 +36,9 @@ def get_certifiers_route(
     Returns:
         Certifier records serialized with the public API response schema.
     """
-    certifiers = get_certifiers(session, limit, offset, include_archived)
+    certifiers = get_certifiers(
+        session, limit=limit, offset=offset, include_archived=include_archived
+    )
     return [CertifierOut.model_validate(certifier) for certifier in certifiers]
 
 
@@ -59,7 +61,9 @@ def get_certifiers_by_id_route(
     Raises:
         HTTPException: If no certifier exists for the requested ID.
     """
-    result = get_certifier_by_id(certifier_id, session, include_archived)
+    result = get_certifier_by_id(
+        certifier_id, session, include_archived=include_archived
+    )
     if result is None:
         raise HTTPException(
             status_code=404, detail=f"Certifier {certifier_id} not found."

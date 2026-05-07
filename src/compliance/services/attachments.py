@@ -53,6 +53,7 @@ class AttachmentConflictError(AttachmentCreateError):
 
 def get_attachments(
     session: Session,
+    *,
     site_id: int | None,
     certification_id: int | None,
     rule_id: int | None,
@@ -67,7 +68,7 @@ def get_attachments(
         certification_id: Optional certification identifier used to limit attachments
             to one certification.
         rule_id: Optional rule identifier used to limit attachments to one rule.
-        attachment_id: Optional finding identifier used to limit attachments to one
+        finding_id: Optional finding identifier used to limit attachments to one
             finding.
         include_archived: When true, include archived attachments and related
             certification, regulation, rule, and finding context in the results.
@@ -147,7 +148,7 @@ def get_attachments(
 
 
 def get_attachment_by_id(
-    attachment_id: int, session: Session, include_archived: bool = False
+    attachment_id: int, session: Session, *, include_archived: bool = False
 ) -> AttachmentWithContextOut | None:
     """Retrieve one attachment with certification, regulation, and finding context.
 

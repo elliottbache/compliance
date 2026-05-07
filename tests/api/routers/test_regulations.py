@@ -9,7 +9,7 @@ class TestGetRegulationsRoute:
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
         def fake_get_regulations(
-            session, certifier_id, limit, offset, include_archived=False
+            session, *, certifier_id, limit, offset, include_archived=False
         ):
             assert session is mock_db
             assert certifier_id == 7
@@ -61,7 +61,7 @@ class TestGetRegulationsRoute:
         ]
 
         def fake_get_regulations(
-            session, certifier_id, limit, offset, include_archived=False
+            session, *, certifier_id, limit, offset, include_archived=False
         ):
             assert session is fake_session
             assert certifier_id == 7
@@ -81,7 +81,7 @@ class TestGetRegulationsRoute:
         self, monkeypatch
     ) -> None:
         def fake_get_regulations(
-            session, certifier_id, limit, offset, include_archived=False
+            session, *, certifier_id, limit, offset, include_archived=False
         ):
             assert certifier_id == 999
             return None
@@ -111,7 +111,9 @@ class TestGetRegulationByIdRoute:
     def test_client_returns_regulation_json_when_found(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
-        def fake_get_regulation_by_id(regulation_id, session, include_archived=False):
+        def fake_get_regulation_by_id(
+            regulation_id, session, *, include_archived=False
+        ):
             assert regulation_id == 3
             assert session is mock_db
             return regulation_record_factory()
@@ -133,7 +135,9 @@ class TestGetRegulationByIdRoute:
     def test_client_returns_404_when_regulation_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_regulation_by_id(regulation_id, session, include_archived=False):
+        def fake_get_regulation_by_id(
+            regulation_id, session, *, include_archived=False
+        ):
             assert regulation_id == 999
             assert session is mock_db
             return None
@@ -158,7 +162,9 @@ class TestGetRegulationByIdRoute:
         fake_session = object()
         regulation = regulation_record_factory()
 
-        def fake_get_regulation_by_id(regulation_id, session, include_archived=False):
+        def fake_get_regulation_by_id(
+            regulation_id, session, *, include_archived=False
+        ):
             assert regulation_id == 3
             assert session is fake_session
             return regulation
@@ -172,7 +178,9 @@ class TestGetRegulationByIdRoute:
         assert result == regulations_router.RegulationOut.model_validate(regulation)
 
     def test_returns_404_when_regulation_is_not_found(self, monkeypatch) -> None:
-        def fake_get_regulation_by_id(regulation_id, session, include_archived=False):
+        def fake_get_regulation_by_id(
+            regulation_id, session, *, include_archived=False
+        ):
             return None
 
         monkeypatch.setattr(

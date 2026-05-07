@@ -24,6 +24,7 @@ class RegulationTitleConflictError(RegulationConflictError):
 
 def get_regulations(
     session: Session,
+    *,
     certifier_id: int | None,
     limit: int | None,
     offset: int,
@@ -79,7 +80,7 @@ def get_regulations(
 
 
 def get_regulation_by_id(
-    regulation_id: int, session: Session, include_archived: bool = False
+    regulation_id: int, session: Session, *, include_archived: bool = False
 ) -> Regulation | None:
     """Return one regulation by primary key, or None when it does not exist."""
     regulation = session.get(Regulation, regulation_id)
