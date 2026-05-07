@@ -7,6 +7,7 @@ from compliance.api.schemas import (
     CertificationAttachmentsOut,
     CertificationCreate,
     CertificationOut,
+    FindingOut,
 )
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
@@ -18,6 +19,7 @@ from compliance.services.certifications import (
     get_certifications,
     post_new_certification,
 )
+from compliance.services.findings import get_findings
 
 router = APIRouter(prefix="/certifications", tags=["certifications"])
 
@@ -107,6 +109,42 @@ def get_certification_attachments_by_id_route(
         )
 
     return CertificationAttachmentsOut.model_validate(certification_attachments)
+
+
+@router.get("/{certification_id}/findings")
+def get_certification_findings_route(
+    certification_id: int, session: SessionDep
+) -> list[FindingOut]:
+    """Return findings for one certification by ID.
+
+    Args:
+        certification_id: Unique identifier for the certification whose
+            findings should be retrieved.
+        session: Database session provided by FastAPI dependency injection.
+
+    Returns:
+        Finding records serialized with certification, regulation, rule, and
+        linked attachment context, or an empty list when the certification
+        exists without findings.
+
+    Raises:
+        HTTPException: If no certification exists for the requested ID.
+    """
+    certification = get_certification_by_id(certification_id, session)
+    if certification is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No certification for this id found: {certification_id}",
+        )
+
+    return get_findings(
+        session,
+        site_id=None,
+        certification_id=certification_id,
+        rule_id=None,
+        attachment_id=None,
+        open_only=False,
+    )
 
 
 @router.post("", status_code=201)

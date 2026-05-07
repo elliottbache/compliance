@@ -1,32 +1,12 @@
-from datetime import date
-
 import pytest
 from fastapi import HTTPException
 
 from compliance.api.routers import findings as findings_router
 
 
-def finding_factory(**overrides):
-    """Build a finding response payload for route tests."""
-    data = {
-        "finding_id": 1,
-        "finding": "Missing document",
-        "site_id": 12,
-        "certification_id": 100,
-        "certification_title": "USDA Organic",
-        "certification_resolution_date": date(2026, 4, 15),
-        "rule_id": 5,
-        "rule_index": "7 CFR 205.201",
-        "rule_title": "Organic plan",
-        "rule_description": "Producer must maintain an organic system plan.",
-    }
-    data.update(overrides)
-    return findings_router.FindingOut.model_validate(data)
-
-
 class TestGetFindingsRoute:
     def test_client_returns_findings_json(
-        self, main_module, client, mock_db, monkeypatch
+        self, main_module, client, mock_db, monkeypatch, finding_factory
     ):
         def fake_get_findings(
             session, site_id, certification_id, rule_id, attachment_id, open_only
@@ -89,7 +69,9 @@ class TestGetFindingsRoute:
 
         assert response.status_code == 422
 
-    def test_returns_findings_from_service(self, main_module, monkeypatch) -> None:
+    def test_returns_findings_from_service(
+        self, main_module, monkeypatch, finding_factory
+    ) -> None:
         fake_session = object()
         expected = [finding_factory()]
 
@@ -188,7 +170,9 @@ class TestGetFindingsRoute:
 
 
 class TestPostNewFindingRoute:
-    def test_client_returns_created_finding_json(self, client, mock_db, monkeypatch):
+    def test_client_returns_created_finding_json(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
         expected_finding = finding_factory()
 
         def fake_post_new_finding(finding, session):
@@ -235,7 +219,7 @@ class TestPostNewFindingRoute:
 
         assert response.status_code == 422
 
-    def test_returns_created_finding(self, monkeypatch) -> None:
+    def test_returns_created_finding(self, monkeypatch, finding_factory) -> None:
         fake_session = object()
         finding = findings_router.FindingCreate(
             certification_id=100,

@@ -377,6 +377,185 @@ class TestGetCertificationAttachmentsByIdRoute:
         assert route.response_model is certifications_router.CertificationAttachmentsOut
 
 
+class TestGetCertificationFindingsRoute:
+    def test_client_returns_findings_json_when_certification_is_found(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 100
+            assert session is mock_db
+            return SimpleNamespace(id=100)
+
+        def fake_get_findings(
+            session, site_id, certification_id, rule_id, attachment_id, open_only
+        ):
+            assert session is mock_db
+            assert site_id is None
+            assert certification_id == 100
+            assert rule_id is None
+            assert attachment_id is None
+            assert open_only is False
+            return [finding_factory()]
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+        monkeypatch.setattr(certifications_router, "get_findings", fake_get_findings)
+
+        response = client.get("/certifications/100/findings")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "finding_id": 1,
+                "finding": "Missing document",
+                "site_id": 12,
+                "certification_id": 100,
+                "certification_title": "USDA Organic",
+                "certification_resolution_date": "2026-04-15",
+                "rule_id": 5,
+                "rule_index": "7 CFR 205.201",
+                "rule_title": "Organic plan",
+                "rule_description": "Producer must maintain an organic system plan.",
+                "attachments": [],
+            }
+        ]
+
+    def test_client_returns_empty_findings_json_when_certification_has_none(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_get_certification_by_id(certification_id, session):
+            assert session is mock_db
+            return SimpleNamespace(id=certification_id)
+
+        def fake_get_findings(
+            session, site_id, certification_id, rule_id, attachment_id, open_only
+        ):
+            assert session is mock_db
+            return []
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+        monkeypatch.setattr(certifications_router, "get_findings", fake_get_findings)
+
+        response = client.get("/certifications/100/findings")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_client_returns_404_when_certification_is_not_found(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 999
+            assert session is mock_db
+            return None
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        response = client.get("/certifications/999/findings")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "No certification for this id found: 999"}
+
+    def test_client_returns_422_when_certification_id_is_not_an_int(self, client):
+        response = client.get("/certifications/not-an-int/findings")
+
+        assert response.status_code == 422
+
+    def test_returns_findings_when_certification_is_found(
+        self, monkeypatch, finding_factory
+    ) -> None:
+        fake_session = object()
+        expected_findings = [finding_factory()]
+
+        def fake_get_certification_by_id(certification_id, session):
+            assert certification_id == 100
+            assert session is fake_session
+            return SimpleNamespace(id=100)
+
+        def fake_get_findings(
+            session, site_id, certification_id, rule_id, attachment_id, open_only
+        ):
+            assert session is fake_session
+            assert site_id is None
+            assert certification_id == 100
+            assert rule_id is None
+            assert attachment_id is None
+            assert open_only is False
+            return expected_findings
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+        monkeypatch.setattr(certifications_router, "get_findings", fake_get_findings)
+
+        result = certifications_router.get_certification_findings_route(
+            100, fake_session
+        )
+
+        assert result == expected_findings
+
+    def test_returns_empty_list_when_certification_has_no_findings(
+        self, monkeypatch
+    ) -> None:
+        def fake_get_certification_by_id(certification_id, session):
+            return SimpleNamespace(id=certification_id)
+
+        def fake_get_findings(
+            session, site_id, certification_id, rule_id, attachment_id, open_only
+        ):
+            return []
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+        monkeypatch.setattr(certifications_router, "get_findings", fake_get_findings)
+
+        result = certifications_router.get_certification_findings_route(100, object())
+
+        assert result == []
+
+    def test_returns_404_when_certification_is_not_found(self, monkeypatch) -> None:
+        def fake_get_certification_by_id(certification_id, session):
+            return None
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.get_certification_findings_route(999, object())
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No certification for this id found: 999"
+
+    def test_registers_certification_findings_response_model(self, main_module) -> None:
+        route = next(
+            route
+            for route in main_module.app.routes
+            if getattr(route, "path", None)
+            == "/certifications/{certification_id}/findings"
+        )
+
+        assert route.response_model == list[certifications_router.FindingOut]
+
+
 class TestPostNewCertificationRoute:
     def test_client_returns_created_certification_json(
         self, client, mock_db, monkeypatch

@@ -25,3 +25,9 @@ comparison of past certifications while keeping factual retrieval and validation
 - Add migration
 - Add wrapper to SiteAnalysis to include disclaimer that it is AI-generated, human-review-only, not an official compliance decision
 - Add LLM to parse regulation into database.
+
+## Database description
+### Notes
+- Historical records are not hard-deleted by normal users.
+- Important records are archived or deletion-restricted.
+- Link rows may be deleted/unlinked where safe.

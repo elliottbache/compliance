@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from compliance.api.schemas import FindingOut
 from compliance.db.db_access import get_db
 from compliance.llm.schemas import (
     EvidenceRef,
@@ -258,6 +259,27 @@ def certification_attachments_factory(attachment_factory):
         return certification_attachments
 
     return _certification_attachments
+
+
+@pytest.fixture
+def finding_factory():
+    def _finding(**overrides):
+        finding = {
+            "finding_id": 1,
+            "finding": "Missing document",
+            "site_id": 12,
+            "certification_id": 100,
+            "certification_title": "USDA Organic",
+            "certification_resolution_date": date(2026, 4, 15),
+            "rule_id": 5,
+            "rule_index": "7 CFR 205.201",
+            "rule_title": "Organic plan",
+            "rule_description": "Producer must maintain an organic system plan.",
+        }
+        finding.update(overrides)
+        return FindingOut.model_validate(finding)
+
+    return _finding
 
 
 @pytest.fixture
