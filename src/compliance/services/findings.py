@@ -147,6 +147,12 @@ def get_findings(
     if open_only:
         stmt = stmt.where(Certification.resolution_date.is_(None))
 
+    stmt = stmt.order_by(
+        Certification.inspection_date.desc(),
+        Finding.id,
+        Attachment.id,
+    )
+
     results = session.execute(stmt).mappings().all()
 
     return _format_findings(results)
