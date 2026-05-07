@@ -57,7 +57,7 @@ def get_client_by_nif(
         include_archived: When true, return archived clients.
 
     Returns:
-        Client ORM object, or ``None`` if no matching client exists.
+        Client ORM object, or ``None`` if no matching visible client exists.
     """
     client = session.get(Client, nif)
     return client if record_is_visible(client, include_archived) else None

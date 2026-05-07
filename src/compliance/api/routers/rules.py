@@ -35,13 +35,14 @@ def get_rules_route(
             regulation.
         limit: Maximum number of rules to return.
         offset: Number of rules to skip before returning results.
-        include_archived: When true, include archived rules.
+        include_archived: When true, include archived rules and archived parent
+            regulations.
 
     Returns:
         Rule records serialized with the public API response schema.
 
     Raises:
-        HTTPException: If ``regulation_id`` is provided and no matching
+        HTTPException: If ``regulation_id`` is provided and no matching visible
             regulation exists.
     """
     rules_list = get_rules(
@@ -70,13 +71,14 @@ def get_rule_by_id_route(
     Args:
         rule_id: Unique identifier for the rule to retrieve.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, return archived rules.
+        include_archived: When true, return archived rules and archived parent
+            regulations.
 
     Returns:
         Rule details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no rule exists for the requested ID.
+        HTTPException: If no visible rule exists for the requested ID.
     """
     rule = get_rule_by_id(rule_id, session, include_archived=include_archived)
     if rule is None:

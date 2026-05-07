@@ -42,12 +42,14 @@ def get_rules(
         limit: Maximum number of rules to return. If ``None``, all matching
             rules are returned.
         offset: Number of rules to skip before returning results.
-        include_archived: When true, include archived rules in the results.
+        include_archived: When true, include archived rules and archived parent
+            regulations in the results.
 
     Returns:
-        Rule records serialized with the public API schema, or an empty list if
-        no rules match. Returns ``None`` when ``regulation_id`` is supplied but
-        no matching regulation exists.
+        Rule records serialized with the public API schema for visible rules
+        whose parent regulations are also visible, or an empty list if no rules
+        match. Returns ``None`` when ``regulation_id`` is supplied but no
+        matching visible regulation exists.
     """
     stmt = select(Rule).join(Rule.rule_regulation_rel)
     if not include_archived:
@@ -78,7 +80,7 @@ def get_rules(
 def get_rule_by_id(
     rule_id: int, session: Session, *, include_archived: bool = False
 ) -> Rule | None:
-    """Return one rule by primary key, or None when it does not exist."""
+    """Return one rule when it and its parent regulation are visible."""
     stmt = select(Rule).where(Rule.id == rule_id).join(Rule.rule_regulation_rel)
     if not include_archived:
         stmt = stmt.where(Rule.archived_at.is_(None))

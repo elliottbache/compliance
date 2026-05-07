@@ -42,7 +42,10 @@ def get_attachments_route(
         rule_id: Optional rule identifier used to limit attachments to one rule.
         finding_id: Optional finding identifier used to limit attachments to one
             finding.
-        include_archived: When true, include archived attachments.
+        include_archived: When true, include archived attachments and related
+            certification, site, regulation, finding, and rule context. By
+            default, archived optional finding and rule links are omitted
+            without hiding otherwise visible attachments.
 
     Returns:
         Attachment records serialized with certification, regulation, and linked
@@ -50,7 +53,7 @@ def get_attachments_route(
 
     Raises:
         HTTPException: If a requested site, certification, rule, or finding
-            filter references a missing record.
+            filter references a missing visible record.
     """
     try:
         attachments = get_attachments(
@@ -88,14 +91,15 @@ def get_attachment_by_id_route(
     Args:
         attachment_id: Unique identifier for the attachment to retrieve.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, return archived attachments.
+        include_archived: When true, return archived attachments and related
+            certification, site, regulation, finding, and rule context.
 
     Returns:
         Attachment details serialized with certification, regulation, and
         linked finding context.
 
     Raises:
-        HTTPException: If no attachment exists for the requested ID.
+        HTTPException: If no visible attachment exists for the requested ID.
     """
     result = get_attachment_by_id(
         attachment_id, session, include_archived=include_archived

@@ -54,11 +54,13 @@ def get_sites(
         limit: Maximum number of sites to return. If ``None``, all sites
             are returned.
         offset: Number of sites to skip before returning results.
-        include_archived: When true, include archived sites in the results.
+        include_archived: When true, include archived sites and archived parent
+            clients in the results.
 
     Returns:
-        Site ORM objects, or an empty list if no sites match. Returns ``None``
-        when ``nif`` is supplied but no matching client exists.
+        Site ORM objects whose parent clients are visible, or an empty list if
+        no sites match. Returns ``None`` when ``nif`` is supplied but no
+        matching visible client exists.
     """
     stmt = select(Site).join(Site.site_client_rel)
     if not include_archived:
@@ -79,7 +81,7 @@ def get_sites(
 def get_site_by_id(
     site_id: int, session: Session, *, include_archived: bool = False
 ) -> Site | None:
-    """Return one site by primary key, or None when it does not exist."""
+    """Return one site by primary key when it and its parent client are visible."""
     stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
     if not include_archived:
         stmt = stmt.where(Site.archived_at.is_(None))
@@ -160,11 +162,14 @@ def get_site_history(
         site_id: Unique identifier of the site whose certification history
             should be retrieved.
         include_archived: When true, include archived site, certification,
-            regulation, certifier, finding, and rule records.
+            regulation, certifier, finding, and rule records. By default,
+            archived finding and rule rows are omitted from the optional
+            history context without hiding otherwise visible certifications.
 
     Returns:
-        A formatted site history containing certification and related
-        compliance details, or ``None`` if no matching records exist.
+        A formatted site history containing visible certification and related
+        compliance details, or ``None`` if the site is not visible or no
+        matching visible certification records exist.
     """
 
     # perform query
@@ -222,11 +227,13 @@ def get_site_attachments(
             retrieved.
         session: Database session used to execute the attachment query.
         include_archived: When true, include archived site, certification,
-            attachment, regulation, rule, and finding records.
+            attachment, regulation, rule, and finding records. By default,
+            archived finding and rule rows are omitted from optional link
+            context without hiding otherwise visible attachments.
 
     Returns:
-        A formatted attachment collection for the site, or ``None`` if no
-        matching attachment records exist.
+        A formatted attachment collection for the visible site, or ``None`` if
+        the site is not visible or no matching visible attachment records exist.
     """
     site = session.get(Site, site_id)
     if not record_is_visible(site, include_archived):
@@ -289,10 +296,11 @@ def get_site_certifications(
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
             results.
-        include_archived: When true, include archived certifications in the results.
+        include_archived: When true, include archived site and certification
+            records in the results.
 
     Returns:
-        A list of certification ORM objects ordered by resolution date
+        A list of visible certification ORM objects ordered by resolution date
         descending and then ID, or [] if no matching certifications exist.
     """
     stmt = (
@@ -400,6 +408,8 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
                 "reg_description": row["reg_description"],
                 "certifier_org_name": row["certifier_org_name"],
                 "inspection_date": row["inspection_date"],
+                "archived_at": row["archived_at"],
+                "archive_reason": row["archive_reason"],
                 "findings": [],
             }
             certification = CertificationHistory.model_validate(cert_dict)

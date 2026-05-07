@@ -65,12 +65,15 @@ def get_certifications(
         limit: Maximum number of certifications to return. If ``None``, all
             certifications are returned.
         offset: Number of certifications to skip before returning results.
-        include_archived: When true, include archived certifications in the results.
+        include_archived: When true, include archived certifications and
+            archived parent site, regulation, and certifier records in the
+            results.
 
     Returns:
-        Certification records serialized with the public API schema, or an
-        empty list if no certifications match. Returns ``None`` when ``site_id``
-        is supplied but no matching site exists.
+        Certification records serialized with the public API schema for visible
+        certifications whose required parents are also visible, or an empty
+        list if no certifications match. Returns ``None`` when ``site_id`` is
+        supplied but no matching visible site exists.
     """
     stmt = (
         select(Certification)
@@ -114,7 +117,7 @@ def get_certifications(
 def get_certification_by_id(
     certification_id: int, session: Session, *, include_archived: bool = False
 ) -> Certification | None:
-    """Return one certification by primary key, or None when it does not exist."""
+    """Return one certification when it and its required parents are visible."""
     stmt = (
         select(Certification)
         .where(Certification.id == certification_id)
@@ -146,12 +149,14 @@ def get_certification_attachments_by_id(
         session: Database session used to check the certification and execute
             the attachment query.
         include_archived: When true, include archived certification, attachment,
-            regulation, rule, and finding records.
+            site, certifier, regulation, rule, and finding records. By default,
+            archived finding and rule rows are omitted from optional link
+            context without hiding otherwise visible attachments.
 
     Returns:
-        A formatted attachment collection for the certification, an empty
-        attachment collection if the certification exists without attachments,
-        or ``None`` if no matching certification exists.
+        A formatted attachment collection for the visible certification, an
+        empty attachment collection if no visible attachments remain, or
+        ``None`` if no matching visible certification exists.
     """
     # check if certification exists
     certification = session.get(Certification, certification_id)

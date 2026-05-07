@@ -41,13 +41,15 @@ def get_certifications_route(
         open_only: When true, return certifications without a resolution date.
         limit: Maximum number of certifications to return.
         offset: Number of certifications to skip before returning results.
-        include_archived: When true, include archived certifications.
+        include_archived: When true, include archived certifications and
+            archived parent site, regulation, and certifier records.
 
     Returns:
         Certification records serialized with the public API response schema.
 
     Raises:
-        HTTPException: If ``site_id`` is provided and no matching site exists.
+        HTTPException: If ``site_id`` is provided and no matching visible site
+            exists.
     """
     certifications_list = get_certifications(
         session,
@@ -74,13 +76,14 @@ def get_certification_by_id_route(
     Args:
         certification_id: Unique identifier for the certification to retrieve.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, return archived certifications.
+        include_archived: When true, return archived certifications and
+            archived parent site, regulation, and certifier records.
 
     Returns:
         Certification details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no certification exists for the requested ID.
+        HTTPException: If no visible certification exists for the requested ID.
     """
     certification = get_certification_by_id(
         certification_id, session, include_archived=include_archived
@@ -106,8 +109,10 @@ def get_certification_attachments_by_id_route(
         certification_id: Unique identifier for the certification whose
             attachments should be retrieved.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, include archived certification, attachment,
-            and finding records.
+        include_archived: When true, include archived certification,
+            attachment, site, certifier, regulation, finding, and rule records.
+            By default, archived optional finding and rule links are omitted
+            without hiding otherwise visible attachments.
 
     Returns:
         Certification attachments serialized with certification, regulation,
@@ -115,7 +120,7 @@ def get_certification_attachments_by_id_route(
         certification exists without attachments.
 
     Raises:
-        HTTPException: If no certification exists for the requested ID.
+        HTTPException: If no visible certification exists for the requested ID.
     """
     certification_attachments = get_certification_attachments_by_id(
         certification_id, session, include_archived=include_archived
@@ -141,8 +146,8 @@ def get_certification_findings_route(
         certification_id: Unique identifier for the certification whose
             findings should be retrieved.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, include archived certification and finding
-            records.
+        include_archived: When true, include archived certification, site,
+            regulation, rule, finding, and linked attachment records.
 
     Returns:
         Finding records serialized with certification, regulation, rule, and
@@ -150,7 +155,7 @@ def get_certification_findings_route(
         exists without findings.
 
     Raises:
-        HTTPException: If no certification exists for the requested ID.
+        HTTPException: If no visible certification exists for the requested ID.
     """
     certification = get_certification_by_id(
         certification_id, session, include_archived=include_archived

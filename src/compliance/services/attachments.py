@@ -28,7 +28,7 @@ class AttachmentCreateError(Exception):
 
 
 class AttachmentSiteNotFoundError(AttachmentCreateError):
-    """Raised when an attachment's certification does not exist."""
+    """Raised when an attachment filter references a missing site."""
 
 
 class AttachmentCertificationNotFoundError(AttachmentCreateError):
@@ -36,7 +36,7 @@ class AttachmentCertificationNotFoundError(AttachmentCreateError):
 
 
 class AttachmentRuleNotFoundError(AttachmentCreateError):
-    """Raised when an attachment's certification does not exist."""
+    """Raised when an attachment filter references a missing rule."""
 
 
 class AttachmentFindingNotFoundError(AttachmentCreateError):
@@ -71,20 +71,24 @@ def get_attachments(
         finding_id: Optional finding identifier used to limit attachments to one
             finding.
         include_archived: When true, include archived attachments and related
-            certification, regulation, rule, and finding context in the results.
+            certification, site, regulation, rule, and finding context in the
+            results. By default, archived finding and rule rows are omitted from
+            optional context without hiding otherwise visible attachments.
 
     Returns:
-        Attachments records serialized with certification, regulation, and rule
-        context, including linked finding summaries. Returns an empty list if
-        no matching attachments exist.
+        Attachment records serialized with visible certification, regulation,
+        and optional finding context. Returns an empty list if no matching
+        visible attachments exist.
 
     Raises:
-        AttachmentMissingSiteError: If ``site_id`` is provided but no site exists.
-        AttachmentMissingCertificationError: If ``certification_id`` is provided but
-            no certification exists.
-        AttachmentMissingRuleError: If ``rule_id`` is provided but no rule exists.
-        AttachmentMissingFindingError: If ``finding_id`` is provided but no
-            finding exists.
+        AttachmentSiteNotFoundError: If ``site_id`` is provided but no visible
+            site exists.
+        AttachmentCertificationNotFoundError: If ``certification_id`` is
+            provided but no visible certification exists.
+        AttachmentRuleNotFoundError: If ``rule_id`` is provided but no visible
+            rule exists.
+        AttachmentFindingNotFoundError: If ``finding_id`` is provided but no
+            visible finding exists.
     """
     finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
         Finding.certification_id == FindingAttachment.certification_id
@@ -156,11 +160,14 @@ def get_attachment_by_id(
         attachment_id: Unique identifier of the attachment to retrieve.
         session: Database session used to execute the attachment query.
         include_archived: When true, return archived attachments and related
-            certification, regulation, rule, and finding context.
+            certification, site, regulation, rule, and finding context. By
+            default, archived finding and rule rows are omitted from optional
+            context without hiding an otherwise visible attachment.
 
     Returns:
-        A formatted attachment response containing certification, regulation,
-        and linked finding context, or ``None`` if no matching attachment exists.
+        A formatted attachment response containing visible certification,
+        regulation, and optional linked finding context, or ``None`` if no
+        matching visible attachment exists.
     """
     finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
         Finding.certification_id == FindingAttachment.certification_id

@@ -34,13 +34,14 @@ def get_regulations_route(
             certified by one certifier.
         limit: Maximum number of regulations to return.
         offset: Number of regulations to skip before returning results.
-        include_archived: When true, include archived regulations.
+        include_archived: When true, include archived regulations and, when
+            filtering by certifier, archived certifier/certification links.
 
     Returns:
         Regulation records serialized with the public API response schema.
 
     Raises:
-        HTTPException: If ``certifier_id`` is provided and no matching
+        HTTPException: If ``certifier_id`` is provided and no matching visible
             certifier exists.
     """
     regulations_list = get_regulations(
@@ -75,7 +76,7 @@ def get_regulation_by_id_route(
         Regulation details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no regulation exists for the requested ID.
+        HTTPException: If no visible regulation exists for the requested ID.
     """
     regulation = get_regulation_by_id(
         regulation_id, session, include_archived=include_archived

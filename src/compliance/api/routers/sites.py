@@ -52,13 +52,15 @@ def get_sites_route(
         nif: Optional client NIF used to return sites for one client.
         limit: Maximum number of sites to return.
         offset: Number of sites to skip before returning results.
-        include_archived: When true, include archived sites.
+        include_archived: When true, include archived sites and archived parent
+            clients.
 
     Returns:
         Site records serialized with the public API response schema.
 
     Raises:
-        HTTPException: If ``nif`` is provided and no matching client exists.
+        HTTPException: If ``nif`` is provided and no matching visible client
+            exists.
     """
     sites = get_sites(
         session, nif=nif, limit=limit, offset=offset, include_archived=include_archived
@@ -80,13 +82,14 @@ def get_site_by_id_route(
     Args:
         site_id: Unique identifier for the site to retrieve.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, return archived sites.
+        include_archived: When true, return archived sites and archived parent
+            clients.
 
     Returns:
         Site details serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no site exists for the requested ID.
+        HTTPException: If no visible site exists for the requested ID.
     """
     site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
@@ -110,7 +113,9 @@ def get_site_attachments_route(
             retrieved.
         session: Database session provided by FastAPI dependency injection.
         include_archived: When true, include archived site, certification,
-            attachment, and finding records.
+            attachment, regulation, finding, and rule records. By default,
+            archived optional finding and rule links are omitted without hiding
+            otherwise visible attachments.
 
     Returns:
         Site attachments serialized with certification, regulation, and finding
@@ -118,7 +123,7 @@ def get_site_attachments_route(
         attachments.
 
     Raises:
-        HTTPException: If no site exists for the requested ID.
+        HTTPException: If no visible site exists for the requested ID.
     """
     site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
@@ -161,7 +166,7 @@ def get_site_certifications_route(
         an empty certification list when the site exists without certifications.
 
     Raises:
-        HTTPException: If no site exists for the requested ID.
+        HTTPException: If no visible site exists for the requested ID.
     """
     site = get_site_by_id(site_id, session, include_archived=include_archived)
     if site is None:
@@ -191,14 +196,17 @@ def get_site_history_route(
     Args:
         site_id: Unique identifier for the site whose history should be retrieved.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, include archived site, certification, and
-            finding records.
+        include_archived: When true, include archived site, certification,
+            regulation, certifier, finding, and rule records. By default,
+            archived optional finding and rule rows are omitted without hiding
+            otherwise visible certifications.
 
     Returns:
         Site history serialized with certification and finding details.
 
     Raises:
-        HTTPException: If no certification history exists for the requested site.
+        HTTPException: If no visible certification history exists for the
+            requested site.
     """
     site_history = get_site_history(site_id, session, include_archived=include_archived)
     if site_history is None:

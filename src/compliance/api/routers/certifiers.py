@@ -59,7 +59,7 @@ def get_certifiers_by_id_route(
         Certifier record serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no certifier exists for the requested ID.
+        HTTPException: If no visible certifier exists for the requested ID.
     """
     result = get_certifier_by_id(
         certifier_id, session, include_archived=include_archived

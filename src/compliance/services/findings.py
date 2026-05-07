@@ -30,19 +30,19 @@ class FindingMissingError(Exception):
 
 
 class FindingMissingSiteError(FindingMissingError):
-    """Raised when a finding references a missing certifier."""
+    """Raised when a finding query references a missing site."""
 
 
 class FindingMissingCertificationError(FindingMissingError):
-    """Raised when a finding references a missing regulation."""
+    """Raised when a finding references a missing certification."""
 
 
 class FindingMissingRuleError(FindingMissingError):
-    """Raised when a finding references a missing site."""
+    """Raised when a finding references a missing rule."""
 
 
 class FindingMissingAttachmentError(FindingMissingError):
-    """Raised when a finding references a missing site."""
+    """Raised when a finding references a missing attachment."""
 
 
 class FindingAttachmentCertificationMismatchError(FindingMissingAttachmentError):
@@ -72,12 +72,14 @@ def get_findings(
         open_only: When true, only return findings whose certification has no
             resolution date.
         include_archived: When true, include archived findings and related
-            certification, regulation, rule, and attachment context.
+            certification, site, regulation, rule, and attachment context. By
+            default, archived attachment rows are omitted from optional context
+            without hiding otherwise visible findings.
 
     Returns:
-        Finding records serialized with certification, regulation, and rule
-        context, including linked attachment summaries. Returns an empty list if
-        no matching findings exist.
+        Finding records serialized with visible certification, regulation, rule,
+        and optional attachment context. Returns an empty list if no matching
+        visible findings exist.
 
     Raises:
         FindingMissingSiteError: If ``site_id`` is provided but no site exists.
@@ -159,11 +161,13 @@ def get_finding_by_id(
         finding_id: Unique identifier of the finding to retrieve.
         session: Database session used to execute the finding query.
         include_archived: When true, return archived findings and related
-            certification, regulation, rule, and attachment context.
+            certification, site, regulation, rule, and attachment context. By
+            default, archived attachment rows are omitted from optional context.
 
     Returns:
-        Finding details serialized with certification, regulation, rule, and
-        linked attachment context, or ``None`` when no matching finding exists.
+        Finding details serialized with visible certification, regulation, rule,
+        and optional linked attachment context, or ``None`` when no matching
+        visible finding exists.
     """
     attachment_join_condition = (Attachment.id == FindingAttachment.attachment_id) & (
         Attachment.certification_id == FindingAttachment.certification_id

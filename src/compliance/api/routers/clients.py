@@ -62,7 +62,7 @@ def get_clients_by_nif_route(
         Client record serialized with the public API response schema.
 
     Raises:
-        HTTPException: If no client exists for the requested NIF.
+        HTTPException: If no visible client exists for the requested NIF.
     """
     result = get_client_by_nif(nif, session, include_archived=include_archived)
     if result is None:
@@ -90,7 +90,7 @@ def get_client_sites_route(
         empty list when the client exists without sites.
 
     Raises:
-        HTTPException: If no client exists for the requested NIF.
+        HTTPException: If no visible client exists for the requested NIF.
     """
     client = get_client_by_nif(nif, session, include_archived=include_archived)
     if client is None:

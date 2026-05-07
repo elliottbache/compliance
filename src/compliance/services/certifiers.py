@@ -57,7 +57,7 @@ def get_certifier_by_id(
         include_archived: When true, return archived certifiers.
 
     Returns:
-        Certifier ORM object, or ``None`` if no matching certifier exists.
+        Certifier ORM object, or ``None`` if no matching visible certifier exists.
     """
     certifier = session.get(Certifier, certifier_id)
     return certifier if record_is_visible(certifier, include_archived) else None

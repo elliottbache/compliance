@@ -41,12 +41,12 @@ def get_regulations(
             matching regulations are returned.
         offset: Number of regulations to skip before returning results.
         include_archived: When true, include archived regulations and, when
-            filtering by certifier, archived certification links.
+            filtering by certifier, archived certifier/certification links.
 
     Returns:
         Regulation records serialized with the public API schema, or an empty
         list if no regulations match. Returns ``None`` when ``certifier_id`` is
-        supplied but no matching certifier exists.
+        supplied but no matching visible certifier exists.
     """
     stmt = select(Regulation)
     if not include_archived:
@@ -82,7 +82,7 @@ def get_regulations(
 def get_regulation_by_id(
     regulation_id: int, session: Session, *, include_archived: bool = False
 ) -> Regulation | None:
-    """Return one regulation by primary key, or None when it does not exist."""
+    """Return one regulation by primary key when it is visible."""
     regulation = session.get(Regulation, regulation_id)
     return regulation if record_is_visible(regulation, include_archived) else None
 

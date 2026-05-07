@@ -44,7 +44,10 @@ def get_findings_route(
             attachment.
         open_only: When true, only return findings whose certification has no
             resolution date.
-        include_archived: When true, include archived findings.
+        include_archived: When true, include archived findings and related
+            certification, site, regulation, rule, and attachment context. By
+            default, archived optional attachment links are omitted without
+            hiding otherwise visible findings.
 
     Returns:
         Finding records serialized with certification, regulation, rule, and
@@ -52,7 +55,7 @@ def get_findings_route(
 
     Raises:
         HTTPException: If a requested site, certification, rule, or attachment
-            filter references a missing record.
+            filter references a missing visible record.
     """
     try:
         findings = get_findings(
@@ -91,14 +94,15 @@ def get_finding_by_id_route(
     Args:
         finding_id: Unique identifier for the finding to retrieve.
         session: Database session provided by FastAPI dependency injection.
-        include_archived: When true, return archived findings.
+        include_archived: When true, return archived findings and related
+            certification, site, regulation, rule, and attachment context.
 
     Returns:
         Finding details serialized with certification, regulation, rule, and
         linked attachment context.
 
     Raises:
-        HTTPException: If no finding exists for the requested ID.
+        HTTPException: If no visible finding exists for the requested ID.
     """
     finding = get_finding_by_id(finding_id, session, include_archived=include_archived)
     if finding is None:
