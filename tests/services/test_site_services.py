@@ -145,6 +145,7 @@ class TestGetSites:
 
         stmt = session.execute.call_args.args[0]
         assert "sites.archived_at IS NULL" in str(stmt)
+        assert "clients.archived_at IS NULL" in str(stmt)
 
     def test_includes_archived_sites_when_requested(self) -> None:
         session = MagicMock()
@@ -160,6 +161,7 @@ class TestGetSites:
 
         stmt = session.execute.call_args.args[0]
         assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "clients.archived_at IS NULL" not in str(stmt)
 
     def test_filters_by_client_nif_when_client_exists(self) -> None:
         session = MagicMock()
@@ -188,38 +190,45 @@ class TestGetSiteById:
     def test_gets_site_by_id_from_session(self) -> None:
         session = MagicMock()
         expected_site = _site()
-        session.get.return_value = expected_site
+        session.execute.return_value.scalar_one_or_none.return_value = expected_site
 
         result = get_site_by_id(12, session)
 
-        session.get.assert_called_once_with(Site, 12)
+        stmt = session.execute.call_args.args[0]
+        assert "JOIN clients" in str(stmt)
+        assert "sites.id = :id_1" in str(stmt)
         assert result is expected_site
 
     def test_returns_none_when_site_is_not_found(self) -> None:
         session = MagicMock()
-        session.get.return_value = None
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_site_by_id(999, session)
 
-        session.get.assert_called_once_with(Site, 999)
+        session.execute.assert_called_once()
         assert result is None
 
     def test_returns_none_when_site_is_archived_by_default(self) -> None:
         session = MagicMock()
-        site = _site(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = site
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_site_by_id(12, session)
 
+        stmt = session.execute.call_args.args[0]
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "clients.archived_at IS NULL" in str(stmt)
         assert result is None
 
     def test_returns_archived_site_when_requested(self) -> None:
         session = MagicMock()
         site = _site(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = site
+        session.execute.return_value.scalar_one_or_none.return_value = site
 
         result = get_site_by_id(12, session, include_archived=True)
 
+        stmt = session.execute.call_args.args[0]
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "clients.archived_at IS NULL" not in str(stmt)
         assert result is site
 
 
@@ -330,6 +339,7 @@ class TestGetSiteCertifications:
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
 
     def test_includes_archived_certifications_when_requested(self) -> None:
         session = MagicMock()
@@ -341,6 +351,9 @@ class TestGetSiteCertifications:
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" not in str(stmt)
+        assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "rules.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatSiteCertifications:
@@ -443,6 +456,10 @@ class TestGetSiteAttachments:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "findings.archived_at IS NULL" in str(stmt)
+        assert "rules.archived_at IS NULL" in str(stmt)
+        assert "AND (findings.id IS NULL" not in str(stmt)
+        assert "AND (rules.id IS NULL" not in str(stmt)
 
     def test_includes_archived_attachments_when_requested(self) -> None:
         session = MagicMock()
@@ -452,6 +469,8 @@ class TestGetSiteAttachments:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
+        assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "rules.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatSiteHistory:

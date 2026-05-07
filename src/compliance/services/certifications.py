@@ -13,6 +13,7 @@ from compliance.api.schemas import (
 from compliance.db.models import (
     Attachment,
     Certification,
+    Certifier,
     Finding,
     FindingAttachment,
     Regulation,
@@ -71,9 +72,17 @@ def get_certifications(
         empty list if no certifications match. Returns ``None`` when ``site_id``
         is supplied but no matching site exists.
     """
-    stmt = select(Certification)
+    stmt = (
+        select(Certification)
+        .join(Certification.certification_site_rel)
+        .join(Certification.certification_regulation_rel)
+        .join(Certification.certification_certifier_rel)
+    )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Certifier.archived_at.is_(None))
 
     if site_id is not None:
         site = session.get(Site, site_id)
@@ -106,8 +115,20 @@ def get_certification_by_id(
     certification_id: int, session: Session, *, include_archived: bool = False
 ) -> Certification | None:
     """Return one certification by primary key, or None when it does not exist."""
-    certification = session.get(Certification, certification_id)
-    return certification if record_is_visible(certification, include_archived) else None
+    stmt = (
+        select(Certification)
+        .where(Certification.id == certification_id)
+        .join(Certification.certification_site_rel)
+        .join(Certification.certification_regulation_rel)
+        .join(Certification.certification_certifier_rel)
+    )
+    if not include_archived:
+        stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+        stmt = stmt.where(Certifier.archived_at.is_(None))
+
+    return session.execute(stmt).scalar_one_or_none()
 
 
 def get_certification_attachments_by_id(
@@ -138,6 +159,14 @@ def get_certification_attachments_by_id(
         return None
 
     # get attachments for certification
+    finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
+        Finding.certification_id == FindingAttachment.certification_id
+    )
+    rule_join_condition = Rule.id == Finding.rule_id
+    if not include_archived:
+        finding_join_condition = finding_join_condition & Finding.archived_at.is_(None)
+        rule_join_condition = rule_join_condition & Rule.archived_at.is_(None)
+
     stmt = (
         select(
             Attachment,
@@ -149,18 +178,24 @@ def get_certification_attachments_by_id(
         )
         .where(Certification.id == certification_id)
         .join(Attachment.attachment_certification_rel)
+        .join(Certification.certification_site_rel)
+        .join(Certification.certification_certifier_rel)
         .join(Certification.certification_regulation_rel)
-        .outerjoin(Attachment.attachment_finding_attachment_rel)
-        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
-        .outerjoin(Finding.finding_rule_rel)
+        .outerjoin(
+            FindingAttachment,
+            (FindingAttachment.attachment_id == Attachment.id)
+            & (FindingAttachment.certification_id == Attachment.certification_id),
+        )
+        .outerjoin(Finding, finding_join_condition)
+        .outerjoin(Rule, rule_join_condition)
         .order_by(Attachment.id, Finding.id)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Certifier.archived_at.is_(None))
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
-        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
-        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
 
     results = session.execute(stmt).mappings().all()
     if results == []:

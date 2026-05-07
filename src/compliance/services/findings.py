@@ -87,9 +87,18 @@ def get_findings(
         FindingMissingAttachmentError: If ``attachment_id`` is provided but no
             attachment exists.
     """
+    attachment_join_condition = (Attachment.id == FindingAttachment.attachment_id) & (
+        Attachment.certification_id == FindingAttachment.certification_id
+    )
+    if not include_archived:
+        attachment_join_condition = (
+            attachment_join_condition & Attachment.archived_at.is_(None)
+        )
+
     stmt = (
         select(Finding, Certification, Regulation, Rule, Attachment)
         .join(Finding.finding_certification_rel)
+        .join(Certification.certification_site_rel)
         .join(Certification.certification_regulation_rel)
         .join(Finding.finding_rule_rel)
         .outerjoin(
@@ -99,16 +108,15 @@ def get_findings(
         )
         .outerjoin(
             Attachment,
-            (Attachment.id == FindingAttachment.attachment_id)
-            & (Attachment.certification_id == FindingAttachment.certification_id),
+            attachment_join_condition,
         )
     )
     if not include_archived:
         stmt = stmt.where(Finding.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Rule.archived_at.is_(None))
-        stmt = stmt.where(Attachment.id.is_(None) | Attachment.archived_at.is_(None))
 
     if site_id is not None:
         site = session.get(Site, site_id)
@@ -157,9 +165,18 @@ def get_finding_by_id(
         Finding details serialized with certification, regulation, rule, and
         linked attachment context, or ``None`` when no matching finding exists.
     """
+    attachment_join_condition = (Attachment.id == FindingAttachment.attachment_id) & (
+        Attachment.certification_id == FindingAttachment.certification_id
+    )
+    if not include_archived:
+        attachment_join_condition = (
+            attachment_join_condition & Attachment.archived_at.is_(None)
+        )
+
     stmt = (
         select(Finding, Certification, Regulation, Rule, Attachment)
         .join(Finding.finding_certification_rel)
+        .join(Certification.certification_site_rel)
         .join(Certification.certification_regulation_rel)
         .join(Finding.finding_rule_rel)
         .outerjoin(
@@ -169,17 +186,16 @@ def get_finding_by_id(
         )
         .outerjoin(
             Attachment,
-            (Attachment.id == FindingAttachment.attachment_id)
-            & (Attachment.certification_id == FindingAttachment.certification_id),
+            attachment_join_condition,
         )
         .where(Finding.id == finding_id)
     )
     if not include_archived:
         stmt = stmt.where(Finding.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Rule.archived_at.is_(None))
-        stmt = stmt.where(Attachment.id.is_(None) | Attachment.archived_at.is_(None))
 
     results = session.execute(stmt).mappings().all()
     findings = _format_findings(results)

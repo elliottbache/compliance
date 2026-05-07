@@ -79,6 +79,7 @@ class TestGetRules:
 
         stmt = session.execute.call_args.args[0]
         assert "rules.archived_at IS NULL" in str(stmt)
+        assert "regulations.archived_at IS NULL" in str(stmt)
 
     def test_includes_archived_rules_when_requested(self) -> None:
         session = MagicMock()
@@ -94,6 +95,7 @@ class TestGetRules:
 
         stmt = session.execute.call_args.args[0]
         assert "rules.archived_at IS NULL" not in str(stmt)
+        assert "regulations.archived_at IS NULL" not in str(stmt)
 
     def test_filters_by_regulation_when_regulation_exists(self) -> None:
         session = MagicMock()
@@ -122,38 +124,45 @@ class TestGetRuleById:
     def test_gets_rule_by_id_from_session(self) -> None:
         session = MagicMock()
         expected_rule = MagicMock(spec=Rule)
-        session.get.return_value = expected_rule
+        session.execute.return_value.scalar_one_or_none.return_value = expected_rule
 
         result = get_rule_by_id(20, session)
 
-        session.get.assert_called_once_with(Rule, 20)
+        stmt = session.execute.call_args.args[0]
+        assert "JOIN regulations" in str(stmt)
+        assert "rules.id = :id_1" in str(stmt)
         assert result is expected_rule
 
     def test_returns_none_when_rule_is_not_found(self) -> None:
         session = MagicMock()
-        session.get.return_value = None
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_rule_by_id(999, session)
 
-        session.get.assert_called_once_with(Rule, 999)
+        session.execute.assert_called_once()
         assert result is None
 
     def test_returns_none_when_rule_is_archived_by_default(self) -> None:
         session = MagicMock()
-        rule = _rule(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = rule
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_rule_by_id(20, session)
 
+        stmt = session.execute.call_args.args[0]
+        assert "rules.archived_at IS NULL" in str(stmt)
+        assert "regulations.archived_at IS NULL" in str(stmt)
         assert result is None
 
     def test_returns_archived_rule_when_requested(self) -> None:
         session = MagicMock()
         rule = _rule(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = rule
+        session.execute.return_value.scalar_one_or_none.return_value = rule
 
         result = get_rule_by_id(20, session, include_archived=True)
 
+        stmt = session.execute.call_args.args[0]
+        assert "rules.archived_at IS NULL" not in str(stmt)
+        assert "regulations.archived_at IS NULL" not in str(stmt)
         assert result is rule
 
 

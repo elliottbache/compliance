@@ -60,9 +60,10 @@ def get_sites(
         Site ORM objects, or an empty list if no sites match. Returns ``None``
         when ``nif`` is supplied but no matching client exists.
     """
-    stmt = select(Site)
+    stmt = select(Site).join(Site.site_client_rel)
     if not include_archived:
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
 
     if nif is not None:
         client = session.get(Client, nif)
@@ -79,8 +80,12 @@ def get_site_by_id(
     site_id: int, session: Session, *, include_archived: bool = False
 ) -> Site | None:
     """Return one site by primary key, or None when it does not exist."""
-    site = session.get(Site, site_id)
-    return site if record_is_visible(site, include_archived) else None
+    stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
+    if not include_archived:
+        stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
+
+    return session.execute(stmt).scalar_one_or_none()
 
 
 def get_site_history_legacy(site_id: int) -> SiteHistory | None:
@@ -167,6 +172,12 @@ def get_site_history(
     if not record_is_visible(site, include_archived):
         return None
 
+    finding_join_condition = Finding.certification_id == Certification.id
+    rule_join_condition = Rule.id == Finding.rule_id
+    if not include_archived:
+        finding_join_condition = finding_join_condition & Finding.archived_at.is_(None)
+        rule_join_condition = rule_join_condition & Rule.archived_at.is_(None)
+
     stmt = (
         select(
             Certification.site_id,
@@ -186,16 +197,14 @@ def get_site_history(
         .where(Certification.site_id == site_id)
         .join(Certification.certification_regulation_rel)
         .join(Certification.certification_certifier_rel)
-        .outerjoin(Certification.certification_finding_rel)
-        .outerjoin(Finding.finding_rule_rel)
+        .outerjoin(Finding, finding_join_condition)
+        .outerjoin(Rule, rule_join_condition)
         .order_by(Certification.inspection_date)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Certifier.archived_at.is_(None))
-        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
-        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
 
     results = session.execute(stmt).mappings().all()
     if not results:
@@ -223,6 +232,14 @@ def get_site_attachments(
     if not record_is_visible(site, include_archived):
         return None
 
+    finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
+        Finding.certification_id == FindingAttachment.certification_id
+    )
+    rule_join_condition = Rule.id == Finding.rule_id
+    if not include_archived:
+        finding_join_condition = finding_join_condition & Finding.archived_at.is_(None)
+        rule_join_condition = rule_join_condition & Rule.archived_at.is_(None)
+
     stmt = (
         select(
             Attachment,
@@ -235,16 +252,18 @@ def get_site_attachments(
         .where(Certification.site_id == site_id)
         .join(Attachment.attachment_certification_rel)
         .join(Certification.certification_regulation_rel)
-        .outerjoin(Attachment.attachment_finding_attachment_rel)
-        .outerjoin(FindingAttachment.finding_attachment_finding_rel)
-        .outerjoin(Finding.finding_rule_rel)
+        .outerjoin(
+            FindingAttachment,
+            (FindingAttachment.attachment_id == Attachment.id)
+            & (FindingAttachment.certification_id == Attachment.certification_id),
+        )
+        .outerjoin(Finding, finding_join_condition)
+        .outerjoin(Rule, rule_join_condition)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
-        stmt = stmt.where(Finding.id.is_(None) | Finding.archived_at.is_(None))
-        stmt = stmt.where(Rule.id.is_(None) | Rule.archived_at.is_(None))
 
     results = session.execute(stmt).mappings().all()
     if not results:
@@ -279,12 +298,14 @@ def get_site_certifications(
     stmt = (
         select(Certification)
         .where(Certification.site_id == site_id)
+        .join(Certification.certification_site_rel)
         .order_by(Certification.resolution_date.desc(), Certification.id)
         .limit(limit)
         .offset(offset)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
+        stmt = stmt.where(Site.archived_at.is_(None))
 
     return list(session.execute(stmt).scalars().all())
 

@@ -49,9 +49,10 @@ def get_rules(
         no rules match. Returns ``None`` when ``regulation_id`` is supplied but
         no matching regulation exists.
     """
-    stmt = select(Rule)
+    stmt = select(Rule).join(Rule.rule_regulation_rel)
     if not include_archived:
         stmt = stmt.where(Rule.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
 
     if regulation_id is not None:
         regulation = session.get(Regulation, regulation_id)
@@ -78,8 +79,12 @@ def get_rule_by_id(
     rule_id: int, session: Session, *, include_archived: bool = False
 ) -> Rule | None:
     """Return one rule by primary key, or None when it does not exist."""
-    rule = session.get(Rule, rule_id)
-    return rule if record_is_visible(rule, include_archived) else None
+    stmt = select(Rule).where(Rule.id == rule_id).join(Rule.rule_regulation_rel)
+    if not include_archived:
+        stmt = stmt.where(Rule.archived_at.is_(None))
+        stmt = stmt.where(Regulation.archived_at.is_(None))
+
+    return session.execute(stmt).scalar_one_or_none()
 
 
 def post_new_rule(rule: RuleCreate, session: Session) -> Rule:

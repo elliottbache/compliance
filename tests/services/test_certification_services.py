@@ -132,6 +132,9 @@ class TestGetCertifications:
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "regulations.archived_at IS NULL" in str(stmt)
+        assert "certifiers.archived_at IS NULL" in str(stmt)
 
     def test_includes_archived_certifications_when_requested(self) -> None:
         session = MagicMock()
@@ -148,44 +151,62 @@ class TestGetCertifications:
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "regulations.archived_at IS NULL" not in str(stmt)
+        assert "certifiers.archived_at IS NULL" not in str(stmt)
 
 
 class TestGetCertificationById:
     def test_gets_certification_by_id_from_session(self) -> None:
         session = MagicMock()
         expected_certification = MagicMock(spec=Certification)
-        session.get.return_value = expected_certification
+        session.execute.return_value.scalar_one_or_none.return_value = (
+            expected_certification
+        )
 
         result = get_certification_by_id(42, session)
 
-        session.get.assert_called_once_with(Certification, 42)
+        stmt = session.execute.call_args.args[0]
+        assert "JOIN sites" in str(stmt)
+        assert "JOIN regulations" in str(stmt)
+        assert "JOIN certifiers" in str(stmt)
+        assert "certifications.id = :id_1" in str(stmt)
         assert result is expected_certification
 
     def test_returns_none_when_certification_is_not_found(self) -> None:
         session = MagicMock()
-        session.get.return_value = None
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_certification_by_id(999, session)
 
-        session.get.assert_called_once_with(Certification, 999)
+        session.execute.assert_called_once()
         assert result is None
 
     def test_returns_none_when_certification_is_archived_by_default(self) -> None:
         session = MagicMock()
-        certification = _certification(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = certification
+        session.execute.return_value.scalar_one_or_none.return_value = None
 
         result = get_certification_by_id(42, session)
 
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "regulations.archived_at IS NULL" in str(stmt)
+        assert "certifiers.archived_at IS NULL" in str(stmt)
         assert result is None
 
     def test_returns_archived_certification_when_requested(self) -> None:
         session = MagicMock()
         certification = _certification(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = certification
+        session.execute.return_value.scalar_one_or_none.return_value = certification
 
         result = get_certification_by_id(42, session, include_archived=True)
 
+        stmt = session.execute.call_args.args[0]
+        assert "certifications.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "regulations.archived_at IS NULL" not in str(stmt)
+        assert "certifiers.archived_at IS NULL" not in str(stmt)
         assert result is certification
 
 
@@ -249,6 +270,12 @@ class TestGetCertificationAttachmentsById:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "certifiers.archived_at IS NULL" in str(stmt)
+        assert "findings.archived_at IS NULL" in str(stmt)
+        assert "rules.archived_at IS NULL" in str(stmt)
+        assert "AND (findings.id IS NULL" not in str(stmt)
+        assert "AND (rules.id IS NULL" not in str(stmt)
 
     def test_includes_archived_attachments_when_requested(self) -> None:
         session = MagicMock()
@@ -259,6 +286,10 @@ class TestGetCertificationAttachmentsById:
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "certifiers.archived_at IS NULL" not in str(stmt)
+        assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "rules.archived_at IS NULL" not in str(stmt)
 
 
 class TestPostNewCertification:

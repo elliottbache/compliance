@@ -91,6 +91,9 @@ class TestGetFindings:
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "AND (attachments.id IS NULL" not in str(stmt)
 
     def test_includes_archived_findings_when_requested(self) -> None:
         session = MagicMock()
@@ -108,6 +111,8 @@ class TestGetFindings:
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "attachments.archived_at IS NULL" not in str(stmt)
 
     def test_filters_by_attachment_id_when_attachment_exists(self) -> None:
         session = MagicMock()
@@ -164,6 +169,9 @@ class TestGetFindingById:
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "AND (attachments.id IS NULL" not in str(stmt)
 
     def test_includes_archived_finding_when_requested(self) -> None:
         session = MagicMock()
@@ -173,6 +181,8 @@ class TestGetFindingById:
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" not in str(stmt)
+        assert "sites.archived_at IS NULL" not in str(stmt)
+        assert "attachments.archived_at IS NULL" not in str(stmt)
 
 
 class TestFormatFindings:
