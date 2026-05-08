@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi import HTTPException
@@ -15,7 +15,7 @@ def attachment_out_factory(**overrides):
         "description": "Inspection evidence",
         "finding_ids": [1],
         "id": 50,
-        "uploaded_at": datetime(2026, 4, 3, 9, 30),
+        "uploaded_at": datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
         "archived_at": None,
         "archive_reason": None,
         "inspection_date": date(2026, 4, 1),
@@ -60,7 +60,7 @@ class TestGetAttachmentsRoute:
                 "description": "Inspection evidence",
                 "finding_ids": [1],
                 "id": 50,
-                "uploaded_at": "2026-04-03T09:30:00",
+                "uploaded_at": "2026-04-03T09:30:00Z",
                 "inspection_date": "2026-04-01",
                 "regulation_id": 5,
                 "regulation_title": "USDA Organic",
@@ -268,7 +268,7 @@ class TestGetAttachmentByIdRoute:
             "file_type": "pdf",
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
-            "uploaded_at": "2026-04-03T09:30:00",
+            "uploaded_at": "2026-04-03T09:30:00Z",
             "archived_at": None,
             "archive_reason": None,
             "certification_id": 100,
@@ -393,7 +393,7 @@ class TestPostNewAttachmentRoute:
             {
                 **attachment_create_factory(),
                 "id": 50,
-                "uploaded_at": datetime(2026, 4, 3, 9, 30),
+                "uploaded_at": datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
                 "inspection_date": date(2026, 4, 1),
                 "regulation_id": 5,
                 "regulation_title": "USDA Organic",
@@ -423,7 +423,7 @@ class TestPostNewAttachmentRoute:
             "description": "Inspection evidence",
             "finding_ids": [],
             "id": 50,
-            "uploaded_at": "2026-04-03T09:30:00",
+            "uploaded_at": "2026-04-03T09:30:00Z",
             "inspection_date": "2026-04-01",
             "regulation_id": 5,
             "regulation_title": "USDA Organic",

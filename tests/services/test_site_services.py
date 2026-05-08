@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -96,7 +96,7 @@ def attachment_row_factory():
                 file_type="pdf",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
-                uploaded_at=datetime(2026, 4, 3, 9, 30),
+                uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
                 archived_at=None,
                 archive_reason=None,
                 certification_id=100,
@@ -675,7 +675,7 @@ class TestFormatSiteAttachmentsOut:
             file_type="pdf",
             file_path="dummy/second.pdf",
             description="Second attachment",
-            uploaded_at=datetime(2026, 4, 4, 9, 30),
+            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
             archived_at=None,
             archive_reason=None,
             certification_id=100,

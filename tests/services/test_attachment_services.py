@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -156,7 +156,7 @@ class TestFormatAttachments:
                 certification_id=100,
                 description="Inspection evidence",
                 finding_ids=[],
-                uploaded_at=datetime(2026, 4, 3, 9, 30),
+                uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
                 inspection_date=date(2026, 4, 1),
                 regulation_id=5,
                 regulation_title="USDA Organic",
@@ -319,7 +319,7 @@ class TestFormatNewAttachmentWithContext:
             certification_id=100,
             file_path="/path/placeholder/evidence.pdf",
             description="Inspection evidence",
-            uploaded_at=datetime(2026, 4, 3, 9, 30),
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
             archived_at=None,
             archive_reason=None,
         )
@@ -356,7 +356,7 @@ class TestFormatAttachment:
             file_type="pdf",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
-            uploaded_at=datetime(2026, 4, 3, 9, 30),
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
             archived_at=None,
             archive_reason=None,
             certification_id=100,

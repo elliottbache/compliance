@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     MetaData,
@@ -177,7 +178,7 @@ class Attachment(Base):
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"))
     file_path: Mapped[str] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(String(80))
-    uploaded_at: Mapped[datetime]
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     archived_at: Mapped[datetime | None]
     archive_reason: Mapped[str | None] = mapped_column(String(160))
 

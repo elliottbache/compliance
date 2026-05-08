@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -398,7 +398,7 @@ class TestFormatCertificationAttachmentsOut:
             file_type="pdf",
             file_path="dummy/second.pdf",
             description="Second attachment",
-            uploaded_at=datetime(2026, 4, 4, 9, 30),
+            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
             archived_at=None,
             archive_reason=None,
             certification_id=100,

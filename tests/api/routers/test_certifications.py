@@ -283,7 +283,7 @@ class TestGetCertificationAttachmentsByIdRoute:
                     "file_type": "pdf",
                     "file_path": "dummy/evidence.pdf",
                     "description": "Inspection evidence",
-                    "uploaded_at": "2026-04-03T09:30:00",
+                    "uploaded_at": "2026-04-03T09:30:00Z",
                     "certification_id": 100,
                     "inspection_date": "2026-04-01",
                     "regulation_id": 5,

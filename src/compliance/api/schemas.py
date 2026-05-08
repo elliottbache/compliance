@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from compliance.schemas import FindingHistory
 
@@ -105,7 +105,7 @@ class AttachmentWithContextOut(BaseModel):
     file_type: str
     file_path: str
     description: str | None
-    uploaded_at: datetime
+    uploaded_at: AwareDatetime
     archived_at: datetime | None
     archive_reason: str | None
 
@@ -135,7 +135,7 @@ class AttachmentOut(AttachmentCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    uploaded_at: datetime
+    uploaded_at: AwareDatetime
     inspection_date: date | None
     regulation_id: int
     regulation_title: str
@@ -228,7 +228,7 @@ class FindingAttachmentOut(BaseModel):
     file_type: str
     file_path: str
     description: str | None
-    uploaded_at: datetime
+    uploaded_at: AwareDatetime
     archived_at: datetime | None
     archive_reason: str | None
 
