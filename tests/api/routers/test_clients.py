@@ -510,3 +510,125 @@ class TestPostNewClientRoute:
 
         assert route.response_model is clients_router.ClientOut
         assert route.status_code == 201
+
+
+class TestPostClientArchivedByNifRoute:
+    def test_returns_archived_client(self, monkeypatch, client_record_factory) -> None:
+        fake_session = object()
+        archive_request = clients_router.ArchiveRequest(
+            archive_reason="duplicate client"
+        )
+        expected_client = clients_router.ClientOut.model_validate(
+            client_record_factory(archive_reason="duplicate client")
+        )
+
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            assert session is fake_session
+            assert nif == "A1234567B"
+            assert archive_request.archive_reason == "duplicate client"
+            return expected_client
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        result = clients_router.post_client_archived_by_nif_route(
+            fake_session, "A1234567B", archive_request
+        )
+
+        assert result == expected_client
+
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected_client = clients_router.ClientOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            assert session is fake_session
+            assert nif == "A1234567B"
+            assert archive_request == clients_router.ArchiveRequest()
+            return expected_client
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        result = clients_router.post_client_archived_by_nif_route(
+            fake_session, "A1234567B"
+        )
+
+        assert result == expected_client
+
+    def test_returns_404_when_client_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            return None
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.post_client_archived_by_nif_route(object(), "A1234567B")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Client does not exist: A1234567B."
+
+
+class TestPostClientRestoredByNifRoute:
+    def test_returns_restored_client(self, monkeypatch) -> None:
+        fake_session = object()
+        expected_client = clients_router.ClientOut(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_client_restored_by_nif(session, nif):
+            assert session is fake_session
+            assert nif == "A1234567B"
+            return expected_client
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_restored_by_nif",
+            fake_post_client_restored_by_nif,
+        )
+
+        result = clients_router.post_client_restored_by_nif_route(
+            fake_session, "A1234567B"
+        )
+
+        assert result == expected_client
+
+    def test_returns_404_when_client_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_client_restored_by_nif(session, nif):
+            return None
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_restored_by_nif",
+            fake_post_client_restored_by_nif,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.post_client_restored_by_nif_route(object(), "A1234567B")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Client does not exist: A1234567B."

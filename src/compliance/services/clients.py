@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -106,17 +106,60 @@ def post_new_client(client: ClientCreate, session: Session) -> Client:
 def post_client_archived_by_nif(
     session: Session, nif: str, *, archive_request: ArchiveRequest
 ) -> Client | None:
+    """Archive a client by NIF.
+
+    Args:
+        session: Database session used to retrieve and update the client.
+        nif: Unique fiscal identifier for the client to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The client ORM object, or ``None`` if no matching client exists.
+
+    Side effects:
+        Sets ``archived_at`` to the current UTC time, stores a stripped archive
+        reason when provided, and commits the session. Already archived clients
+        are returned unchanged.
+    """
 
     client = session.get(Client, nif)
     if client is None:
         return None
 
     if client.archived_at is None:
-        client.archived_at = datetime.now()
+        client.archived_at = datetime.now(UTC)
         archive_reason = archive_request.archive_reason
         client.archive_reason = (
             archive_reason.strip() or None if archive_reason else None
         )
+        session.commit()
+
+    return client
+
+
+def post_client_restored_by_nif(session: Session, nif: str) -> Client | None:
+    """Restore an archived client by NIF.
+
+    Args:
+        session: Database session used to retrieve and update the client.
+        nif: Unique fiscal identifier for the client to restore.
+
+    Returns:
+        The client ORM object, or ``None`` if no matching client exists.
+
+    Side effects:
+        Clears ``archived_at`` and ``archive_reason`` and commits the session
+        when the client is currently archived. Active clients are returned
+        unchanged.
+    """
+
+    client = session.get(Client, nif)
+    if client is None:
+        return None
+
+    if client.archived_at is not None:
+        client.archived_at = None
+        client.archive_reason = None
         session.commit()
 
     return client

@@ -16,6 +16,7 @@ from compliance.services.clients import (
     get_client_by_nif,
     get_clients,
     post_client_archived_by_nif,
+    post_client_restored_by_nif,
     post_new_client,
 )
 from compliance.services.sites import get_sites
@@ -149,10 +150,49 @@ def post_new_client_route(client: ClientCreate, session: SessionDep) -> ClientOu
 def post_client_archived_by_nif_route(
     session: SessionDep,
     nif: Annotated[str, Path(min_length=9, max_length=9)],
-    archive_request: ArchiveRequest,
+    archive_request: ArchiveRequest | None = None,
 ) -> ClientOut:
+    """Archive one client by NIF.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        nif: Unique fiscal identifier for the client to archive.
+        archive_request: Optional archive metadata supplied in the request body.
+
+    Returns:
+        Archived client record serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If no client exists for the requested NIF.
+    """
+
+    archive_request = archive_request or ArchiveRequest()
 
     client = post_client_archived_by_nif(session, nif, archive_request=archive_request)
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
+
+    return ClientOut.model_validate(client)
+
+
+@router.post("/{nif}/restore", status_code=200)
+def post_client_restored_by_nif_route(
+    session: SessionDep, nif: Annotated[str, Path(min_length=9, max_length=9)]
+) -> ClientOut:
+    """Restore one archived client by NIF.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        nif: Unique fiscal identifier for the client to restore.
+
+    Returns:
+        Restored client record serialized with the public API response schema.
+
+    Raises:
+        HTTPException: If no client exists for the requested NIF.
+    """
+
+    client = post_client_restored_by_nif(session, nif)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
 

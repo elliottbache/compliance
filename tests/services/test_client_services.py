@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     ClientCreate,
 )
 from compliance.db.models import Client
@@ -14,6 +15,8 @@ from compliance.services.clients import (
     ClientNifConflictError,
     get_client_by_nif,
     get_clients,
+    post_client_archived_by_nif,
+    post_client_restored_by_nif,
     post_new_client,
 )
 
@@ -181,6 +184,109 @@ class TestPostNewClient:
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
+
+
+class TestPostClientArchivedByNif:
+    def test_archives_client_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        client = _client()
+        session.get.return_value = client
+
+        result = post_client_archived_by_nif(
+            session,
+            "A1234567B",
+            archive_request=ArchiveRequest(archive_reason="  duplicate client  "),
+        )
+
+        assert result is client
+        assert client.archived_at is not None
+        assert client.archived_at.tzinfo is UTC
+        assert client.archive_reason == "duplicate client"
+        session.get.assert_called_once_with(Client, "A1234567B")
+        session.commit.assert_called_once_with()
+
+    def test_stores_none_when_reason_is_blank(self) -> None:
+        session = MagicMock()
+        client = _client()
+        session.get.return_value = client
+
+        post_client_archived_by_nif(
+            session,
+            "A1234567B",
+            archive_request=ArchiveRequest(archive_reason="   "),
+        )
+
+        assert client.archive_reason is None
+        session.commit.assert_called_once_with()
+
+    def test_returns_existing_archived_client_without_commit(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        client = _client(archived_at=archived_at, archive_reason="old reason")
+        session.get.return_value = client
+
+        result = post_client_archived_by_nif(
+            session,
+            "A1234567B",
+            archive_request=ArchiveRequest(archive_reason="new reason"),
+        )
+
+        assert result is client
+        assert client.archived_at == archived_at
+        assert client.archive_reason == "old reason"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_client_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_client_archived_by_nif(
+            session, "A1234567B", archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Client, "A1234567B")
+        session.commit.assert_not_called()
+
+
+class TestPostClientRestoredByNif:
+    def test_restores_archived_client(self) -> None:
+        session = MagicMock()
+        client = _client(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="duplicate client",
+        )
+        session.get.return_value = client
+
+        result = post_client_restored_by_nif(session, "A1234567B")
+
+        assert result is client
+        assert client.archived_at is None
+        assert client.archive_reason is None
+        session.get.assert_called_once_with(Client, "A1234567B")
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_client_without_commit(self) -> None:
+        session = MagicMock()
+        client = _client(archived_at=None, archive_reason=None)
+        session.get.return_value = client
+
+        result = post_client_restored_by_nif(session, "A1234567B")
+
+        assert result is client
+        assert client.archived_at is None
+        assert client.archive_reason is None
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_client_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_client_restored_by_nif(session, "A1234567B")
+
+        assert result is None
+        session.get.assert_called_once_with(Client, "A1234567B")
+        session.commit.assert_not_called()
 
     def test_rolls_back_and_raises_generic_conflict_for_unknown_integrity_error(
         self, monkeypatch
