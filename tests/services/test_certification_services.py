@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     CertificationAttachmentsOut,
     CertificationCreate,
     CertificationOut,
@@ -20,6 +21,8 @@ from compliance.services.certifications import (
     get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications,
+    post_certification_archived_by_id,
+    post_certification_restored_by_id,
     post_new_certification,
 )
 
@@ -164,7 +167,7 @@ class TestGetCertificationById:
             expected_certification
         )
 
-        result = get_certification_by_id(42, session)
+        result = get_certification_by_id(session, 42)
 
         stmt = session.execute.call_args.args[0]
         assert "JOIN sites" in str(stmt)
@@ -177,7 +180,7 @@ class TestGetCertificationById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_certification_by_id(999, session)
+        result = get_certification_by_id(session, 999)
 
         session.execute.assert_called_once()
         assert result is None
@@ -186,7 +189,7 @@ class TestGetCertificationById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_certification_by_id(42, session)
+        result = get_certification_by_id(session, 42)
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
@@ -200,7 +203,7 @@ class TestGetCertificationById:
         certification = _certification(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = certification
 
-        result = get_certification_by_id(42, session, include_archived=True)
+        result = get_certification_by_id(session, 42, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" not in str(stmt)
@@ -215,7 +218,7 @@ class TestGetCertificationAttachmentsById:
         session = MagicMock()
         session.get.return_value = None
 
-        result = get_certification_attachments_by_id(100, session)
+        result = get_certification_attachments_by_id(session, 100)
 
         session.get.assert_called_once_with(Certification, 100)
         session.execute.assert_not_called()
@@ -228,7 +231,7 @@ class TestGetCertificationAttachmentsById:
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_certification_attachments_by_id(100, session)
+        result = get_certification_attachments_by_id(session, 100)
 
         session.get.assert_called_once_with(Certification, 100)
         session.execute.assert_called_once()
@@ -245,7 +248,7 @@ class TestGetCertificationAttachmentsById:
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_certification_attachments_by_id(100, session)
+        result = get_certification_attachments_by_id(session, 100)
 
         session.get.assert_called_once_with(Certification, 100)
         session.execute.assert_called_once()
@@ -256,7 +259,7 @@ class TestGetCertificationAttachmentsById:
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_certification_attachments_by_id(100, session)
+        get_certification_attachments_by_id(session, 100)
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY attachments.id, findings.id" in str(stmt)
@@ -266,7 +269,7 @@ class TestGetCertificationAttachmentsById:
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_certification_attachments_by_id(100, session)
+        get_certification_attachments_by_id(session, 100)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
@@ -282,7 +285,7 @@ class TestGetCertificationAttachmentsById:
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_certification_attachments_by_id(100, session, include_archived=True)
+        get_certification_attachments_by_id(session, 100, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
@@ -297,7 +300,7 @@ class TestPostNewCertification:
         session = MagicMock()
         certification = _certification_create()
 
-        result = post_new_certification(certification, session)
+        result = post_new_certification(session, certification)
 
         session.add.assert_called_once()
         added_certification = session.add.call_args.args[0]
@@ -317,7 +320,7 @@ class TestPostNewCertification:
         certification = _certification_create()
 
         with pytest.raises(CertificationConflictError):
-            post_new_certification(certification, session)
+            post_new_certification(session, certification)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
@@ -330,7 +333,7 @@ class TestPostNewCertification:
         )
 
         with pytest.raises(CertificationCertifierNotFoundError):
-            post_new_certification(_certification_create(), session)
+            post_new_certification(session, _certification_create())
 
         session.rollback.assert_called_once_with()
 
@@ -341,7 +344,7 @@ class TestPostNewCertification:
         )
 
         with pytest.raises(CertificationRegulationNotFoundError):
-            post_new_certification(_certification_create(), session)
+            post_new_certification(session, _certification_create())
 
         session.rollback.assert_called_once_with()
 
@@ -350,7 +353,7 @@ class TestPostNewCertification:
         session.commit.side_effect = _integrity_error("certifications_site_id_fkey")
 
         with pytest.raises(CertificationSiteNotFoundError):
-            post_new_certification(_certification_create(), session)
+            post_new_certification(session, _certification_create())
 
         session.rollback.assert_called_once_with()
 
@@ -431,3 +434,88 @@ class TestFormatCertificationAttachmentsOut:
     def test_raises_value_error_when_first_row_is_empty(self) -> None:
         with pytest.raises(ValueError, match="First attachment row is empty"):
             _format_certification_attachments([{}])
+
+
+class TestPostCertificationArchivedById:
+    def test_archives_certification_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        certification = _certification()
+        session.get.return_value = certification
+
+        result = post_certification_archived_by_id(
+            session,
+            42,
+            archive_request=ArchiveRequest(archive_reason="  duplicate  "),
+        )
+
+        assert result is certification
+        assert certification.archived_at is not None
+        assert certification.archived_at.tzinfo is UTC
+        assert certification.archive_reason == "duplicate"
+        session.get.assert_called_once_with(Certification, 42)
+        session.commit.assert_called_once_with()
+
+    def test_does_not_rearchive_existing_archived_certification(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        certification = _certification(archived_at=archived_at, archive_reason="old")
+        session.get.return_value = certification
+
+        result = post_certification_archived_by_id(
+            session, 42, archive_request=ArchiveRequest(archive_reason="new")
+        )
+
+        assert result is certification
+        assert certification.archived_at == archived_at
+        assert certification.archive_reason == "old"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_certification_archived_by_id(
+            session, 42, archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Certification, 42)
+        session.commit.assert_not_called()
+
+
+class TestPostCertificationRestoredById:
+    def test_restores_archived_certification(self) -> None:
+        session = MagicMock()
+        certification = _certification(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old",
+        )
+        session.get.return_value = certification
+
+        result = post_certification_restored_by_id(session, 42)
+
+        assert result is certification
+        assert certification.archived_at is None
+        assert certification.archive_reason is None
+        session.get.assert_called_once_with(Certification, 42)
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_certification_without_commit(self) -> None:
+        session = MagicMock()
+        certification = _certification(archived_at=None, archive_reason=None)
+        session.get.return_value = certification
+
+        result = post_certification_restored_by_id(session, 42)
+
+        assert result is certification
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_certification_restored_by_id(session, 42)
+
+        assert result is None
+        session.get.assert_called_once_with(Certification, 42)
+        session.commit.assert_not_called()

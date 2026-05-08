@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -11,7 +9,12 @@ from compliance.api.schemas import (
 from compliance.db.models import (
     Client,
 )
-from compliance.services._helpers import get_constraint_name, record_is_visible
+from compliance.services._helpers import (
+    archive_record_by_id,
+    get_constraint_name,
+    record_is_visible,
+    restore_record_by_id,
+)
 
 
 class ClientConflictError(Exception):
@@ -50,13 +53,13 @@ def get_clients(
 
 
 def get_client_by_nif(
-    nif: str, session: Session, *, include_archived: bool = False
+    session: Session, nif: str, *, include_archived: bool = False
 ) -> Client | None:
     """Retrieve one client by NIF.
 
     Args:
-        nif: Unique fiscal identifier for the client.
         session: Database session used to retrieve the client.
+        nif: Unique fiscal identifier for the client.
         include_archived: When true, return archived clients.
 
     Returns:
@@ -66,12 +69,12 @@ def get_client_by_nif(
     return client if record_is_visible(client, include_archived) else None
 
 
-def post_new_client(client: ClientCreate, session: Session) -> Client:
+def post_new_client(session: Session, client: ClientCreate) -> Client:
     """Persist a new client record.
 
     Args:
-        client: Client data validated by the API layer.
         session: Database session used to add and commit the client.
+        client: Client data validated by the API layer.
 
     Returns:
         The created Client ORM object.
@@ -121,20 +124,7 @@ def post_client_archived_by_nif(
         reason when provided, and commits the session. Already archived clients
         are returned unchanged.
     """
-
-    client = session.get(Client, nif)
-    if client is None:
-        return None
-
-    if client.archived_at is None:
-        client.archived_at = datetime.now(UTC)
-        archive_reason = archive_request.archive_reason
-        client.archive_reason = (
-            archive_reason.strip() or None if archive_reason else None
-        )
-        session.commit()
-
-    return client
+    return archive_record_by_id(session, Client, nif, archive_request)
 
 
 def post_client_restored_by_nif(session: Session, nif: str) -> Client | None:
@@ -153,13 +143,4 @@ def post_client_restored_by_nif(session: Session, nif: str) -> Client | None:
         unchanged.
     """
 
-    client = session.get(Client, nif)
-    if client is None:
-        return None
-
-    if client.archived_at is not None:
-        client.archived_at = None
-        client.archive_reason = None
-        session.commit()
-
-    return client
+    return restore_record_by_id(session, Client, nif)

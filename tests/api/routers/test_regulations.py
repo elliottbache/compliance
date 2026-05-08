@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from fastapi import HTTPException
 
@@ -116,7 +118,7 @@ class TestGetRegulationByIdRoute:
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
         def fake_get_regulation_by_id(
-            regulation_id, session, *, include_archived=False
+            session, regulation_id, *, include_archived=False
         ):
             assert regulation_id == 3
             assert session is mock_db
@@ -142,7 +144,7 @@ class TestGetRegulationByIdRoute:
         self, client, mock_db, monkeypatch
     ):
         def fake_get_regulation_by_id(
-            regulation_id, session, *, include_archived=False
+            session, regulation_id, *, include_archived=False
         ):
             assert regulation_id == 999
             assert session is mock_db
@@ -169,7 +171,7 @@ class TestGetRegulationByIdRoute:
         regulation = regulation_record_factory()
 
         def fake_get_regulation_by_id(
-            regulation_id, session, *, include_archived=False
+            session, regulation_id, *, include_archived=False
         ):
             assert regulation_id == 3
             assert session is fake_session
@@ -179,7 +181,7 @@ class TestGetRegulationByIdRoute:
             regulations_router, "get_regulation_by_id", fake_get_regulation_by_id
         )
 
-        result = regulations_router.get_regulation_by_id_route(3, fake_session)
+        result = regulations_router.get_regulation_by_id_route(fake_session, 3)
 
         assert result == regulations_router.RegulationOut.model_validate(regulation)
 
@@ -194,7 +196,7 @@ class TestGetRegulationByIdRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.get_regulation_by_id_route(999, object())
+            regulations_router.get_regulation_by_id_route(object(), 999)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No regulation for this id found: 999"
@@ -215,7 +217,7 @@ class TestPostNewRegulationRoute:
     ):
         created_regulation = regulation_record_factory()
 
-        def fake_post_new_regulation(regulation, session):
+        def fake_post_new_regulation(session, regulation):
             assert regulation.title == "Fire Safety 2026"
             assert session is mock_db
             return created_regulation
@@ -246,7 +248,7 @@ class TestPostNewRegulationRoute:
     def test_client_returns_409_when_regulation_conflicts(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_new_regulation(regulation, session):
+        def fake_post_new_regulation(session, regulation):
             assert session is mock_db
             raise regulations_router.RegulationConflictError()
 
@@ -289,7 +291,7 @@ class TestPostNewRegulationRoute:
         )
         created_regulation = regulation_record_factory()
 
-        def fake_post_new_regulation(regulation_info, session):
+        def fake_post_new_regulation(session, regulation_info):
             assert regulation_info is regulation
             assert session is fake_session
             return created_regulation
@@ -298,7 +300,7 @@ class TestPostNewRegulationRoute:
             regulations_router, "post_new_regulation", fake_post_new_regulation
         )
 
-        result = regulations_router.post_new_regulation_route(regulation, fake_session)
+        result = regulations_router.post_new_regulation_route(fake_session, regulation)
 
         assert result == regulations_router.RegulationOut.model_validate(
             created_regulation
@@ -313,7 +315,7 @@ class TestPostNewRegulationRoute:
             published_date="2026-01-15",
         )
 
-        def fake_post_new_regulation(regulation_info, session):
+        def fake_post_new_regulation(session, regulation_info):
             raise regulations_router.RegulationTitleConflictError()
 
         monkeypatch.setattr(
@@ -321,7 +323,7 @@ class TestPostNewRegulationRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_new_regulation_route(regulation, object())
+            regulations_router.post_new_regulation_route(object(), regulation)
 
         assert exc_info.value.status_code == 409
         assert (
@@ -336,7 +338,7 @@ class TestPostNewRegulationRoute:
             published_date="2026-01-15",
         )
 
-        def fake_post_new_regulation(regulation_info, session):
+        def fake_post_new_regulation(session, regulation_info):
             raise regulations_router.RegulationConflictError()
 
         monkeypatch.setattr(
@@ -344,7 +346,7 @@ class TestPostNewRegulationRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_new_regulation_route(regulation, object())
+            regulations_router.post_new_regulation_route(object(), regulation)
 
         assert exc_info.value.status_code == 409
         assert "Regulation was not added" in exc_info.value.detail
@@ -361,3 +363,100 @@ class TestPostNewRegulationRoute:
 
         assert route.response_model is regulations_router.RegulationOut
         assert route.status_code == 201
+
+
+class TestPostRegulationArchivedByIdRoute:
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = regulations_router.RegulationOut(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_regulation_archived_by_id(
+            session, regulation_id, *, archive_request
+        ):
+            assert session is fake_session
+            assert regulation_id == 5
+            assert archive_request == regulations_router.ArchiveRequest()
+            return expected
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_archived_by_id",
+            fake_post_regulation_archived_by_id,
+        )
+
+        result = regulations_router.post_regulation_archived_by_id_route(
+            fake_session, 5
+        )
+
+        assert result == expected
+
+    def test_returns_404_when_regulation_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_regulation_archived_by_id(
+            session, regulation_id, *, archive_request
+        ):
+            return None
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_archived_by_id",
+            fake_post_regulation_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            regulations_router.post_regulation_archived_by_id_route(object(), 5)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Regulation does not exist: 5."
+
+
+class TestPostRegulationRestoredByIdRoute:
+    def test_returns_restored_regulation(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = regulations_router.RegulationOut(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_regulation_restored_by_id(session, regulation_id):
+            assert session is fake_session
+            assert regulation_id == 5
+            return expected
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_restored_by_id",
+            fake_post_regulation_restored_by_id,
+        )
+
+        result = regulations_router.post_regulation_restored_by_id_route(
+            fake_session, 5
+        )
+
+        assert result == expected
+
+    def test_returns_404_when_regulation_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_regulation_restored_by_id(session, regulation_id):
+            return None
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_restored_by_id",
+            fake_post_regulation_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            regulations_router.post_regulation_restored_by_id_route(object(), 5)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Regulation does not exist: 5."

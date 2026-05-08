@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     RuleCreate,
     RuleOut,
 )
@@ -17,6 +18,8 @@ from compliance.services.rules import (
     get_rule_by_id,
     get_rules,
     post_new_rule,
+    post_rule_archived_by_id,
+    post_rule_restored_by_id,
 )
 
 
@@ -126,7 +129,7 @@ class TestGetRuleById:
         expected_rule = MagicMock(spec=Rule)
         session.execute.return_value.scalar_one_or_none.return_value = expected_rule
 
-        result = get_rule_by_id(20, session)
+        result = get_rule_by_id(session, 20)
 
         stmt = session.execute.call_args.args[0]
         assert "JOIN regulations" in str(stmt)
@@ -137,7 +140,7 @@ class TestGetRuleById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_rule_by_id(999, session)
+        result = get_rule_by_id(session, 999)
 
         session.execute.assert_called_once()
         assert result is None
@@ -146,7 +149,7 @@ class TestGetRuleById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_rule_by_id(20, session)
+        result = get_rule_by_id(session, 20)
 
         stmt = session.execute.call_args.args[0]
         assert "rules.archived_at IS NULL" in str(stmt)
@@ -158,7 +161,7 @@ class TestGetRuleById:
         rule = _rule(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = rule
 
-        result = get_rule_by_id(20, session, include_archived=True)
+        result = get_rule_by_id(session, 20, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "rules.archived_at IS NULL" not in str(stmt)
@@ -171,7 +174,7 @@ class TestPostNewRule:
         session = MagicMock()
         rule = _rule_create()
 
-        result = post_new_rule(rule, session)
+        result = post_new_rule(session, rule)
 
         session.add.assert_called_once()
         added_rule = session.add.call_args.args[0]
@@ -188,18 +191,103 @@ class TestPostNewRule:
         session.commit.side_effect = _integrity_error()
 
         with pytest.raises(RuleConflictError):
-            post_new_rule(_rule_create(), session)
+            post_new_rule(session, _rule_create())
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
 
+
+class TestPostRuleArchivedById:
+    def test_archives_rule_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        rule = _rule()
+        session.get.return_value = rule
+
+        result = post_rule_archived_by_id(
+            session,
+            20,
+            archive_request=ArchiveRequest(archive_reason="  duplicate  "),
+        )
+
+        assert result is rule
+        assert rule.archived_at is not None
+        assert rule.archived_at.tzinfo is UTC
+        assert rule.archive_reason == "duplicate"
+        session.get.assert_called_once_with(Rule, 20)
+        session.commit.assert_called_once_with()
+
+    def test_does_not_rearchive_existing_archived_rule(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        rule = _rule(archived_at=archived_at, archive_reason="old")
+        session.get.return_value = rule
+
+        result = post_rule_archived_by_id(
+            session, 20, archive_request=ArchiveRequest(archive_reason="new")
+        )
+
+        assert result is rule
+        assert rule.archived_at == archived_at
+        assert rule.archive_reason == "old"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_rule_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_rule_archived_by_id(session, 20, archive_request=ArchiveRequest())
+
+        assert result is None
+        session.get.assert_called_once_with(Rule, 20)
+        session.commit.assert_not_called()
+
+
+class TestPostRuleRestoredById:
+    def test_restores_archived_rule(self) -> None:
+        session = MagicMock()
+        rule = _rule(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old",
+        )
+        session.get.return_value = rule
+
+        result = post_rule_restored_by_id(session, 20)
+
+        assert result is rule
+        assert rule.archived_at is None
+        assert rule.archive_reason is None
+        session.get.assert_called_once_with(Rule, 20)
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_rule_without_commit(self) -> None:
+        session = MagicMock()
+        rule = _rule(archived_at=None, archive_reason=None)
+        session.get.return_value = rule
+
+        result = post_rule_restored_by_id(session, 20)
+
+        assert result is rule
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_rule_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_rule_restored_by_id(session, 20)
+
+        assert result is None
+        session.get.assert_called_once_with(Rule, 20)
+        session.commit.assert_not_called()
+
+
+class TestPostNewRuleConflicts:
     def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
         session = MagicMock()
         session.commit.side_effect = _integrity_error("rules_regulation_id_fkey")
 
         with pytest.raises(RuleRegulationNotFoundError):
-            post_new_rule(_rule_create(), session)
+            post_new_rule(session, _rule_create())
 
         session.rollback.assert_called_once_with()
 
@@ -217,6 +305,6 @@ class TestPostNewRule:
         session.commit.side_effect = _integrity_error(constraint_name)
 
         with pytest.raises(RuleIndexConflictError):
-            post_new_rule(_rule_create(), session)
+            post_new_rule(session, _rule_create())
 
         session.rollback.assert_called_once_with()

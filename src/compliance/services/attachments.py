@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
@@ -20,7 +21,12 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import _format_attachment, record_is_visible
+from compliance.services._helpers import (
+    _format_attachment,
+    archive_record_by_id,
+    record_is_visible,
+    restore_record_by_id,
+)
 
 
 class AttachmentCreateError(Exception):
@@ -152,13 +158,13 @@ def get_attachments(
 
 
 def get_attachment_by_id(
-    attachment_id: int, session: Session, *, include_archived: bool = False
+    session: Session, attachment_id: int, *, include_archived: bool = False
 ) -> AttachmentWithContextOut | None:
     """Retrieve one attachment with certification, regulation, and finding context.
 
     Args:
-        attachment_id: Unique identifier of the attachment to retrieve.
         session: Database session used to execute the attachment query.
+        attachment_id: Unique identifier of the attachment to retrieve.
         include_archived: When true, return archived attachments and related
             certification, site, regulation, rule, and finding context. By
             default, archived finding and rule rows are omitted from optional
@@ -209,7 +215,7 @@ def get_attachment_by_id(
 
 
 def post_new_attachment(
-    attachment: AttachmentCreate, session: Session
+    session: Session, attachment: AttachmentCreate
 ) -> AttachmentOut:
     """Persist a new attachment metadata record and optional finding links.
 
@@ -218,9 +224,9 @@ def post_new_attachment(
     finding-attachment link rows in the same transaction.
 
     Args:
-        attachment: Attachment metadata validated by the API layer.
         session: Database session used to validate related records and persist
             the attachment metadata.
+        attachment: Attachment metadata validated by the API layer.
 
     Returns:
         The created attachment metadata with certification and regulation
@@ -301,6 +307,47 @@ def post_new_attachment(
         raise
 
     return AttachmentOut.model_validate(new_attachment_with_context)
+
+
+def post_attachment_archived_by_id(
+    session: Session, attachment_id: int, *, archive_request: ArchiveRequest
+) -> AttachmentWithContextOut | None:
+    """Archive an attachment by ID.
+
+    Args:
+        session: Database session used to retrieve and update the attachment.
+        attachment_id: Primary key for the attachment to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The archived attachment with context, or ``None`` if no matching
+        attachment exists.
+    """
+    attachment = archive_record_by_id(
+        session, Attachment, attachment_id, archive_request
+    )
+    if attachment is None:
+        return None
+    return get_attachment_by_id(session, attachment_id, include_archived=True)
+
+
+def post_attachment_restored_by_id(
+    session: Session, attachment_id: int
+) -> AttachmentWithContextOut | None:
+    """Restore an archived attachment by ID.
+
+    Args:
+        session: Database session used to retrieve and update the attachment.
+        attachment_id: Primary key for the attachment to restore.
+
+    Returns:
+        The restored attachment with context, or ``None`` if no matching
+        attachment exists.
+    """
+    attachment = restore_record_by_id(session, Attachment, attachment_id)
+    if attachment is None:
+        return None
+    return get_attachment_by_id(session, attachment_id, include_archived=True)
 
 
 def _format_new_attachment_with_context(

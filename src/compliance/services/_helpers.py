@@ -1,10 +1,13 @@
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     AttachmentWithContextOut,
 )
 from compliance.schemas import FindingHistory
@@ -65,6 +68,70 @@ def record_is_visible(record: Any, include_archived: bool) -> bool:
         archived_at = None
 
     return include_archived or archived_at is None
+
+
+def archive_record_by_id(
+    session: Session, model: type[Any], record_id: Any, archive_request: ArchiveRequest
+) -> Any | None:
+    """Archive one ORM record by primary key.
+
+    Args:
+        session: Database session used to retrieve and update the record.
+        model: SQLAlchemy ORM model class to retrieve.
+        record_id: Primary-key value for the record.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The ORM record, or ``None`` when no record exists for the primary key.
+
+    Side effects:
+        Sets ``archived_at`` to the current UTC time, stores a stripped archive
+        reason when provided, and commits the session. Already archived records
+        are returned unchanged.
+    """
+    record = session.get(model, record_id)
+    if record is None:
+        return None
+
+    if record.archived_at is None:
+        record.archived_at = datetime.now(UTC)
+        archive_reason = archive_request.archive_reason
+        record.archive_reason = (
+            archive_reason.strip() or None if archive_reason else None
+        )
+        session.commit()
+
+    return record
+
+
+def restore_record_by_id(
+    session: Session, model: type[Any], record_id: Any
+) -> Any | None:
+    """Restore one archived ORM record by primary key.
+
+    Args:
+        session: Database session used to retrieve and update the record.
+        model: SQLAlchemy ORM model class to retrieve.
+        record_id: Primary-key value for the record.
+
+    Returns:
+        The ORM record, or ``None`` when no record exists for the primary key.
+
+    Side effects:
+        Clears ``archived_at`` and ``archive_reason`` and commits the session
+        when the record is currently archived. Active records are returned
+        unchanged.
+    """
+    record = session.get(model, record_id)
+    if record is None:
+        return None
+
+    if record.archived_at is not None:
+        record.archived_at = None
+        record.archive_reason = None
+        session.commit()
+
+    return record
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:

@@ -85,7 +85,7 @@ class TestGetCertifierByIdRoute:
     def test_client_returns_certifier_json_when_found(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
-        def fake_get_certifier_by_id(certifier_id, session, *, include_archived=False):
+        def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
             assert certifier_id == 10
             assert session is mock_db
             return certifier_record_factory()
@@ -107,7 +107,7 @@ class TestGetCertifierByIdRoute:
     def test_client_returns_404_when_certifier_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_certifier_by_id(certifier_id, session, *, include_archived=False):
+        def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
             assert certifier_id == 10
             assert session is mock_db
             return None
@@ -134,7 +134,7 @@ class TestGetCertifierByIdRoute:
         certifier = certifier_record_factory()
         expected_certifier = certifiers_router.CertifierOut.model_validate(certifier)
 
-        def fake_get_certifier_by_id(certifier_id, session, *, include_archived=False):
+        def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
             assert certifier_id == 10
             assert session is fake_session
             return certifier
@@ -143,12 +143,12 @@ class TestGetCertifierByIdRoute:
             certifiers_router, "get_certifier_by_id", fake_get_certifier_by_id
         )
 
-        result = certifiers_router.get_certifiers_by_id_route(10, fake_session)
+        result = certifiers_router.get_certifiers_by_id_route(fake_session, 10)
 
         assert result == expected_certifier
 
     def test_returns_404_when_certifier_is_not_found(self, monkeypatch) -> None:
-        def fake_get_certifier_by_id(certifier_id, session, *, include_archived=False):
+        def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
             return None
 
         monkeypatch.setattr(
@@ -156,7 +156,7 @@ class TestGetCertifierByIdRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.get_certifiers_by_id_route(10, object())
+            certifiers_router.get_certifiers_by_id_route(object(), 10)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certifier 10 not found."
@@ -176,7 +176,7 @@ class TestPostNewCertifierRoute:
     def test_client_returns_certifier_json_when_created(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
-        def fake_post_new_certifier(certifier_record, session):
+        def fake_post_new_certifier(session, certifier_record):
             assert certifier_record.organization_name == "SafeCheck Inc."
             assert session is mock_db
             return certifier_record_factory()
@@ -201,7 +201,7 @@ class TestPostNewCertifierRoute:
     def test_client_returns_409_when_certifier_already_exists(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_new_certifier(certifier_record, session):
+        def fake_post_new_certifier(session, certifier_record):
             assert session is mock_db
             raise certifiers_router.CertifierConflictError
 
@@ -237,7 +237,7 @@ class TestPostNewCertifierRoute:
             archive_reason=None,
         )
 
-        def fake_post_new_certifier(certifier_info, session):
+        def fake_post_new_certifier(session, certifier_info):
             assert certifier_info is certifier
             assert session is fake_session
             return expected_certifier
@@ -246,7 +246,7 @@ class TestPostNewCertifierRoute:
             certifiers_router, "post_new_certifier", fake_post_new_certifier
         )
 
-        result = certifiers_router.post_new_certifier_route(certifier, fake_session)
+        result = certifiers_router.post_new_certifier_route(fake_session, certifier)
 
         assert result == expected_certifier
 
@@ -255,7 +255,7 @@ class TestPostNewCertifierRoute:
             organization_name="SafeCheck Inc."
         )
 
-        def fake_post_new_certifier(certifier_info, session):
+        def fake_post_new_certifier(session, certifier_info):
             raise certifiers_router.CertifierConflictError
 
         monkeypatch.setattr(
@@ -263,7 +263,7 @@ class TestPostNewCertifierRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_new_certifier_route(certifier, object())
+            certifiers_router.post_new_certifier_route(object(), certifier)
 
         assert exc_info.value.status_code == 409
         assert (
@@ -278,7 +278,7 @@ class TestPostNewCertifierRoute:
             organization_name="SafeCheck Inc."
         )
 
-        def fake_post_new_certifier(certifier_info, session):
+        def fake_post_new_certifier(session, certifier_info):
             raise certifiers_router.CertifierOrganizationNameConflictError
 
         monkeypatch.setattr(
@@ -286,7 +286,7 @@ class TestPostNewCertifierRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_new_certifier_route(certifier, object())
+            certifiers_router.post_new_certifier_route(object(), certifier)
 
         assert exc_info.value.status_code == 409
         assert (
@@ -306,3 +306,92 @@ class TestPostNewCertifierRoute:
 
         assert route.response_model is certifiers_router.CertifierOut
         assert route.status_code == 201
+
+
+class TestPostCertifierArchivedByIdRoute:
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = certifiers_router.CertifierOut(
+            id=10,
+            organization_name="SafeCheck Inc.",
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_certifier_archived_by_id(
+            session, certifier_id, *, archive_request
+        ):
+            assert session is fake_session
+            assert certifier_id == 10
+            assert archive_request == certifiers_router.ArchiveRequest()
+            return expected
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_archived_by_id",
+            fake_post_certifier_archived_by_id,
+        )
+
+        result = certifiers_router.post_certifier_archived_by_id_route(fake_session, 10)
+
+        assert result == expected
+
+    def test_returns_404_when_certifier_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_certifier_archived_by_id(
+            session, certifier_id, *, archive_request
+        ):
+            return None
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_archived_by_id",
+            fake_post_certifier_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifiers_router.post_certifier_archived_by_id_route(object(), 10)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certifier does not exist: 10."
+
+
+class TestPostCertifierRestoredByIdRoute:
+    def test_returns_restored_certifier(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = certifiers_router.CertifierOut(
+            id=10,
+            organization_name="SafeCheck Inc.",
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_certifier_restored_by_id(session, certifier_id):
+            assert session is fake_session
+            assert certifier_id == 10
+            return expected
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_restored_by_id",
+            fake_post_certifier_restored_by_id,
+        )
+
+        result = certifiers_router.post_certifier_restored_by_id_route(fake_session, 10)
+
+        assert result == expected
+
+    def test_returns_404_when_certifier_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_certifier_restored_by_id(session, certifier_id):
+            return None
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_restored_by_id",
+            fake_post_certifier_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifiers_router.post_certifier_restored_by_id_route(object(), 10)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certifier does not exist: 10."

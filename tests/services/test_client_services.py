@@ -81,7 +81,7 @@ class TestGetClientByNif:
         client = _client()
         session.get.return_value = client
 
-        result = get_client_by_nif("A1234567B", session)
+        result = get_client_by_nif(session, "A1234567B")
 
         assert result is client
         session.get.assert_called_once_with(Client, "A1234567B")
@@ -90,7 +90,7 @@ class TestGetClientByNif:
         session = MagicMock()
         session.get.return_value = None
 
-        result = get_client_by_nif("A1234567B", session)
+        result = get_client_by_nif(session, "A1234567B")
 
         assert result is None
         session.get.assert_called_once_with(Client, "A1234567B")
@@ -100,7 +100,7 @@ class TestGetClientByNif:
         client = _client(archived_at=datetime(2026, 5, 7))
         session.get.return_value = client
 
-        result = get_client_by_nif("A1234567B", session)
+        result = get_client_by_nif(session, "A1234567B")
 
         assert result is None
 
@@ -109,7 +109,7 @@ class TestGetClientByNif:
         client = _client(archived_at=datetime(2026, 5, 7))
         session.get.return_value = client
 
-        result = get_client_by_nif("A1234567B", session, include_archived=True)
+        result = get_client_by_nif(session, "A1234567B", include_archived=True)
 
         assert result is client
 
@@ -125,7 +125,7 @@ class TestPostNewClient:
             telephone=123456789,
         )
 
-        post_new_client(client, session)
+        post_new_client(session, client)
 
         session.add.assert_called_once()
         added_client = session.add.call_args.args[0]
@@ -155,7 +155,7 @@ class TestPostNewClient:
         )
 
         with pytest.raises(ClientNifConflictError):
-            post_new_client(client, session)
+            post_new_client(session, client)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
@@ -179,7 +179,7 @@ class TestPostNewClient:
         )
 
         with pytest.raises(ClientCompanyNameConflictError):
-            post_new_client(client, session)
+            post_new_client(session, client)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
@@ -306,7 +306,7 @@ class TestPostClientRestoredByNif:
         )
 
         with pytest.raises(ClientConflictError):
-            post_new_client(client, session)
+            post_new_client(session, client)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()

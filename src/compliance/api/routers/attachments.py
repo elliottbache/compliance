@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
@@ -17,6 +18,8 @@ from compliance.services.attachments import (
     AttachmentSiteNotFoundError,
     get_attachment_by_id,
     get_attachments,
+    post_attachment_archived_by_id,
+    post_attachment_restored_by_id,
     post_new_attachment,
 )
 
@@ -82,15 +85,15 @@ def get_attachments_route(
 
 @router.get("/{attachment_id}")
 def get_attachment_by_id_route(
-    attachment_id: int,
     session: SessionDep,
+    attachment_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> AttachmentWithContextOut:
     """Return one attachment with certification, regulation, and finding context.
 
     Args:
-        attachment_id: Unique identifier for the attachment to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        attachment_id: Unique identifier for the attachment to retrieve.
         include_archived: When true, return archived attachments and related
             certification, site, regulation, finding, and rule context.
 
@@ -102,7 +105,7 @@ def get_attachment_by_id_route(
         HTTPException: If no visible attachment exists for the requested ID.
     """
     result = get_attachment_by_id(
-        attachment_id, session, include_archived=include_archived
+        session, attachment_id, include_archived=include_archived
     )
     if result is None:
         raise HTTPException(
@@ -114,13 +117,13 @@ def get_attachment_by_id_route(
 
 @router.post("", status_code=201)
 def post_new_attachment_route(
-    attachment: AttachmentCreate, session: SessionDep
+    session: SessionDep, attachment: AttachmentCreate
 ) -> AttachmentOut:
     """Create a new attachment metadata record.
 
     Args:
-        attachment: Attachment metadata supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        attachment: Attachment metadata supplied in the request body.
 
     Returns:
         Created attachment metadata with generated storage and certification
@@ -132,7 +135,7 @@ def post_new_attachment_route(
             attachment conflicts with existing stored data.
     """
     try:
-        new_attachment = post_new_attachment(attachment, session)
+        new_attachment = post_new_attachment(session, attachment)
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentFindingNotFoundError as exc:
@@ -143,3 +146,37 @@ def post_new_attachment_route(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return AttachmentOut.model_validate(new_attachment)
+
+
+@router.post("/{attachment_id}/archive", status_code=200)
+def post_attachment_archived_by_id_route(
+    session: SessionDep,
+    attachment_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> AttachmentWithContextOut:
+    """Archive one attachment by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    attachment = post_attachment_archived_by_id(
+        session, attachment_id, archive_request=archive_request
+    )
+    if attachment is None:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment does not exist: {attachment_id}."
+        )
+
+    return AttachmentWithContextOut.model_validate(attachment)
+
+
+@router.post("/{attachment_id}/restore", status_code=200)
+def post_attachment_restored_by_id_route(
+    session: SessionDep, attachment_id: Annotated[int, Path(ge=1)]
+) -> AttachmentWithContextOut:
+    """Restore one archived attachment by ID."""
+    attachment = post_attachment_restored_by_id(session, attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment does not exist: {attachment_id}."
+        )
+
+    return AttachmentWithContextOut.model_validate(attachment)

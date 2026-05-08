@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     RegulationCreate,
     RegulationOut,
 )
@@ -13,6 +14,8 @@ from compliance.services.regulations import (
     get_regulation_by_id,
     get_regulations,
     post_new_regulation,
+    post_regulation_archived_by_id,
+    post_regulation_restored_by_id,
 )
 
 router = APIRouter(prefix="/regulations", tags=["regulations"])
@@ -61,15 +64,15 @@ def get_regulations_route(
 
 @router.get("/{regulation_id}")
 def get_regulation_by_id_route(
-    regulation_id: int,
     session: SessionDep,
+    regulation_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> RegulationOut:
     """Return one regulation by ID.
 
     Args:
-        regulation_id: Unique identifier for the regulation to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        regulation_id: Unique identifier for the regulation to retrieve.
         include_archived: When true, return archived regulations.
 
     Returns:
@@ -79,7 +82,7 @@ def get_regulation_by_id_route(
         HTTPException: If no visible regulation exists for the requested ID.
     """
     regulation = get_regulation_by_id(
-        regulation_id, session, include_archived=include_archived
+        session, regulation_id, include_archived=include_archived
     )
     if regulation is None:
         raise HTTPException(
@@ -92,13 +95,13 @@ def get_regulation_by_id_route(
 
 @router.post("", status_code=201)
 def post_new_regulation_route(
-    regulation: RegulationCreate, session: SessionDep
+    session: SessionDep, regulation: RegulationCreate
 ) -> RegulationOut:
     """Create a new regulation record.
 
     Args:
-        regulation: Regulation details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        regulation: Regulation details supplied in the request body.
 
     Returns:
         Created regulation details serialized with the public API response
@@ -108,7 +111,7 @@ def post_new_regulation_route(
         HTTPException: If the regulation conflicts with existing data.
     """
     try:
-        new_regulation = post_new_regulation(regulation, session)
+        new_regulation = post_new_regulation(session, regulation)
 
     except RegulationTitleConflictError as err:
         raise HTTPException(
@@ -123,3 +126,37 @@ def post_new_regulation_route(
         ) from err
 
     return RegulationOut.model_validate(new_regulation)
+
+
+@router.post("/{regulation_id}/archive", status_code=200)
+def post_regulation_archived_by_id_route(
+    session: SessionDep,
+    regulation_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> RegulationOut:
+    """Archive one regulation by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    regulation = post_regulation_archived_by_id(
+        session, regulation_id, archive_request=archive_request
+    )
+    if regulation is None:
+        raise HTTPException(
+            status_code=404, detail=f"Regulation does not exist: {regulation_id}."
+        )
+
+    return RegulationOut.model_validate(regulation)
+
+
+@router.post("/{regulation_id}/restore", status_code=200)
+def post_regulation_restored_by_id_route(
+    session: SessionDep, regulation_id: Annotated[int, Path(ge=1)]
+) -> RegulationOut:
+    """Restore one archived regulation by ID."""
+    regulation = post_regulation_restored_by_id(session, regulation_id)
+    if regulation is None:
+        raise HTTPException(
+            status_code=404, detail=f"Regulation does not exist: {regulation_id}."
+        )
+
+    return RegulationOut.model_validate(regulation)

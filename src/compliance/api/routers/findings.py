@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     FindingCreate,
     FindingOut,
 )
@@ -16,6 +17,8 @@ from compliance.services.findings import (
     FindingMissingSiteError,
     get_finding_by_id,
     get_findings,
+    post_finding_archived_by_id,
+    post_finding_restored_by_id,
     post_new_finding,
 )
 
@@ -85,15 +88,15 @@ def get_findings_route(
 
 @router.get("/{finding_id}")
 def get_finding_by_id_route(
-    finding_id: int,
     session: SessionDep,
+    finding_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> FindingOut:
     """Return one finding by ID.
 
     Args:
-        finding_id: Unique identifier for the finding to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        finding_id: Unique identifier for the finding to retrieve.
         include_archived: When true, return archived findings and related
             certification, site, regulation, rule, and attachment context.
 
@@ -104,7 +107,7 @@ def get_finding_by_id_route(
     Raises:
         HTTPException: If no visible finding exists for the requested ID.
     """
-    finding = get_finding_by_id(finding_id, session, include_archived=include_archived)
+    finding = get_finding_by_id(session, finding_id, include_archived=include_archived)
     if finding is None:
         raise HTTPException(
             status_code=404,
@@ -115,12 +118,12 @@ def get_finding_by_id_route(
 
 
 @router.post("", status_code=201)
-def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> FindingOut:
+def post_new_finding_route(session: SessionDep, finding: FindingCreate) -> FindingOut:
     """Create a new finding record.
 
     Args:
-        finding: Finding details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        finding: Finding details supplied in the request body.
 
     Returns:
         Created finding details serialized with the public API response schema.
@@ -131,7 +134,7 @@ def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> Findi
             another integrity conflict prevents creation.
     """
     try:
-        new_finding = post_new_finding(finding, session)
+        new_finding = post_new_finding(session, finding)
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
@@ -164,3 +167,37 @@ def post_new_finding_route(finding: FindingCreate, session: SessionDep) -> Findi
         ) from err
 
     return FindingOut.model_validate(new_finding)
+
+
+@router.post("/{finding_id}/archive", status_code=200)
+def post_finding_archived_by_id_route(
+    session: SessionDep,
+    finding_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> FindingOut:
+    """Archive one finding by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    finding = post_finding_archived_by_id(
+        session, finding_id, archive_request=archive_request
+    )
+    if finding is None:
+        raise HTTPException(
+            status_code=404, detail=f"Finding does not exist: {finding_id}."
+        )
+
+    return FindingOut.model_validate(finding)
+
+
+@router.post("/{finding_id}/restore", status_code=200)
+def post_finding_restored_by_id_route(
+    session: SessionDep, finding_id: Annotated[int, Path(ge=1)]
+) -> FindingOut:
+    """Restore one archived finding by ID."""
+    finding = post_finding_restored_by_id(session, finding_id)
+    if finding is None:
+        raise HTTPException(
+            status_code=404, detail=f"Finding does not exist: {finding_id}."
+        )
+
+    return FindingOut.model_validate(finding)

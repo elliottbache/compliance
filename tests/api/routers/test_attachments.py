@@ -251,7 +251,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_attachment_without_findings(
         self, main_module, client, mock_db, monkeypatch, attachment_factory
     ):
-        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
+        def fake_get_attachment_by_id(session, attachment_id, include_archived=False):
             assert attachment_id == 50
             assert session is mock_db
             return attachment_factory()
@@ -281,7 +281,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_attachment_with_two_findings(
         self, main_module, client, mock_db, monkeypatch, attachment_factory
     ):
-        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
+        def fake_get_attachment_by_id(session, attachment_id, include_archived=False):
             assert attachment_id == 50
             assert session is mock_db
             return attachment_factory(
@@ -320,7 +320,7 @@ class TestGetAttachmentByIdRoute:
     def test_client_returns_404_when_attachment_is_not_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
+        def fake_get_attachment_by_id(session, attachment_id, include_archived=False):
             assert attachment_id == 999
             assert session is mock_db
             return None
@@ -344,7 +344,7 @@ class TestGetAttachmentByIdRoute:
     ) -> None:
         fake_session = object()
 
-        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
+        def fake_get_attachment_by_id(session, attachment_id, include_archived=False):
             assert attachment_id == 50
             assert session is fake_session
             return attachment_factory()
@@ -353,7 +353,7 @@ class TestGetAttachmentByIdRoute:
             attachments_router, "get_attachment_by_id", fake_get_attachment_by_id
         )
 
-        result = attachments_router.get_attachment_by_id_route(50, fake_session)
+        result = attachments_router.get_attachment_by_id_route(fake_session, 50)
 
         assert result == attachments_router.AttachmentWithContextOut.model_validate(
             attachment_factory()
@@ -362,7 +362,7 @@ class TestGetAttachmentByIdRoute:
     def test_returns_404_when_attachment_is_not_found(
         self, main_module, monkeypatch
     ) -> None:
-        def fake_get_attachment_by_id(attachment_id, session, include_archived=False):
+        def fake_get_attachment_by_id(session, attachment_id, include_archived=False):
             return None
 
         monkeypatch.setattr(
@@ -370,7 +370,7 @@ class TestGetAttachmentByIdRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachment_by_id_route(999, object())
+            attachments_router.get_attachment_by_id_route(object(), 999)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Attachment 999 not found."
@@ -400,7 +400,7 @@ class TestPostNewAttachmentRoute:
             }
         )
 
-        def fake_post_new_attachment(attachment, session):
+        def fake_post_new_attachment(session, attachment):
             assert attachment.file_type == "pdf"
             assert attachment.file_name == "evidence"
             assert attachment.certification_id == 100
@@ -434,7 +434,7 @@ class TestPostNewAttachmentRoute:
     def test_client_returns_404_when_certification_is_not_found(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(attachment, session):
+        def fake_post_new_attachment(session, attachment):
             assert attachment.certification_id == 100
             assert session is mock_db
             raise attachments_router.AttachmentCertificationNotFoundError(
@@ -455,7 +455,7 @@ class TestPostNewAttachmentRoute:
     def test_client_returns_422_when_finding_belongs_to_another_certification(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(attachment, session):
+        def fake_post_new_attachment(session, attachment):
             assert attachment.finding_ids == [7]
             assert session is mock_db
             raise attachments_router.AttachmentFindingCertificationMismatchError(
@@ -480,7 +480,7 @@ class TestPostNewAttachmentRoute:
     def test_client_returns_409_when_attachment_conflicts(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(attachment, session):
+        def fake_post_new_attachment(session, attachment):
             assert session is mock_db
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
@@ -509,7 +509,7 @@ class TestPostNewAttachmentRoute:
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(attachment_info, session):
+        def fake_post_new_attachment(session, attachment_info):
             raise attachments_router.AttachmentCertificationNotFoundError(
                 "Certification 100 does not exist."
             )
@@ -521,7 +521,7 @@ class TestPostNewAttachmentRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(object(), attachment)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification 100 does not exist."
@@ -533,7 +533,7 @@ class TestPostNewAttachmentRoute:
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(attachment_info, session):
+        def fake_post_new_attachment(session, attachment_info):
             raise attachments_router.AttachmentFindingNotFoundError(
                 "Finding 7 does not exist."
             )
@@ -545,7 +545,7 @@ class TestPostNewAttachmentRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(object(), attachment)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Finding 7 does not exist."
@@ -557,7 +557,7 @@ class TestPostNewAttachmentRoute:
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(attachment_info, session):
+        def fake_post_new_attachment(session, attachment_info):
             raise attachments_router.AttachmentFindingCertificationMismatchError(
                 "Finding 7 does not belong to certification 100."
             )
@@ -569,7 +569,7 @@ class TestPostNewAttachmentRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(object(), attachment)
 
         assert exc_info.value.status_code == 422
         assert (
@@ -583,7 +583,7 @@ class TestPostNewAttachmentRoute:
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(attachment_info, session):
+        def fake_post_new_attachment(session, attachment_info):
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
             )
@@ -595,7 +595,116 @@ class TestPostNewAttachmentRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(attachment, object())
+            attachments_router.post_new_attachment_route(object(), attachment)
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "Attachment could not be created."
+
+
+class TestPostAttachmentArchivedByIdRoute:
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = attachments_router.AttachmentWithContextOut(
+            id=50,
+            file_type="pdf",
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+            archived_at=None,
+            archive_reason=None,
+            certification_id=100,
+            inspection_date=date(2026, 4, 1),
+            regulation_id=5,
+            regulation_title="USDA Organic",
+            finding_links=[],
+        )
+
+        def fake_post_attachment_archived_by_id(
+            session, attachment_id, *, archive_request
+        ):
+            assert session is fake_session
+            assert attachment_id == 50
+            assert archive_request == attachments_router.ArchiveRequest()
+            return expected
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_archived_by_id",
+            fake_post_attachment_archived_by_id,
+        )
+
+        result = attachments_router.post_attachment_archived_by_id_route(
+            fake_session, 50
+        )
+
+        assert result == expected
+
+    def test_returns_404_when_attachment_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_attachment_archived_by_id(
+            session, attachment_id, *, archive_request
+        ):
+            return None
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_archived_by_id",
+            fake_post_attachment_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_archived_by_id_route(object(), 50)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Attachment does not exist: 50."
+
+
+class TestPostAttachmentRestoredByIdRoute:
+    def test_returns_restored_attachment(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = attachments_router.AttachmentWithContextOut(
+            id=50,
+            file_type="pdf",
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+            archived_at=None,
+            archive_reason=None,
+            certification_id=100,
+            inspection_date=date(2026, 4, 1),
+            regulation_id=5,
+            regulation_title="USDA Organic",
+            finding_links=[],
+        )
+
+        def fake_post_attachment_restored_by_id(session, attachment_id):
+            assert session is fake_session
+            assert attachment_id == 50
+            return expected
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_restored_by_id",
+            fake_post_attachment_restored_by_id,
+        )
+
+        result = attachments_router.post_attachment_restored_by_id_route(
+            fake_session, 50
+        )
+
+        assert result == expected
+
+    def test_returns_404_when_attachment_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_attachment_restored_by_id(session, attachment_id):
+            return None
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_restored_by_id",
+            fake_post_attachment_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_restored_by_id_route(object(), 50)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Attachment does not exist: 50."

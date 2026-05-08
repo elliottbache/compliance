@@ -110,7 +110,7 @@ class TestGetClientByNifRoute:
     def test_client_returns_client_json_when_found(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return client_record_factory()
@@ -133,7 +133,7 @@ class TestGetClientByNifRoute:
     def test_client_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return None
@@ -158,25 +158,25 @@ class TestGetClientByNifRoute:
         client = client_record_factory()
         expected_client = clients_router.ClientOut.model_validate(client)
 
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is fake_session
             return client
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
 
-        result = clients_router.get_clients_by_nif_route("A1234567B", fake_session)
+        result = clients_router.get_clients_by_nif_route(fake_session, "A1234567B")
 
         assert result == expected_client
 
     def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             return None
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.get_clients_by_nif_route("A1234567B", object())
+            clients_router.get_clients_by_nif_route(object(), "A1234567B")
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client A1234567B not found."
@@ -196,7 +196,7 @@ class TestGetClientSitesRoute:
     def test_client_returns_sites_json_when_client_is_found(
         self, client, mock_db, monkeypatch, client_record_factory, site_factory
     ):
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return client_record_factory()
@@ -252,7 +252,7 @@ class TestGetClientSitesRoute:
     def test_client_returns_empty_sites_json_when_client_has_no_sites(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert session is mock_db
             return client_record_factory()
 
@@ -271,7 +271,7 @@ class TestGetClientSitesRoute:
     def test_client_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is mock_db
             return None
@@ -296,7 +296,7 @@ class TestGetClientSitesRoute:
         sites = [site_factory()]
         expected_sites = [clients_router.SiteOut.model_validate(site) for site in sites]
 
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             assert nif == "A1234567B"
             assert session is fake_session
             return client_record_factory()
@@ -311,14 +311,14 @@ class TestGetClientSitesRoute:
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
         monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
 
-        result = clients_router.get_client_sites_route("A1234567B", fake_session)
+        result = clients_router.get_client_sites_route(fake_session, "A1234567B")
 
         assert result == expected_sites
 
     def test_returns_empty_list_when_client_has_no_sites(
         self, monkeypatch, client_record_factory
     ) -> None:
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             return client_record_factory()
 
         def fake_get_sites(session, *, nif, limit, offset, include_archived=False):
@@ -327,18 +327,18 @@ class TestGetClientSitesRoute:
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
         monkeypatch.setattr(clients_router, "get_sites", fake_get_sites)
 
-        result = clients_router.get_client_sites_route("A1234567B", object())
+        result = clients_router.get_client_sites_route(object(), "A1234567B")
 
         assert result == []
 
     def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
-        def fake_get_client_by_nif(nif, session, *, include_archived=False):
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
             return None
 
         monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.get_client_sites_route("A1234567B", object())
+            clients_router.get_client_sites_route(object(), "A1234567B")
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client A1234567B not found."
@@ -358,7 +358,7 @@ class TestPostNewClientRoute:
     def test_client_returns_client_json_when_found(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_post_new_client(client_record, session):
+        def fake_post_new_client(session, client_record):
             assert client_record.nif == "A1234567B"
             assert client_record.company_name == "Acme Corp"
             assert session is mock_db
@@ -382,7 +382,7 @@ class TestPostNewClientRoute:
     def test_client_returns_409_when_client_already_exists(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
-        def fake_post_new_client(client_record, session):
+        def fake_post_new_client(session, client_record):
             assert session is mock_db
             raise clients_router.ClientConflictError
 
@@ -416,14 +416,14 @@ class TestPostNewClientRoute:
             **client.model_dump(), archived_at=None, archive_reason=None
         )
 
-        def fake_post_new_client(client_info, session):
+        def fake_post_new_client(session, client_info):
             assert client_info is client
             assert session is fake_session
             return expected_client
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
-        result = clients_router.post_new_client_route(client, fake_session)
+        result = clients_router.post_new_client_route(fake_session, client)
 
         assert result == expected_client
 
@@ -438,13 +438,13 @@ class TestPostNewClientRoute:
             telephone=123456789,
         )
 
-        def fake_post_new_client(client_info, session):
+        def fake_post_new_client(session, client_info):
             raise clients_router.ClientConflictError
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(client, object())
+            clients_router.post_new_client_route(object(), client)
 
         assert exc_info.value.status_code == 409
         assert (
@@ -462,13 +462,13 @@ class TestPostNewClientRoute:
             telephone=123456789,
         )
 
-        def fake_post_new_client(client_info, session):
+        def fake_post_new_client(session, client_info):
             raise clients_router.ClientNifConflictError
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(client, object())
+            clients_router.post_new_client_route(object(), client)
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "Client with NIF A1234567B already exists."
@@ -484,13 +484,13 @@ class TestPostNewClientRoute:
             telephone=123456789,
         )
 
-        def fake_post_new_client(client_info, session):
+        def fake_post_new_client(session, client_info):
             raise clients_router.ClientCompanyNameConflictError
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(client, object())
+            clients_router.post_new_client_route(object(), client)
 
         assert exc_info.value.status_code == 409
         assert (

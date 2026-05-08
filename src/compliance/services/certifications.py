@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     CertificationAttachmentsOut,
     CertificationCreate,
     CertificationOut,
@@ -22,8 +23,10 @@ from compliance.db.models import (
 )
 from compliance.services._helpers import (
     _format_attachment,
+    archive_record_by_id,
     get_constraint_name,
     record_is_visible,
+    restore_record_by_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,7 +118,7 @@ def get_certifications(
 
 
 def get_certification_by_id(
-    certification_id: int, session: Session, *, include_archived: bool = False
+    session: Session, certification_id: int, *, include_archived: bool = False
 ) -> Certification | None:
     """Return one certification when it and its required parents are visible."""
     stmt = (
@@ -135,7 +138,7 @@ def get_certification_by_id(
 
 
 def get_certification_attachments_by_id(
-    certification_id: int, session: Session, *, include_archived: bool = False
+    session: Session, certification_id: int, *, include_archived: bool = False
 ) -> CertificationAttachmentsOut | None:
     """Retrieve attachment records for one certification.
 
@@ -144,10 +147,10 @@ def get_certification_attachments_by_id(
     with no attachment records.
 
     Args:
-        certification_id: Unique identifier of the certification whose
-            attachments should be retrieved.
         session: Database session used to check the certification and execute
             the attachment query.
+        certification_id: Unique identifier of the certification whose
+            attachments should be retrieved.
         include_archived: When true, include archived certification, attachment,
             site, certifier, regulation, rule, and finding records. By default,
             archived finding and rule rows are omitted from optional link
@@ -211,13 +214,13 @@ def get_certification_attachments_by_id(
 
 
 def post_new_certification(
-    certification: CertificationCreate, session: Session
+    session: Session, certification: CertificationCreate
 ) -> Certification:
     """Persist a new certification record.
 
     Args:
-        certification: Certification creation data validated by the API layer.
         session: Database session used to add and commit the certification.
+        certification: Certification creation data validated by the API layer.
 
     Returns:
         The created Certification ORM object.
@@ -254,6 +257,41 @@ def post_new_certification(
         raise CertificationConflictError() from exc
 
     return new_certification
+
+
+def post_certification_archived_by_id(
+    session: Session, certification_id: int, *, archive_request: ArchiveRequest
+) -> Certification | None:
+    """Archive a certification by ID.
+
+    Args:
+        session: Database session used to retrieve and update the certification.
+        certification_id: Primary key for the certification to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The certification ORM object, or ``None`` if no matching certification
+        exists.
+    """
+    return archive_record_by_id(
+        session, Certification, certification_id, archive_request
+    )
+
+
+def post_certification_restored_by_id(
+    session: Session, certification_id: int
+) -> Certification | None:
+    """Restore an archived certification by ID.
+
+    Args:
+        session: Database session used to retrieve and update the certification.
+        certification_id: Primary key for the certification to restore.
+
+    Returns:
+        The certification ORM object, or ``None`` if no matching certification
+        exists.
+    """
+    return restore_record_by_id(session, Certification, certification_id)
 
 
 def _format_certification_attachments(

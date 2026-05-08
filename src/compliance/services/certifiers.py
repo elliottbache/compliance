@@ -3,12 +3,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     CertifierCreate,
 )
 from compliance.db.models import (
     Certifier,
 )
-from compliance.services._helpers import get_constraint_name, record_is_visible
+from compliance.services._helpers import (
+    archive_record_by_id,
+    get_constraint_name,
+    record_is_visible,
+    restore_record_by_id,
+)
 
 
 class CertifierConflictError(Exception):
@@ -47,13 +53,13 @@ def get_certifiers(
 
 
 def get_certifier_by_id(
-    certifier_id: int, session: Session, *, include_archived: bool = False
+    session: Session, certifier_id: int, *, include_archived: bool = False
 ) -> Certifier | None:
     """Retrieve one certifier by ID.
 
     Args:
-        certifier_id: Primary key for the certifier.
         session: Database session used to retrieve the certifier.
+        certifier_id: Primary key for the certifier.
         include_archived: When true, return archived certifiers.
 
     Returns:
@@ -63,12 +69,12 @@ def get_certifier_by_id(
     return certifier if record_is_visible(certifier, include_archived) else None
 
 
-def post_new_certifier(certifier: CertifierCreate, session: Session) -> Certifier:
+def post_new_certifier(session: Session, certifier: CertifierCreate) -> Certifier:
     """Persist a new certifier record.
 
     Args:
-        certifier: Certifier data validated by the API layer.
         session: Database session used to add and commit the certifier.
+        certifier: Certifier data validated by the API layer.
 
     Returns:
         The created Certifier ORM object.
@@ -98,3 +104,34 @@ def post_new_certifier(certifier: CertifierCreate, session: Session) -> Certifie
         raise CertifierConflictError() from exc
 
     return new_certifier
+
+
+def post_certifier_archived_by_id(
+    session: Session, certifier_id: int, *, archive_request: ArchiveRequest
+) -> Certifier | None:
+    """Archive a certifier by ID.
+
+    Args:
+        session: Database session used to retrieve and update the certifier.
+        certifier_id: Primary key for the certifier to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The certifier ORM object, or ``None`` if no matching certifier exists.
+    """
+    return archive_record_by_id(session, Certifier, certifier_id, archive_request)
+
+
+def post_certifier_restored_by_id(
+    session: Session, certifier_id: int
+) -> Certifier | None:
+    """Restore an archived certifier by ID.
+
+    Args:
+        session: Database session used to retrieve and update the certifier.
+        certifier_id: Primary key for the certifier to restore.
+
+    Returns:
+        The certifier ORM object, or ``None`` if no matching certifier exists.
+    """
+    return restore_record_by_id(session, Certifier, certifier_id)

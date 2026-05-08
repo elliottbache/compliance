@@ -50,15 +50,15 @@ def get_clients_route(
 
 @router.get("/{nif}")
 def get_clients_by_nif_route(
-    nif: Annotated[str, Path(min_length=9, max_length=9)],
     session: SessionDep,
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
     include_archived: Annotated[bool, Query()] = False,
 ) -> ClientOut:
     """Return one client by NIF.
 
     Args:
-        nif: Unique fiscal identifier for the client.
         session: Database session provided by FastAPI dependency injection.
+        nif: Unique fiscal identifier for the client.
         include_archived: When true, return archived clients.
 
     Returns:
@@ -67,7 +67,7 @@ def get_clients_by_nif_route(
     Raises:
         HTTPException: If no visible client exists for the requested NIF.
     """
-    result = get_client_by_nif(nif, session, include_archived=include_archived)
+    result = get_client_by_nif(session, nif, include_archived=include_archived)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
@@ -76,16 +76,16 @@ def get_clients_by_nif_route(
 
 @router.get("/{nif}/sites")
 def get_client_sites_route(
-    nif: Annotated[str, Path(min_length=9, max_length=9)],
     session: SessionDep,
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
     include_archived: Annotated[bool, Query()] = False,
 ) -> list[SiteOut]:
     """Return sites for one client by NIF.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         nif: Unique fiscal identifier for the client whose sites should be
             retrieved.
-        session: Database session provided by FastAPI dependency injection.
         include_archived: When true, include archived client and site records.
 
     Returns:
@@ -95,7 +95,7 @@ def get_client_sites_route(
     Raises:
         HTTPException: If no visible client exists for the requested NIF.
     """
-    client = get_client_by_nif(nif, session, include_archived=include_archived)
+    client = get_client_by_nif(session, nif, include_archived=include_archived)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
 
@@ -109,12 +109,12 @@ def get_client_sites_route(
 
 
 @router.post("", status_code=201)
-def post_new_client_route(client: ClientCreate, session: SessionDep) -> ClientOut:
+def post_new_client_route(session: SessionDep, client: ClientCreate) -> ClientOut:
     """Create a new client record.
 
     Args:
-        client: Client details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        client: Client details supplied in the request body.
 
     Returns:
         Created client details serialized with the public API response schema.
@@ -124,7 +124,7 @@ def post_new_client_route(client: ClientCreate, session: SessionDep) -> ClientOu
             conflicts with an existing record.
     """
     try:
-        new_client = post_new_client(client, session)
+        new_client = post_new_client(session, client)
 
     except ClientNifConflictError as err:
         raise HTTPException(

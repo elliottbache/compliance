@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     CertifierCreate,
 )
 from compliance.db.models import Certifier
@@ -13,6 +14,8 @@ from compliance.services.certifiers import (
     CertifierOrganizationNameConflictError,
     get_certifier_by_id,
     get_certifiers,
+    post_certifier_archived_by_id,
+    post_certifier_restored_by_id,
     post_new_certifier,
 )
 
@@ -74,7 +77,7 @@ class TestGetCertifierById:
         certifier = _certifier()
         session.get.return_value = certifier
 
-        result = get_certifier_by_id(10, session)
+        result = get_certifier_by_id(session, 10)
 
         assert result is certifier
         session.get.assert_called_once_with(Certifier, 10)
@@ -83,7 +86,7 @@ class TestGetCertifierById:
         session = MagicMock()
         session.get.return_value = None
 
-        result = get_certifier_by_id(10, session)
+        result = get_certifier_by_id(session, 10)
 
         assert result is None
         session.get.assert_called_once_with(Certifier, 10)
@@ -93,7 +96,7 @@ class TestGetCertifierById:
         certifier = _certifier(archived_at=datetime(2026, 5, 7))
         session.get.return_value = certifier
 
-        result = get_certifier_by_id(10, session)
+        result = get_certifier_by_id(session, 10)
 
         assert result is None
 
@@ -102,7 +105,7 @@ class TestGetCertifierById:
         certifier = _certifier(archived_at=datetime(2026, 5, 7))
         session.get.return_value = certifier
 
-        result = get_certifier_by_id(10, session, include_archived=True)
+        result = get_certifier_by_id(session, 10, include_archived=True)
 
         assert result is certifier
 
@@ -112,7 +115,7 @@ class TestPostNewCertifier:
         session = MagicMock()
         certifier = CertifierCreate(organization_name="SafeCheck Inc.")
 
-        post_new_certifier(certifier, session)
+        post_new_certifier(session, certifier)
 
         session.add.assert_called_once()
         added_certifier = session.add.call_args.args[0]
@@ -132,11 +135,96 @@ class TestPostNewCertifier:
         )
 
         with pytest.raises(CertifierOrganizationNameConflictError):
-            post_new_certifier(certifier, session)
+            post_new_certifier(session, certifier)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
+
+
+class TestPostCertifierArchivedById:
+    def test_archives_certifier_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        certifier = _certifier()
+        session.get.return_value = certifier
+
+        result = post_certifier_archived_by_id(
+            session,
+            10,
+            archive_request=ArchiveRequest(archive_reason="  duplicate  "),
+        )
+
+        assert result is certifier
+        assert certifier.archived_at is not None
+        assert certifier.archived_at.tzinfo is UTC
+        assert certifier.archive_reason == "duplicate"
+        session.get.assert_called_once_with(Certifier, 10)
+        session.commit.assert_called_once_with()
+
+    def test_does_not_rearchive_existing_archived_certifier(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        certifier = _certifier(archived_at=archived_at, archive_reason="old")
+        session.get.return_value = certifier
+
+        result = post_certifier_archived_by_id(
+            session, 10, archive_request=ArchiveRequest(archive_reason="new")
+        )
+
+        assert result is certifier
+        assert certifier.archived_at == archived_at
+        assert certifier.archive_reason == "old"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_certifier_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_certifier_archived_by_id(
+            session, 10, archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Certifier, 10)
+        session.commit.assert_not_called()
+
+
+class TestPostCertifierRestoredById:
+    def test_restores_archived_certifier(self) -> None:
+        session = MagicMock()
+        certifier = _certifier(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old",
+        )
+        session.get.return_value = certifier
+
+        result = post_certifier_restored_by_id(session, 10)
+
+        assert result is certifier
+        assert certifier.archived_at is None
+        assert certifier.archive_reason is None
+        session.get.assert_called_once_with(Certifier, 10)
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_certifier_without_commit(self) -> None:
+        session = MagicMock()
+        certifier = _certifier(archived_at=None, archive_reason=None)
+        session.get.return_value = certifier
+
+        result = post_certifier_restored_by_id(session, 10)
+
+        assert result is certifier
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_certifier_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_certifier_restored_by_id(session, 10)
+
+        assert result is None
+        session.get.assert_called_once_with(Certifier, 10)
+        session.commit.assert_not_called()
 
     def test_rolls_back_and_raises_generic_conflict_for_unknown_integrity_error(
         self, monkeypatch
@@ -150,7 +238,7 @@ class TestPostNewCertifier:
         )
 
         with pytest.raises(CertifierConflictError):
-            post_new_certifier(certifier, session)
+            post_new_certifier(session, certifier)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()

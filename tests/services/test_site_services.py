@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import SiteCertificationsOut, SiteCreate
+from compliance.api.schemas import ArchiveRequest, SiteCertificationsOut, SiteCreate
 from compliance.db.models import Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services._helpers import (
@@ -25,6 +25,8 @@ from compliance.services.sites import (
     get_site_history_legacy,
     get_sites,
     post_new_site,
+    post_site_archived_by_id,
+    post_site_restored_by_id,
 )
 
 
@@ -236,7 +238,7 @@ class TestGetSiteById:
         expected_site = _site()
         session.execute.return_value.scalar_one_or_none.return_value = expected_site
 
-        result = get_site_by_id(12, session)
+        result = get_site_by_id(session, 12)
 
         stmt = session.execute.call_args.args[0]
         assert "JOIN clients" in str(stmt)
@@ -247,7 +249,7 @@ class TestGetSiteById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_site_by_id(999, session)
+        result = get_site_by_id(session, 999)
 
         session.execute.assert_called_once()
         assert result is None
@@ -256,7 +258,7 @@ class TestGetSiteById:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
-        result = get_site_by_id(12, session)
+        result = get_site_by_id(session, 12)
 
         stmt = session.execute.call_args.args[0]
         assert "sites.archived_at IS NULL" in str(stmt)
@@ -268,7 +270,7 @@ class TestGetSiteById:
         site = _site(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = site
 
-        result = get_site_by_id(12, session, include_archived=True)
+        result = get_site_by_id(session, 12, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "sites.archived_at IS NULL" not in str(stmt)
@@ -281,7 +283,7 @@ class TestPostNewSite:
         session = MagicMock()
         site = _site_create()
 
-        post_new_site(site, session)
+        post_new_site(session, site)
 
         session.add.assert_called_once()
         added_site = session.add.call_args.args[0]
@@ -301,7 +303,7 @@ class TestPostNewSite:
         site = _site_create()
 
         with pytest.raises(SiteConflictError):
-            post_new_site(site, session)
+            post_new_site(session, site)
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
@@ -319,7 +321,7 @@ class TestPostNewSite:
         )
 
         with pytest.raises(SiteClientNotFoundError):
-            post_new_site(site, session)
+            post_new_site(session, site)
 
         session.rollback.assert_called_once_with()
 
@@ -335,7 +337,7 @@ class TestGetSiteCertifications:
             expected_certifications
         )
 
-        result = get_site_certifications(12, session, limit=None, offset=0)
+        result = get_site_certifications(session, 12, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == expected_certifications
@@ -344,7 +346,7 @@ class TestGetSiteCertifications:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        result = get_site_certifications(999, session, limit=None, offset=0)
+        result = get_site_certifications(session, 999, limit=None, offset=0)
 
         session.execute.assert_called_once()
         assert result == []
@@ -355,7 +357,7 @@ class TestGetSiteCertifications:
             MagicMock(spec=Certification)
         ]
 
-        get_site_certifications(12, session, limit=None, offset=0)
+        get_site_certifications(session, 12, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifications.resolution_date DESC, certifications.id" in str(
@@ -368,7 +370,7 @@ class TestGetSiteCertifications:
             MagicMock(spec=Certification)
         ]
 
-        get_site_certifications(12, session, limit=10, offset=20)
+        get_site_certifications(session, 12, limit=10, offset=20)
 
         stmt = session.execute.call_args.args[0]
         statement_text = str(stmt)
@@ -379,7 +381,7 @@ class TestGetSiteCertifications:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        get_site_certifications(12, session, limit=None, offset=0)
+        get_site_certifications(session, 12, limit=None, offset=0)
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
@@ -390,7 +392,7 @@ class TestGetSiteCertifications:
         session.execute.return_value.scalars.return_value.all.return_value = []
 
         get_site_certifications(
-            12, session, limit=None, offset=0, include_archived=True
+            session, 12, limit=None, offset=0, include_archived=True
         )
 
         stmt = session.execute.call_args.args[0]
@@ -428,7 +430,7 @@ class TestGetSiteHistoryForSite:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_site_history(71, session)
+        result = get_site_history(session, 71)
 
         session.execute.assert_called_once()
         assert result is None
@@ -448,7 +450,7 @@ class TestGetSiteHistoryForSite:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_site_history(71, session)
+        result = get_site_history(session, 71)
 
         session.execute.assert_called_once()
         assert result == _format_site_history(rows)
@@ -457,7 +459,7 @@ class TestGetSiteHistoryForSite:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_site_history(71, session)
+        get_site_history(session, 71)
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
@@ -466,7 +468,7 @@ class TestGetSiteHistoryForSite:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_site_history(71, session, include_archived=True)
+        get_site_history(session, 71, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" not in str(stmt)
@@ -477,7 +479,7 @@ class TestGetSiteAttachments:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_site_attachments(71, session)
+        result = get_site_attachments(session, 71)
 
         session.execute.assert_called_once()
         assert result is None
@@ -489,7 +491,7 @@ class TestGetSiteAttachments:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_site_attachments(71, session)
+        result = get_site_attachments(session, 71)
 
         session.execute.assert_called_once()
         assert result == _format_site_attachments(rows)
@@ -498,7 +500,7 @@ class TestGetSiteAttachments:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_site_attachments(71, session)
+        get_site_attachments(session, 71)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
@@ -511,7 +513,7 @@ class TestGetSiteAttachments:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_site_attachments(71, session, include_archived=True)
+        get_site_attachments(session, 71, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
@@ -790,6 +792,89 @@ class TestGetSiteHistory:
         )
         mock_select.assert_called_once()
         mock_format.assert_called_once_with(rows)
+
+
+class TestPostSiteArchivedById:
+    def test_archives_site_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        site = _site()
+        session.get.return_value = site
+
+        result = post_site_archived_by_id(
+            session,
+            71,
+            archive_request=ArchiveRequest(archive_reason="  duplicate  "),
+        )
+
+        assert result is site
+        assert site.archived_at is not None
+        assert site.archived_at.tzinfo is UTC
+        assert site.archive_reason == "duplicate"
+        session.get.assert_called_once_with(Site, 71)
+        session.commit.assert_called_once_with()
+
+    def test_does_not_rearchive_existing_archived_site(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        site = _site(archived_at=archived_at, archive_reason="old")
+        session.get.return_value = site
+
+        result = post_site_archived_by_id(
+            session, 71, archive_request=ArchiveRequest(archive_reason="new")
+        )
+
+        assert result is site
+        assert site.archived_at == archived_at
+        assert site.archive_reason == "old"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_site_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_site_archived_by_id(session, 71, archive_request=ArchiveRequest())
+
+        assert result is None
+        session.get.assert_called_once_with(Site, 71)
+        session.commit.assert_not_called()
+
+
+class TestPostSiteRestoredById:
+    def test_restores_archived_site(self) -> None:
+        session = MagicMock()
+        site = _site(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old",
+        )
+        session.get.return_value = site
+
+        result = post_site_restored_by_id(session, 71)
+
+        assert result is site
+        assert site.archived_at is None
+        assert site.archive_reason is None
+        session.get.assert_called_once_with(Site, 71)
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_site_without_commit(self) -> None:
+        session = MagicMock()
+        site = _site(archived_at=None, archive_reason=None)
+        session.get.return_value = site
+
+        result = post_site_restored_by_id(session, 71)
+
+        assert result is site
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_site_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_site_restored_by_id(session, 71)
+
+        assert result is None
+        session.get.assert_called_once_with(Site, 71)
+        session.commit.assert_not_called()
 
     def test_formats_site_history_when_query_returns_multiple_rows(
         self, site_history_row_factory, db_access_mocks

@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     SiteAttachmentsOut,
     SiteCertificationsOut,
     SiteCreate,
@@ -24,8 +25,10 @@ from compliance.db.models import (
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services._helpers import (
     _format_attachment,
+    archive_record_by_id,
     get_constraint_name,
     record_is_visible,
+    restore_record_by_id,
 )
 
 
@@ -79,7 +82,7 @@ def get_sites(
 
 
 def get_site_by_id(
-    site_id: int, session: Session, *, include_archived: bool = False
+    session: Session, site_id: int, *, include_archived: bool = False
 ) -> Site | None:
     """Return one site by primary key when it and its parent client are visible."""
     stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
@@ -150,7 +153,7 @@ def get_site_history_legacy(site_id: int) -> SiteHistory | None:
 
 
 def get_site_history(
-    site_id: int, session: Session, *, include_archived: bool = False
+    session: Session, site_id: int, *, include_archived: bool = False
 ) -> SiteHistory | None:
     """Retrieve the certification history for a site.
 
@@ -159,6 +162,7 @@ def get_site_history(
     the result into a site-history value ordered by inspection date.
 
     Args:
+        session: Database session used to execute the certification history query.
         site_id: Unique identifier of the site whose certification history
             should be retrieved.
         include_archived: When true, include archived site, certification,
@@ -218,14 +222,14 @@ def get_site_history(
 
 
 def get_site_attachments(
-    site_id: int, session: Session, *, include_archived: bool = False
+    session: Session, site_id: int, *, include_archived: bool = False
 ) -> SiteAttachmentsOut | None:
     """Retrieve attachment records for a site with certification and finding context.
 
     Args:
+        session: Database session used to execute the attachment query.
         site_id: Unique identifier of the site whose attachments should be
             retrieved.
-        session: Database session used to execute the attachment query.
         include_archived: When true, include archived site, certification,
             attachment, regulation, rule, and finding records. By default,
             archived finding and rule rows are omitted from optional link
@@ -279,8 +283,8 @@ def get_site_attachments(
 
 
 def get_site_certifications(
-    site_id: int,
     session: Session,
+    site_id: int,
     *,
     limit: int | None,
     offset: int,
@@ -289,9 +293,9 @@ def get_site_certifications(
     """Retrieve certifications for one site ordered by latest resolution date.
 
     Args:
+        session: Database session used to execute the certification query.
         site_id: Unique identifier of the site whose certifications should be
             retrieved.
-        session: Database session used to execute the certification query.
         limit: Maximum number of certifications to return. If ``None``, all
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
@@ -318,12 +322,12 @@ def get_site_certifications(
     return list(session.execute(stmt).scalars().all())
 
 
-def post_new_site(site: SiteCreate, session: Session) -> Site:
+def post_new_site(session: Session, site: SiteCreate) -> Site:
     """Persist a new site record.
 
     Args:
-        site: Site creation data validated by the API layer.
         session: Database session used to add and commit the site.
+        site: Site creation data validated by the API layer.
 
     Returns:
         The created Site ORM object.
@@ -348,6 +352,35 @@ def post_new_site(site: SiteCreate, session: Session) -> Site:
         raise SiteConflictError() from exc
 
     return new_site
+
+
+def post_site_archived_by_id(
+    session: Session, site_id: int, *, archive_request: ArchiveRequest
+) -> Site | None:
+    """Archive a site by ID.
+
+    Args:
+        session: Database session used to retrieve and update the site.
+        site_id: Primary key for the site to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The site ORM object, or ``None`` if no matching site exists.
+    """
+    return archive_record_by_id(session, Site, site_id, archive_request)
+
+
+def post_site_restored_by_id(session: Session, site_id: int) -> Site | None:
+    """Restore an archived site by ID.
+
+    Args:
+        session: Database session used to retrieve and update the site.
+        site_id: Primary key for the site to restore.
+
+    Returns:
+        The site ORM object, or ``None`` if no matching site exists.
+    """
+    return restore_record_by_id(session, Site, site_id)
 
 
 def format_site_certifications(
@@ -499,9 +532,9 @@ if __name__ == "__main__":
 
     session = get_db()
 
-    print(f"\nsite 71: {get_site_history(71, next(iter(session)))}")
+    print(f"\nsite 71: {get_site_history(next(iter(session)), 71)}")
 
     session = get_db()
-    print(f"\nsite 71: {get_site_attachments(71, next(iter(session)))}")
+    print(f"\nsite 71: {get_site_attachments(next(iter(session)), 71)}")
 
     print(f"\nsite 71: {get_site_history_legacy(71)}")

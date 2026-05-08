@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     RegulationCreate,
     RegulationOut,
 )
@@ -16,6 +17,8 @@ from compliance.services.regulations import (
     get_regulation_by_id,
     get_regulations,
     post_new_regulation,
+    post_regulation_archived_by_id,
+    post_regulation_restored_by_id,
 )
 
 
@@ -127,7 +130,7 @@ class TestGetRegulationById:
         expected_regulation = MagicMock(spec=Regulation)
         session.get.return_value = expected_regulation
 
-        result = get_regulation_by_id(3, session)
+        result = get_regulation_by_id(session, 3)
 
         session.get.assert_called_once_with(Regulation, 3)
         assert result is expected_regulation
@@ -136,7 +139,7 @@ class TestGetRegulationById:
         session = MagicMock()
         session.get.return_value = None
 
-        result = get_regulation_by_id(999, session)
+        result = get_regulation_by_id(session, 999)
 
         session.get.assert_called_once_with(Regulation, 999)
         assert result is None
@@ -146,7 +149,7 @@ class TestGetRegulationById:
         regulation = _regulation(archived_at=datetime(2026, 5, 7))
         session.get.return_value = regulation
 
-        result = get_regulation_by_id(3, session)
+        result = get_regulation_by_id(session, 3)
 
         assert result is None
 
@@ -155,7 +158,7 @@ class TestGetRegulationById:
         regulation = _regulation(archived_at=datetime(2026, 5, 7))
         session.get.return_value = regulation
 
-        result = get_regulation_by_id(3, session, include_archived=True)
+        result = get_regulation_by_id(session, 3, include_archived=True)
 
         assert result is regulation
 
@@ -165,7 +168,7 @@ class TestPostNewRegulation:
         session = MagicMock()
         regulation = _regulation_create()
 
-        result = post_new_regulation(regulation, session)
+        result = post_new_regulation(session, regulation)
 
         session.add.assert_called_once()
         added_regulation = session.add.call_args.args[0]
@@ -184,17 +187,104 @@ class TestPostNewRegulation:
         session.commit.side_effect = _integrity_error()
 
         with pytest.raises(RegulationConflictError):
-            post_new_regulation(_regulation_create(), session)
+            post_new_regulation(session, _regulation_create())
 
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
 
+
+class TestPostRegulationArchivedById:
+    def test_archives_regulation_with_stripped_reason(self) -> None:
+        session = MagicMock()
+        regulation = _regulation()
+        session.get.return_value = regulation
+
+        result = post_regulation_archived_by_id(
+            session,
+            3,
+            archive_request=ArchiveRequest(archive_reason="  duplicate  "),
+        )
+
+        assert result is regulation
+        assert regulation.archived_at is not None
+        assert regulation.archived_at.tzinfo is UTC
+        assert regulation.archive_reason == "duplicate"
+        session.get.assert_called_once_with(Regulation, 3)
+        session.commit.assert_called_once_with()
+
+    def test_does_not_rearchive_existing_archived_regulation(self) -> None:
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        session = MagicMock()
+        regulation = _regulation(archived_at=archived_at, archive_reason="old")
+        session.get.return_value = regulation
+
+        result = post_regulation_archived_by_id(
+            session, 3, archive_request=ArchiveRequest(archive_reason="new")
+        )
+
+        assert result is regulation
+        assert regulation.archived_at == archived_at
+        assert regulation.archive_reason == "old"
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_regulation_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_regulation_archived_by_id(
+            session, 3, archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Regulation, 3)
+        session.commit.assert_not_called()
+
+
+class TestPostRegulationRestoredById:
+    def test_restores_archived_regulation(self) -> None:
+        session = MagicMock()
+        regulation = _regulation(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old",
+        )
+        session.get.return_value = regulation
+
+        result = post_regulation_restored_by_id(session, 3)
+
+        assert result is regulation
+        assert regulation.archived_at is None
+        assert regulation.archive_reason is None
+        session.get.assert_called_once_with(Regulation, 3)
+        session.commit.assert_called_once_with()
+
+    def test_returns_active_regulation_without_commit(self) -> None:
+        session = MagicMock()
+        regulation = _regulation(archived_at=None, archive_reason=None)
+        session.get.return_value = regulation
+
+        result = post_regulation_restored_by_id(session, 3)
+
+        assert result is regulation
+        session.commit.assert_not_called()
+
+    def test_returns_none_when_regulation_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_regulation_restored_by_id(session, 3)
+
+        assert result is None
+        session.get.assert_called_once_with(Regulation, 3)
+        session.commit.assert_not_called()
+
+
+class TestPostNewRegulationConflicts:
     def test_raises_title_conflict_when_title_already_exists(self) -> None:
         session = MagicMock()
         session.commit.side_effect = _integrity_error("uq_title")
 
         with pytest.raises(RegulationTitleConflictError):
-            post_new_regulation(_regulation_create(), session)
+            post_new_regulation(session, _regulation_create())
 
         session.rollback.assert_called_once_with()

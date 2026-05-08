@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     FindingAttachmentOut,
     FindingCreate,
     FindingOut,
@@ -18,7 +19,11 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import record_is_visible
+from compliance.services._helpers import (
+    archive_record_by_id,
+    record_is_visible,
+    restore_record_by_id,
+)
 
 
 class FindingConflictError(Exception):
@@ -159,13 +164,13 @@ def get_findings(
 
 
 def get_finding_by_id(
-    finding_id: int, session: Session, *, include_archived: bool = False
+    session: Session, finding_id: int, *, include_archived: bool = False
 ) -> FindingOut | None:
     """Return one finding with context by primary key.
 
     Args:
-        finding_id: Unique identifier of the finding to retrieve.
         session: Database session used to execute the finding query.
+        finding_id: Unique identifier of the finding to retrieve.
         include_archived: When true, return archived findings and related
             certification, site, regulation, rule, and attachment context. By
             default, archived attachment rows are omitted from optional context.
@@ -212,12 +217,12 @@ def get_finding_by_id(
     return findings[0] if findings else None
 
 
-def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
+def post_new_finding(session: Session, finding: FindingCreate) -> FindingOut:
     """Persist a new finding record and optional attachment links.
 
     Args:
-        finding: Finding creation data validated by the API layer.
         session: Database session used to add and commit the finding.
+        finding: Finding creation data validated by the API layer.
 
     Returns:
         The created finding serialized with certification, regulation, rule, and
@@ -305,6 +310,43 @@ def post_new_finding(finding: FindingCreate, session: Session) -> FindingOut:
         raise FindingConflictError() from exc
 
     return finding_out
+
+
+def post_finding_archived_by_id(
+    session: Session, finding_id: int, *, archive_request: ArchiveRequest
+) -> FindingOut | None:
+    """Archive a finding by ID.
+
+    Args:
+        session: Database session used to retrieve and update the finding.
+        finding_id: Primary key for the finding to archive.
+        archive_request: Archive metadata containing an optional reason.
+
+    Returns:
+        The archived finding with context, or ``None`` if no matching finding
+        exists.
+    """
+    finding = archive_record_by_id(session, Finding, finding_id, archive_request)
+    if finding is None:
+        return None
+    return get_finding_by_id(session, finding_id, include_archived=True)
+
+
+def post_finding_restored_by_id(session: Session, finding_id: int) -> FindingOut | None:
+    """Restore an archived finding by ID.
+
+    Args:
+        session: Database session used to retrieve and update the finding.
+        finding_id: Primary key for the finding to restore.
+
+    Returns:
+        The restored finding with context, or ``None`` if no matching finding
+        exists.
+    """
+    finding = restore_record_by_id(session, Finding, finding_id)
+    if finding is None:
+        return None
+    return get_finding_by_id(session, finding_id, include_archived=True)
 
 
 def _format_findings(finding_list: Sequence[Mapping]) -> list[FindingOut]:

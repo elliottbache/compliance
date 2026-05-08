@@ -226,7 +226,7 @@ class TestPostNewFindingRoute:
     ):
         expected_finding = finding_factory()
 
-        def fake_post_new_finding(finding, session):
+        def fake_post_new_finding(session, finding):
             assert session is mock_db
             assert finding.certification_id == 100
             assert finding.rule_id == 5
@@ -281,14 +281,14 @@ class TestPostNewFindingRoute:
         )
         expected_finding = finding_factory()
 
-        def fake_post_new_finding(finding_info, session):
+        def fake_post_new_finding(session, finding_info):
             assert finding_info is finding
             assert session is fake_session
             return expected_finding
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
-        result = findings_router.post_new_finding_route(finding, fake_session)
+        result = findings_router.post_new_finding_route(fake_session, finding)
 
         assert result == findings_router.FindingOut.model_validate(expected_finding)
 
@@ -299,7 +299,7 @@ class TestPostNewFindingRoute:
             finding="Missing document",
         )
 
-        def fake_post_new_finding(finding_info, session):
+        def fake_post_new_finding(session, finding_info):
             raise findings_router.FindingMissingCertificationError(
                 finding_info.certification_id
             )
@@ -307,7 +307,7 @@ class TestPostNewFindingRoute:
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(finding, object())
+            findings_router.post_new_finding_route(object(), finding)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification 100 does not exist."
@@ -319,13 +319,13 @@ class TestPostNewFindingRoute:
             finding="Missing document",
         )
 
-        def fake_post_new_finding(finding_info, session):
+        def fake_post_new_finding(session, finding_info):
             raise findings_router.FindingMissingRuleError(finding_info.rule_id)
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(finding, object())
+            findings_router.post_new_finding_route(object(), finding)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Rule 5 does not exist."
@@ -337,13 +337,13 @@ class TestPostNewFindingRoute:
             finding="Missing document",
         )
 
-        def fake_post_new_finding(finding_info, session):
+        def fake_post_new_finding(session, finding_info):
             raise findings_router.FindingConflictError()
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(finding, object())
+            findings_router.post_new_finding_route(object(), finding)
 
         assert exc_info.value.status_code == 409
         assert "Finding was not added" in exc_info.value.detail
@@ -360,3 +360,106 @@ class TestPostNewFindingRoute:
 
         assert route.response_model is findings_router.FindingOut
         assert route.status_code == 201
+
+
+class TestPostFindingArchivedByIdRoute:
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = findings_router.FindingOut(
+            finding_id=1,
+            finding="Missing document",
+            site_id=12,
+            certification_id=100,
+            certification_title="USDA Organic",
+            certification_resolution_date=None,
+            rule_id=5,
+            rule_index="7 CFR 205.201",
+            rule_title="Organic plan",
+            rule_description="Producer must maintain an organic system plan.",
+            attachments=[],
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+            assert session is fake_session
+            assert finding_id == 1
+            assert archive_request == findings_router.ArchiveRequest()
+            return expected
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        result = findings_router.post_finding_archived_by_id_route(fake_session, 1)
+
+        assert result == expected
+
+    def test_returns_404_when_finding_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+            return None
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_archived_by_id_route(object(), 1)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Finding does not exist: 1."
+
+
+class TestPostFindingRestoredByIdRoute:
+    def test_returns_restored_finding(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = findings_router.FindingOut(
+            finding_id=1,
+            finding="Missing document",
+            site_id=12,
+            certification_id=100,
+            certification_title="USDA Organic",
+            certification_resolution_date=None,
+            rule_id=5,
+            rule_index="7 CFR 205.201",
+            rule_title="Organic plan",
+            rule_description="Producer must maintain an organic system plan.",
+            attachments=[],
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_finding_restored_by_id(session, finding_id):
+            assert session is fake_session
+            assert finding_id == 1
+            return expected
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        result = findings_router.post_finding_restored_by_id_route(fake_session, 1)
+
+        assert result == expected
+
+    def test_returns_404_when_finding_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_finding_restored_by_id(session, finding_id):
+            return None
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_restored_by_id_route(object(), 1)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Finding does not exist: 1."

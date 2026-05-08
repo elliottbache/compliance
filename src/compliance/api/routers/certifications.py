@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     CertificationAttachmentsOut,
     CertificationCreate,
     CertificationOut,
@@ -17,6 +18,8 @@ from compliance.services.certifications import (
     get_certification_attachments_by_id,
     get_certification_by_id,
     get_certifications,
+    post_certification_archived_by_id,
+    post_certification_restored_by_id,
     post_new_certification,
 )
 from compliance.services.findings import get_findings
@@ -67,15 +70,15 @@ def get_certifications_route(
 
 @router.get("/{certification_id}")
 def get_certification_by_id_route(
-    certification_id: int,
     session: SessionDep,
+    certification_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> CertificationOut:
     """Return one certification by ID.
 
     Args:
-        certification_id: Unique identifier for the certification to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        certification_id: Unique identifier for the certification to retrieve.
         include_archived: When true, return archived certifications and
             archived parent site, regulation, and certifier records.
 
@@ -86,7 +89,7 @@ def get_certification_by_id_route(
         HTTPException: If no visible certification exists for the requested ID.
     """
     certification = get_certification_by_id(
-        certification_id, session, include_archived=include_archived
+        session, certification_id, include_archived=include_archived
     )
     if certification is None:
         raise HTTPException(
@@ -99,16 +102,16 @@ def get_certification_by_id_route(
 
 @router.get("/{certification_id}/attachments")
 def get_certification_attachments_by_id_route(
-    certification_id: int,
     session: SessionDep,
+    certification_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> CertificationAttachmentsOut:
     """Return attachment details for one certification by ID.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         certification_id: Unique identifier for the certification whose
             attachments should be retrieved.
-        session: Database session provided by FastAPI dependency injection.
         include_archived: When true, include archived certification,
             attachment, site, certifier, regulation, finding, and rule records.
             By default, archived optional finding and rule links are omitted
@@ -123,7 +126,7 @@ def get_certification_attachments_by_id_route(
         HTTPException: If no visible certification exists for the requested ID.
     """
     certification_attachments = get_certification_attachments_by_id(
-        certification_id, session, include_archived=include_archived
+        session, certification_id, include_archived=include_archived
     )
     if certification_attachments is None:
         raise HTTPException(
@@ -136,16 +139,16 @@ def get_certification_attachments_by_id_route(
 
 @router.get("/{certification_id}/findings")
 def get_certification_findings_route(
-    certification_id: int,
     session: SessionDep,
+    certification_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> list[FindingOut]:
     """Return findings for one certification by ID.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         certification_id: Unique identifier for the certification whose
             findings should be retrieved.
-        session: Database session provided by FastAPI dependency injection.
         include_archived: When true, include archived certification, site,
             regulation, rule, finding, and linked attachment records.
 
@@ -158,7 +161,7 @@ def get_certification_findings_route(
         HTTPException: If no visible certification exists for the requested ID.
     """
     certification = get_certification_by_id(
-        certification_id, session, include_archived=include_archived
+        session, certification_id, include_archived=include_archived
     )
     if certification is None:
         raise HTTPException(
@@ -179,13 +182,13 @@ def get_certification_findings_route(
 
 @router.post("", status_code=201)
 def post_new_certification_route(
-    certification: CertificationCreate, session: SessionDep
+    session: SessionDep, certification: CertificationCreate
 ) -> CertificationOut:
     """Create a new certification record.
 
     Args:
-        certification: Certification details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        certification: Certification details supplied in the request body.
 
     Returns:
         Created certification details serialized with the public API response schema.
@@ -195,7 +198,7 @@ def post_new_certification_route(
             another integrity conflict prevents creation.
     """
     try:
-        new_certification = post_new_certification(certification, session)
+        new_certification = post_new_certification(session, certification)
 
     except CertificationCertifierNotFoundError as err:
         raise HTTPException(
@@ -222,3 +225,39 @@ def post_new_certification_route(
         ) from err
 
     return CertificationOut.model_validate(new_certification)
+
+
+@router.post("/{certification_id}/archive", status_code=200)
+def post_certification_archived_by_id_route(
+    session: SessionDep,
+    certification_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> CertificationOut:
+    """Archive one certification by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    certification = post_certification_archived_by_id(
+        session, certification_id, archive_request=archive_request
+    )
+    if certification is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Certification does not exist: {certification_id}.",
+        )
+
+    return CertificationOut.model_validate(certification)
+
+
+@router.post("/{certification_id}/restore", status_code=200)
+def post_certification_restored_by_id_route(
+    session: SessionDep, certification_id: Annotated[int, Path(ge=1)]
+) -> CertificationOut:
+    """Restore one archived certification by ID."""
+    certification = post_certification_restored_by_id(session, certification_id)
+    if certification is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Certification does not exist: {certification_id}.",
+        )
+
+    return CertificationOut.model_validate(certification)

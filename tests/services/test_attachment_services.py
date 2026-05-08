@@ -5,11 +5,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
 )
-from compliance.db.models import Certification, Finding, Rule, Site
+from compliance.db.models import Attachment, Certification, Finding, Rule, Site
 from compliance.services._helpers import _format_attachment
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
@@ -19,6 +20,8 @@ from compliance.services.attachments import (
     _format_new_attachment_with_context,
     get_attachment_by_id,
     get_attachments,
+    post_attachment_archived_by_id,
+    post_attachment_restored_by_id,
     post_new_attachment,
 )
 
@@ -194,7 +197,7 @@ class TestGetAttachmentById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        result = get_attachment_by_id(50, session)
+        result = get_attachment_by_id(session, 50)
 
         session.execute.assert_called_once()
         assert result is None
@@ -206,7 +209,7 @@ class TestGetAttachmentById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
-        result = get_attachment_by_id(50, session)
+        result = get_attachment_by_id(session, 50)
 
         session.execute.assert_called_once()
         assert result == _format_attachment(rows)
@@ -215,7 +218,7 @@ class TestGetAttachmentById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_attachment_by_id(50, session)
+        get_attachment_by_id(session, 50)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" in str(stmt)
@@ -226,7 +229,7 @@ class TestGetAttachmentById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_attachment_by_id(50, session)
+        get_attachment_by_id(session, 50)
 
         statement_text = str(session.execute.call_args.args[0])
 
@@ -241,7 +244,7 @@ class TestGetAttachmentById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_attachment_by_id(50, session, include_archived=True)
+        get_attachment_by_id(session, 50, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "attachments.archived_at IS NULL" not in str(stmt)
@@ -264,7 +267,7 @@ class TestPostNewAttachment:
             AttachmentCertificationNotFoundError,
             match="Certification 100 does not exist",
         ):
-            post_new_attachment(attachment, session)
+            post_new_attachment(session, attachment)
 
         session.add.assert_not_called()
 
@@ -285,7 +288,7 @@ class TestPostNewAttachment:
             AttachmentFindingNotFoundError,
             match="Finding 7 does not exist",
         ):
-            post_new_attachment(attachment, session)
+            post_new_attachment(session, attachment)
 
         session.add.assert_not_called()
 
@@ -306,7 +309,7 @@ class TestPostNewAttachment:
             AttachmentFindingCertificationMismatchError,
             match="Finding 7 does not belong to certification 100",
         ):
-            post_new_attachment(attachment, session)
+            post_new_attachment(session, attachment)
 
         session.add.assert_not_called()
 
@@ -389,3 +392,79 @@ class TestFormatAttachment:
             "7 CFR 205.201",
             "7 CFR 205.202",
         ]
+
+
+class TestPostAttachmentArchivedById:
+    def test_archives_attachment_and_returns_context(self, monkeypatch) -> None:
+        session = MagicMock()
+        attachment = SimpleNamespace(archived_at=None, archive_reason=None)
+        session.get.return_value = attachment
+        expected = object()
+
+        def fake_get_attachment_by_id(session_arg, attachment_id, *, include_archived):
+            assert session_arg is session
+            assert attachment_id == 50
+            assert include_archived is True
+            return expected
+
+        monkeypatch.setattr(
+            "compliance.services.attachments.get_attachment_by_id",
+            fake_get_attachment_by_id,
+        )
+
+        result = post_attachment_archived_by_id(
+            session, 50, archive_request=ArchiveRequest(archive_reason="old file")
+        )
+
+        assert result is expected
+        assert attachment.archived_at is not None
+        assert attachment.archived_at.tzinfo is UTC
+        assert attachment.archive_reason == "old file"
+        session.get.assert_called_once_with(Attachment, 50)
+        session.commit.assert_called_once_with()
+
+    def test_returns_none_when_attachment_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_attachment_archived_by_id(
+            session, 50, archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Attachment, 50)
+        session.commit.assert_not_called()
+
+
+class TestPostAttachmentRestoredById:
+    def test_restores_attachment_and_returns_context(self, monkeypatch) -> None:
+        session = MagicMock()
+        attachment = SimpleNamespace(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="old file",
+        )
+        session.get.return_value = attachment
+        expected = object()
+
+        monkeypatch.setattr(
+            "compliance.services.attachments.get_attachment_by_id",
+            lambda attachment_id, session_arg, *, include_archived: expected,
+        )
+
+        result = post_attachment_restored_by_id(session, 50)
+
+        assert result is expected
+        assert attachment.archived_at is None
+        assert attachment.archive_reason is None
+        session.get.assert_called_once_with(Attachment, 50)
+        session.commit.assert_called_once_with()
+
+    def test_returns_none_when_attachment_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_attachment_restored_by_id(session, 50)
+
+        assert result is None
+        session.get.assert_called_once_with(Attachment, 50)
+        session.commit.assert_not_called()

@@ -4,10 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from compliance.api.schemas import FindingAttachmentOut, FindingOut
+from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,
     Certification,
+    Finding,
     Rule,
     Site,
 )
@@ -16,6 +17,8 @@ from compliance.services.findings import (
     _format_findings,
     get_finding_by_id,
     get_findings,
+    post_finding_archived_by_id,
+    post_finding_restored_by_id,
 )
 
 
@@ -169,7 +172,7 @@ class TestGetFindingById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_finding_by_id(1, session)
+        get_finding_by_id(session, 1)
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" in str(stmt)
@@ -181,7 +184,7 @@ class TestGetFindingById:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
 
-        get_finding_by_id(1, session, include_archived=True)
+        get_finding_by_id(session, 1, include_archived=True)
 
         stmt = session.execute.call_args.args[0]
         assert "findings.archived_at IS NULL" not in str(stmt)
@@ -357,3 +360,79 @@ class TestBuildFindingOut:
 
         with pytest.raises(KeyError, match="rule_description"):
             _build_finding_out(row)
+
+
+class TestPostFindingArchivedById:
+    def test_archives_finding_and_returns_context(self, monkeypatch) -> None:
+        session = MagicMock()
+        finding = SimpleNamespace(archived_at=None, archive_reason=None)
+        session.get.return_value = finding
+        expected = object()
+
+        def fake_get_finding_by_id(session_arg, finding_id, *, include_archived):
+            assert session_arg is session
+            assert finding_id == 1
+            assert include_archived is True
+            return expected
+
+        monkeypatch.setattr(
+            "compliance.services.findings.get_finding_by_id",
+            fake_get_finding_by_id,
+        )
+
+        result = post_finding_archived_by_id(
+            session, 1, archive_request=ArchiveRequest(archive_reason="resolved")
+        )
+
+        assert result is expected
+        assert finding.archived_at is not None
+        assert finding.archived_at.tzinfo is UTC
+        assert finding.archive_reason == "resolved"
+        session.get.assert_called_once_with(Finding, 1)
+        session.commit.assert_called_once_with()
+
+    def test_returns_none_when_finding_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_finding_archived_by_id(
+            session, 1, archive_request=ArchiveRequest()
+        )
+
+        assert result is None
+        session.get.assert_called_once_with(Finding, 1)
+        session.commit.assert_not_called()
+
+
+class TestPostFindingRestoredById:
+    def test_restores_finding_and_returns_context(self, monkeypatch) -> None:
+        session = MagicMock()
+        finding = SimpleNamespace(
+            archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
+            archive_reason="resolved",
+        )
+        session.get.return_value = finding
+        expected = object()
+
+        monkeypatch.setattr(
+            "compliance.services.findings.get_finding_by_id",
+            lambda finding_id, session_arg, *, include_archived: expected,
+        )
+
+        result = post_finding_restored_by_id(session, 1)
+
+        assert result is expected
+        assert finding.archived_at is None
+        assert finding.archive_reason is None
+        session.get.assert_called_once_with(Finding, 1)
+        session.commit.assert_called_once_with()
+
+    def test_returns_none_when_finding_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        result = post_finding_restored_by_id(session, 1)
+
+        assert result is None
+        session.get.assert_called_once_with(Finding, 1)
+        session.commit.assert_not_called()

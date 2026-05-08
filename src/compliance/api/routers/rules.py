@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     RuleCreate,
     RuleOut,
 )
@@ -14,6 +15,8 @@ from compliance.services.rules import (
     get_rule_by_id,
     get_rules,
     post_new_rule,
+    post_rule_archived_by_id,
+    post_rule_restored_by_id,
 )
 
 router = APIRouter(prefix="/rules", tags=["rules"])
@@ -62,15 +65,15 @@ def get_rules_route(
 
 @router.get("/{rule_id}")
 def get_rule_by_id_route(
-    rule_id: int,
     session: SessionDep,
+    rule_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> RuleOut:
     """Return one rule by ID.
 
     Args:
-        rule_id: Unique identifier for the rule to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        rule_id: Unique identifier for the rule to retrieve.
         include_archived: When true, return archived rules and archived parent
             regulations.
 
@@ -80,7 +83,7 @@ def get_rule_by_id_route(
     Raises:
         HTTPException: If no visible rule exists for the requested ID.
     """
-    rule = get_rule_by_id(rule_id, session, include_archived=include_archived)
+    rule = get_rule_by_id(session, rule_id, include_archived=include_archived)
     if rule is None:
         raise HTTPException(
             status_code=404,
@@ -91,12 +94,12 @@ def get_rule_by_id_route(
 
 
 @router.post("", status_code=201)
-def post_new_rule_route(rule: RuleCreate, session: SessionDep) -> RuleOut:
+def post_new_rule_route(session: SessionDep, rule: RuleCreate) -> RuleOut:
     """Create a new rule record.
 
     Args:
-        rule: Rule details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        rule: Rule details supplied in the request body.
 
     Returns:
         Created rule details serialized with the public API response schema.
@@ -106,7 +109,7 @@ def post_new_rule_route(rule: RuleCreate, session: SessionDep) -> RuleOut:
             integrity conflict prevents creation.
     """
     try:
-        new_rule = post_new_rule(rule, session)
+        new_rule = post_new_rule(session, rule)
 
     except RuleRegulationNotFoundError as err:
         raise HTTPException(
@@ -130,3 +133,31 @@ def post_new_rule_route(rule: RuleCreate, session: SessionDep) -> RuleOut:
         ) from err
 
     return RuleOut.model_validate(new_rule)
+
+
+@router.post("/{rule_id}/archive", status_code=200)
+def post_rule_archived_by_id_route(
+    session: SessionDep,
+    rule_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> RuleOut:
+    """Archive one rule by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    rule = post_rule_archived_by_id(session, rule_id, archive_request=archive_request)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule does not exist: {rule_id}.")
+
+    return RuleOut.model_validate(rule)
+
+
+@router.post("/{rule_id}/restore", status_code=200)
+def post_rule_restored_by_id_route(
+    session: SessionDep, rule_id: Annotated[int, Path(ge=1)]
+) -> RuleOut:
+    """Restore one archived rule by ID."""
+    rule = post_rule_restored_by_id(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule does not exist: {rule_id}.")
+
+    return RuleOut.model_validate(rule)

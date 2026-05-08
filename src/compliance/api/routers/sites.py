@@ -2,13 +2,14 @@ from json import JSONDecodeError
 from typing import Annotated
 
 from anthropic import APIError
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Path, Query, Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from compliance._helpers import validate_llm_references
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     SiteAttachmentsOut,
     SiteCertificationsOut,
     SiteCreate,
@@ -32,6 +33,8 @@ from compliance.services.sites import (
     get_site_history,
     get_sites,
     post_new_site,
+    post_site_archived_by_id,
+    post_site_restored_by_id,
 )
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -73,15 +76,15 @@ def get_sites_route(
 
 @router.get("/{site_id}")
 def get_site_by_id_route(
-    site_id: int,
     session: SessionDep,
+    site_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteOut:
     """Return one site by ID.
 
     Args:
-        site_id: Unique identifier for the site to retrieve.
         session: Database session provided by FastAPI dependency injection.
+        site_id: Unique identifier for the site to retrieve.
         include_archived: When true, return archived sites and archived parent
             clients.
 
@@ -91,7 +94,7 @@ def get_site_by_id_route(
     Raises:
         HTTPException: If no visible site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived=include_archived)
+    site = get_site_by_id(session, site_id, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
@@ -102,16 +105,16 @@ def get_site_by_id_route(
 
 @router.get("/{site_id}/attachments")
 def get_site_attachments_route(
-    site_id: int,
     session: SessionDep,
+    site_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteAttachmentsOut:
     """Return attachment details for one site.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         site_id: Unique identifier for the site whose attachments should be
             retrieved.
-        session: Database session provided by FastAPI dependency injection.
         include_archived: When true, include archived site, certification,
             attachment, regulation, finding, and rule records. By default,
             archived optional finding and rule links are omitted without hiding
@@ -125,14 +128,14 @@ def get_site_attachments_route(
     Raises:
         HTTPException: If no visible site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived=include_archived)
+    site = get_site_by_id(session, site_id, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
     site_attachments = get_site_attachments(
-        site_id, session, include_archived=include_archived
+        session, site_id, include_archived=include_archived
     )
     if site_attachments is None:
         return SiteAttachmentsOut(site_id=site_id, attachments=[])
@@ -142,8 +145,8 @@ def get_site_attachments_route(
 
 @router.get("/{site_id}/certifications")
 def get_site_certifications_route(
-    site_id: int,
     session: SessionDep,
+    site_id: int,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     include_archived: Annotated[bool, Query()] = False,
@@ -151,9 +154,9 @@ def get_site_certifications_route(
     """Return certifications for one site.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         site_id: Unique identifier for the site whose certifications should be
             retrieved.
-        session: Database session provided by FastAPI dependency injection.
         limit: Maximum number of certifications to return. If omitted, all
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
@@ -168,15 +171,15 @@ def get_site_certifications_route(
     Raises:
         HTTPException: If no visible site exists for the requested ID.
     """
-    site = get_site_by_id(site_id, session, include_archived=include_archived)
+    site = get_site_by_id(session, site_id, include_archived=include_archived)
     if site is None:
         raise HTTPException(
             status_code=404, detail=f"No site for this id found: {site_id}"
         )
 
     results = get_site_certifications(
-        site_id,
         session,
+        site_id,
         limit=limit,
         offset=offset,
         include_archived=include_archived,
@@ -187,15 +190,15 @@ def get_site_certifications_route(
 
 @router.get("/{site_id}/history")
 def get_site_history_route(
-    site_id: int,
     session: SessionDep,
+    site_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteHistory:
     """Return certification history for one site.
 
     Args:
-        site_id: Unique identifier for the site whose history should be retrieved.
         session: Database session provided by FastAPI dependency injection.
+        site_id: Unique identifier for the site whose history should be retrieved.
         include_archived: When true, include archived site, certification,
             regulation, certifier, finding, and rule records. By default,
             archived optional finding and rule rows are omitted without hiding
@@ -208,7 +211,7 @@ def get_site_history_route(
         HTTPException: If no visible certification history exists for the
             requested site.
     """
-    site_history = get_site_history(site_id, session, include_archived=include_archived)
+    site_history = get_site_history(session, site_id, include_archived=include_archived)
     if site_history is None:
         raise HTTPException(
             status_code=404,
@@ -219,12 +222,12 @@ def get_site_history_route(
 
 
 @router.post("", status_code=201)
-def post_new_site_route(site: SiteCreate, session: SessionDep) -> SiteOut:
+def post_new_site_route(session: SessionDep, site: SiteCreate) -> SiteOut:
     """Create a new site record.
 
     Args:
-        site: Site details supplied in the request body.
         session: Database session provided by FastAPI dependency injection.
+        site: Site details supplied in the request body.
 
     Returns:
         Created site details serialized with the public API response schema.
@@ -234,7 +237,7 @@ def post_new_site_route(site: SiteCreate, session: SessionDep) -> SiteOut:
             with an existing record or references missing parent data.
     """
     try:
-        new_site = post_new_site(site, session)
+        new_site = post_new_site(session, site)
 
     except SiteClientNotFoundError as err:
         raise HTTPException(
@@ -250,14 +253,42 @@ def post_new_site_route(site: SiteCreate, session: SessionDep) -> SiteOut:
     return SiteOut.model_validate(new_site)
 
 
+@router.post("/{site_id}/archive", status_code=200)
+def post_site_archived_by_id_route(
+    session: SessionDep,
+    site_id: Annotated[int, Path(ge=1)],
+    archive_request: ArchiveRequest | None = None,
+) -> SiteOut:
+    """Archive one site by ID."""
+    archive_request = archive_request or ArchiveRequest()
+
+    site = post_site_archived_by_id(session, site_id, archive_request=archive_request)
+    if site is None:
+        raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
+
+    return SiteOut.model_validate(site)
+
+
+@router.post("/{site_id}/restore", status_code=200)
+def post_site_restored_by_id_route(
+    session: SessionDep, site_id: Annotated[int, Path(ge=1)]
+) -> SiteOut:
+    """Restore one archived site by ID."""
+    site = post_site_restored_by_id(session, site_id)
+    if site is None:
+        raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
+
+    return SiteOut.model_validate(site)
+
+
 @router.post("/{site_id}/analysis")
-def create_site_analysis_route(site_id: int, session: SessionDep) -> SiteAnalysis:
+def create_site_analysis_route(session: SessionDep, site_id: int) -> SiteAnalysis:
     """Generate an AI analysis for one site's certification history.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         site_id: Unique identifier for the site whose history should be
             analyzed.
-        session: Database session provided by FastAPI dependency injection.
 
     Returns:
         Structured site analysis generated by the LLM and validated against
@@ -268,17 +299,17 @@ def create_site_analysis_route(site_id: int, session: SessionDep) -> SiteAnalysi
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    return _create_site_analysis(site_id, session)
+    return _create_site_analysis(session, site_id)
 
 
 @router.post("/{site_id}/analysis/markdown")
-def create_site_analysis_markdown_route(site_id: int, session: SessionDep) -> Response:
+def create_site_analysis_markdown_route(session: SessionDep, site_id: int) -> Response:
     """Generate a Markdown AI analysis for one site's history.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         site_id: Unique identifier for the site whose history should be
             analyzed.
-        session: Database session provided by FastAPI dependency injection.
 
     Returns:
         A text/markdown response containing the validated site analysis.
@@ -288,7 +319,7 @@ def create_site_analysis_markdown_route(site_id: int, session: SessionDep) -> Re
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    site_analysis = _create_site_analysis(site_id, session)
+    site_analysis = _create_site_analysis(session, site_id)
 
     return Response(
         content=build_site_analysis_markdown(site_analysis),
@@ -298,14 +329,14 @@ def create_site_analysis_markdown_route(site_id: int, session: SessionDep) -> Re
 
 @router.post("/{site_id}/analysis/markdown/download")
 def create_site_analysis_markdown_download_route(
-    site_id: int, session: SessionDep
+    session: SessionDep, site_id: int
 ) -> Response:
     """Generate a downloadable Markdown AI analysis for one site's history.
 
     Args:
+        session: Database session provided by FastAPI dependency injection.
         site_id: Unique identifier for the site whose history should be
             analyzed.
-        session: Database session provided by FastAPI dependency injection.
 
     Returns:
         A text/markdown attachment response containing the validated site
@@ -316,7 +347,7 @@ def create_site_analysis_markdown_download_route(
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    site_analysis = _create_site_analysis(site_id, session)
+    site_analysis = _create_site_analysis(session, site_id)
 
     headers = {
         "Content-Disposition": f'attachment; filename="site-{site_id}-analysis.md"'
@@ -328,13 +359,13 @@ def create_site_analysis_markdown_download_route(
     )
 
 
-def _create_site_analysis(site_id: int, session: Session) -> SiteAnalysis:
+def _create_site_analysis(session: Session, site_id: int) -> SiteAnalysis:
     """Create and validate a structured AI analysis for one site.
 
     Args:
+        session: Database session used to retrieve site history.
         site_id: Unique identifier for the site whose history should be
             analyzed.
-        session: Database session used to retrieve site history.
 
     Returns:
         Structured site analysis generated by the LLM.
@@ -344,7 +375,7 @@ def _create_site_analysis(site_id: int, session: Session) -> SiteAnalysis:
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    site_history = get_site_history(site_id, session)
+    site_history = get_site_history(session, site_id)
     if site_history is None:
         raise HTTPException(status_code=404, detail=f"Site {site_id} not found.")
 

@@ -114,7 +114,7 @@ class TestGetRuleByIdRoute:
     def test_client_returns_rule_json_when_found(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
-        def fake_get_rule_by_id(rule_id, session, *, include_archived=False):
+        def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
             assert rule_id == 20
             assert session is mock_db
             return rule_record_factory()
@@ -137,7 +137,7 @@ class TestGetRuleByIdRoute:
     def test_client_returns_404_when_rule_is_not_found(
         self, client, mock_db, monkeypatch
     ):
-        def fake_get_rule_by_id(rule_id, session, *, include_archived=False):
+        def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
             assert rule_id == 999
             assert session is mock_db
             return None
@@ -158,25 +158,25 @@ class TestGetRuleByIdRoute:
         fake_session = object()
         rule = rule_record_factory()
 
-        def fake_get_rule_by_id(rule_id, session, *, include_archived=False):
+        def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
             assert rule_id == 20
             assert session is fake_session
             return rule
 
         monkeypatch.setattr(rules_router, "get_rule_by_id", fake_get_rule_by_id)
 
-        result = rules_router.get_rule_by_id_route(20, fake_session)
+        result = rules_router.get_rule_by_id_route(fake_session, 20)
 
         assert result == rules_router.RuleOut.model_validate(rule)
 
     def test_returns_404_when_rule_is_not_found(self, monkeypatch) -> None:
-        def fake_get_rule_by_id(rule_id, session, *, include_archived=False):
+        def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
             return None
 
         monkeypatch.setattr(rules_router, "get_rule_by_id", fake_get_rule_by_id)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.get_rule_by_id_route(999, object())
+            rules_router.get_rule_by_id_route(object(), 999)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No rule for this id found: 999"
@@ -197,7 +197,7 @@ class TestPostNewRuleRoute:
     ):
         created_rule = rule_record_factory()
 
-        def fake_post_new_rule(rule, session):
+        def fake_post_new_rule(session, rule):
             assert rule.regulation_id == 3
             assert rule.rule_index == "FS-101"
             assert session is mock_db
@@ -227,7 +227,7 @@ class TestPostNewRuleRoute:
         }
 
     def test_client_returns_409_when_rule_conflicts(self, client, mock_db, monkeypatch):
-        def fake_post_new_rule(rule, session):
+        def fake_post_new_rule(session, rule):
             assert session is mock_db
             raise rules_router.RuleConflictError()
 
@@ -269,14 +269,14 @@ class TestPostNewRuleRoute:
         )
         created_rule = rule_record_factory()
 
-        def fake_post_new_rule(rule_info, session):
+        def fake_post_new_rule(session, rule_info):
             assert rule_info is rule
             assert session is fake_session
             return created_rule
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
-        result = rules_router.post_new_rule_route(rule, fake_session)
+        result = rules_router.post_new_rule_route(fake_session, rule)
 
         assert result == rules_router.RuleOut.model_validate(created_rule)
 
@@ -288,13 +288,13 @@ class TestPostNewRuleRoute:
             description="Equipment must be maintained.",
         )
 
-        def fake_post_new_rule(rule_info, session):
+        def fake_post_new_rule(session, rule_info):
             raise rules_router.RuleRegulationNotFoundError()
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(rule, object())
+            rules_router.post_new_rule_route(object(), rule)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Regulation 3 does not exist."
@@ -307,13 +307,13 @@ class TestPostNewRuleRoute:
             description="Equipment must be maintained.",
         )
 
-        def fake_post_new_rule(rule_info, session):
+        def fake_post_new_rule(session, rule_info):
             raise rules_router.RuleIndexConflictError()
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(rule, object())
+            rules_router.post_new_rule_route(object(), rule)
 
         assert exc_info.value.status_code == 409
         assert (
@@ -329,13 +329,13 @@ class TestPostNewRuleRoute:
             description="Equipment must be maintained.",
         )
 
-        def fake_post_new_rule(rule_info, session):
+        def fake_post_new_rule(session, rule_info):
             raise rules_router.RuleConflictError()
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(rule, object())
+            rules_router.post_new_rule_route(object(), rule)
 
         assert exc_info.value.status_code == 409
         assert "Rule was not added" in exc_info.value.detail
@@ -352,3 +352,94 @@ class TestPostNewRuleRoute:
 
         assert route.response_model is rules_router.RuleOut
         assert route.status_code == 201
+
+
+class TestPostRuleArchivedByIdRoute:
+    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = rules_router.RuleOut(
+            id=21,
+            regulation_id=5,
+            rule_index="FS-101",
+            title="Equipment Maintenance",
+            description="Equipment must be maintained.",
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+            assert session is fake_session
+            assert rule_id == 21
+            assert archive_request == rules_router.ArchiveRequest()
+            return expected
+
+        monkeypatch.setattr(
+            rules_router,
+            "post_rule_archived_by_id",
+            fake_post_rule_archived_by_id,
+        )
+
+        result = rules_router.post_rule_archived_by_id_route(fake_session, 21)
+
+        assert result == expected
+
+    def test_returns_404_when_rule_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+            return None
+
+        monkeypatch.setattr(
+            rules_router,
+            "post_rule_archived_by_id",
+            fake_post_rule_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            rules_router.post_rule_archived_by_id_route(object(), 21)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Rule does not exist: 21."
+
+
+class TestPostRuleRestoredByIdRoute:
+    def test_returns_restored_rule(self, monkeypatch) -> None:
+        fake_session = object()
+        expected = rules_router.RuleOut(
+            id=21,
+            regulation_id=5,
+            rule_index="FS-101",
+            title="Equipment Maintenance",
+            description="Equipment must be maintained.",
+            archived_at=None,
+            archive_reason=None,
+        )
+
+        def fake_post_rule_restored_by_id(session, rule_id):
+            assert session is fake_session
+            assert rule_id == 21
+            return expected
+
+        monkeypatch.setattr(
+            rules_router,
+            "post_rule_restored_by_id",
+            fake_post_rule_restored_by_id,
+        )
+
+        result = rules_router.post_rule_restored_by_id_route(fake_session, 21)
+
+        assert result == expected
+
+    def test_returns_404_when_rule_does_not_exist(self, monkeypatch) -> None:
+        def fake_post_rule_restored_by_id(session, rule_id):
+            return None
+
+        monkeypatch.setattr(
+            rules_router,
+            "post_rule_restored_by_id",
+            fake_post_rule_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            rules_router.post_rule_restored_by_id_route(object(), 21)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Rule does not exist: 21."
