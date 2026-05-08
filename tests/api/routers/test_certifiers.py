@@ -30,10 +30,14 @@ class TestGetCertifiersRoute:
             {
                 "organization_name": "SafeCheck Inc.",
                 "id": 10,
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "organization_name": "VoltGuard",
                 "id": 11,
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 

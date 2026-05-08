@@ -38,12 +38,16 @@ class TestGetRegulationsRoute:
                 "title": "Fire Safety 2026",
                 "description": "Fire safety requirements for commercial sites.",
                 "published_date": "2026-01-15",
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "id": 4,
                 "title": "Electrical Safety 2026",
                 "description": "Fire safety requirements for commercial sites.",
                 "published_date": "2026-01-15",
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 

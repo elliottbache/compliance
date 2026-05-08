@@ -38,6 +38,8 @@ class TestGetRulesRoute:
                 "rule_index": "FS-101",
                 "title": "Equipment Maintenance",
                 "description": "Equipment must be maintained.",
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "id": 21,
@@ -45,6 +47,8 @@ class TestGetRulesRoute:
                 "rule_index": "FS-102",
                 "title": "Inspection Records",
                 "description": "Equipment must be maintained.",
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 

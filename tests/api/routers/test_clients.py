@@ -37,6 +37,8 @@ class TestGetClientsRoute:
                 "contact_name": "John Doe",
                 "email": "john.doe@acme.com",
                 "telephone": 5550123,
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "nif": "B1234567C",
@@ -44,6 +46,8 @@ class TestGetClientsRoute:
                 "contact_name": "Jane Doe",
                 "email": "jane.doe@beta.com",
                 "telephone": 5550456,
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 
@@ -228,6 +232,8 @@ class TestGetClientSitesRoute:
                 "street_number": None,
                 "suite": None,
                 "address_info": "Main entrance",
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "id": 13,
@@ -238,6 +244,8 @@ class TestGetClientSitesRoute:
                 "street_number": None,
                 "suite": None,
                 "address_info": "Main entrance",
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 
@@ -404,7 +412,9 @@ class TestPostNewClientRoute:
             email="ada@example.com",
             telephone=123456789,
         )
-        expected_client = clients_router.ClientOut.model_validate(client)
+        expected_client = clients_router.ClientOut(
+            **client.model_dump(), archived_at=None, archive_reason=None
+        )
 
         def fake_post_new_client(client_info, session):
             assert client_info is client

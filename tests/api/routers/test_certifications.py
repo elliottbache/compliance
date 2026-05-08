@@ -41,6 +41,8 @@ class TestGetCertificationsRoute:
                 "result": "Pass",
                 "inspection_date": "2023-10-15",
                 "resolution_date": "2023-10-20",
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "id": 101,
@@ -50,6 +52,8 @@ class TestGetCertificationsRoute:
                 "result": "Pass",
                 "inspection_date": "2023-10-15",
                 "resolution_date": "2023-10-20",
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 
@@ -285,6 +289,8 @@ class TestGetCertificationAttachmentsByIdRoute:
                     "regulation_id": 5,
                     "regulation_title": "USDA Organic",
                     "finding_links": [],
+                    "archived_at": None,
+                    "archive_reason": None,
                 }
             ],
         }
@@ -460,6 +466,8 @@ class TestGetCertificationFindingsRoute:
                 "rule_title": "Organic plan",
                 "rule_description": "Producer must maintain an organic system plan.",
                 "attachments": [],
+                "archived_at": None,
+                "archive_reason": None,
             }
         ]
 

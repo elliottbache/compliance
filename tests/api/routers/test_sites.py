@@ -41,6 +41,8 @@ class TestGetSitesRoute:
                 "street_number": None,
                 "suite": None,
                 "address_info": "Main entrance",
+                "archived_at": None,
+                "archive_reason": None,
             },
             {
                 "id": 13,
@@ -51,6 +53,8 @@ class TestGetSitesRoute:
                 "street_number": None,
                 "suite": None,
                 "address_info": "Main entrance",
+                "archived_at": None,
+                "archive_reason": None,
             },
         ]
 

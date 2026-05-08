@@ -64,6 +64,8 @@ class TestGetAttachmentsRoute:
                 "inspection_date": "2026-04-01",
                 "regulation_id": 5,
                 "regulation_title": "USDA Organic",
+                "archived_at": None,
+                "archive_reason": None,
             }
         ]
 
