@@ -251,3 +251,7 @@ class FindingOut(BaseModel):
     attachments: list[FindingAttachmentOut] = Field(default_factory=list)
     archived_at: datetime | None
     archive_reason: str | None
+
+
+class ArchiveRequest(BaseModel):
+    archive_reason: str | None = Field(max_length=160, default=None)

@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
+    ArchiveRequest,
     ClientCreate,
     ClientOut,
     SiteOut,
@@ -14,6 +15,7 @@ from compliance.services.clients import (
     ClientNifConflictError,
     get_client_by_nif,
     get_clients,
+    post_client_archived_by_nif,
     post_new_client,
 )
 from compliance.services.sites import get_sites
@@ -141,3 +143,17 @@ def post_new_client_route(client: ClientCreate, session: SessionDep) -> ClientOu
         ) from err
 
     return ClientOut.model_validate(new_client)
+
+
+@router.post("/{nif}/archive", status_code=200)
+def post_client_archived_by_nif_route(
+    session: SessionDep,
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
+    archive_request: ArchiveRequest,
+) -> ClientOut:
+
+    client = post_client_archived_by_nif(session, nif, archive_request=archive_request)
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
+
+    return ClientOut.model_validate(client)

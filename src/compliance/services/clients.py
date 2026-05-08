@@ -1,8 +1,11 @@
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compliance.api.schemas import (
+    ArchiveRequest,
     ClientCreate,
 )
 from compliance.db.models import (
@@ -89,12 +92,31 @@ def post_new_client(client: ClientCreate, session: Session) -> Client:
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "pk_clients":
+        if constraint_name == "clients_pkey":
             raise ClientNifConflictError(client.nif) from exc
 
-        if constraint_name == "uq_clients_company_name":
+        if constraint_name == "uq_company_name":
             raise ClientCompanyNameConflictError(client.company_name) from exc
 
         raise ClientConflictError() from exc
 
     return new_client
+
+
+def post_client_archived_by_nif(
+    session: Session, nif: str, *, archive_request: ArchiveRequest
+) -> Client | None:
+
+    client = session.get(Client, nif)
+    if client is None:
+        return None
+
+    if client.archived_at is None:
+        client.archived_at = datetime.now()
+        archive_reason = archive_request.archive_reason
+        client.archive_reason = (
+            archive_reason.strip() or None if archive_reason else None
+        )
+        session.commit()
+
+    return client
