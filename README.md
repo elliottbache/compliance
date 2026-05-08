@@ -30,5 +30,12 @@ comparison of past certifications while keeping factual retrieval and validation
 ### Notes
 - Historical records are not hard-deleted by normal users.
 - Important records are archived or deletion-restricted.
-- Link rows may be deleted/unlinked where safe.
 - Finding-attachment links are managed through finding and attachment creation endpoints. Standalone link CRUD is deferred until there is a real UX need.
+
+#### Archive Policy
+- All main domain records support archive/restore through archived_at and archive_reason.
+- List endpoints exclude archived records by default and expose include_archived=false/true.
+- Detail endpoints return archived records by ID.
+- FindingAttachment is not archived; link rows may be deleted because they do not delete evidence.
+- Hard delete endpoints are deferred for MVP.
+- Child rows are not archived when a parent row is archived.  Using ``include_archived = False``, only child rows with non-archived parents are shown.
