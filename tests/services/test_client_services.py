@@ -8,7 +8,7 @@ from compliance.api.schemas import (
     ArchiveRequest,
     ClientCreate,
 )
-from compliance.db.models import Client
+from compliance.db.models import Base, Client
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
     ClientConflictError,
@@ -56,23 +56,47 @@ class TestGetClients:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY clients.company_name, clients.nif" in str(stmt)
 
-    def test_excludes_archived_clients_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_clients_by_default(self, sqlite_session) -> None:
+        active = _client()
+        archived = _client(
+            nif="B1234567C",
+            company_name="Archived Co",
+            contact_name="Grace",
+            email=None,
+            telephone=None,
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_clients(session, limit=None, offset=0)
+        clients = get_clients(sqlite_session, limit=None, offset=0)
 
-        stmt = session.execute.call_args.args[0]
-        assert "clients.archived_at IS NULL" in str(stmt)
+        assert [client.nif for client in clients] == ["A1234567B"]
 
-    def test_includes_archived_clients_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_clients_when_requested(self, sqlite_session) -> None:
+        active = _client()
+        archived = _client(
+            nif="B1234567C",
+            company_name="Archived Co",
+            contact_name="Grace",
+            email=None,
+            telephone=None,
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_clients(session, limit=None, offset=0, include_archived=True)
+        clients = get_clients(
+            sqlite_session,
+            limit=None,
+            offset=0,
+            include_archived=True,
+        )
 
-        stmt = session.execute.call_args.args[0]
-        assert "clients.archived_at IS NULL" not in str(stmt)
+        returned_nifs = {client.nif for client in clients}
+        assert returned_nifs == {"A1234567B", "B1234567C"}
 
 
 class TestGetClientByNif:
@@ -311,3 +335,46 @@ class TestPostClientRestoredByNif:
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
+
+
+class TestClientArchiveRestoreService:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            client = Client(
+                nif="A1234567B",
+                company_name="Test Co",
+                contact_name="Elliott",
+                email=None,
+                telephone=None,
+            )
+            session.add(client)
+            session.commit()
+
+            archived = post_client_archived_by_nif(
+                session,
+                "A1234567B",
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+
+            archived = post_client_archived_by_nif(
+                session,
+                "A1234567B",
+                archive_request=ArchiveRequest(archive_reason=" second request "),
+            )
+
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_client_restored_by_nif(session, "A1234567B")
+            restored = post_client_restored_by_nif(session, "A1234567B")
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

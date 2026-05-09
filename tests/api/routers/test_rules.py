@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import HTTPException
 
@@ -5,7 +7,7 @@ from compliance.api.routers import rules as rules_router
 
 
 class TestGetRulesRoute:
-    def test_client_returns_rules_json(
+    def test_route_returns_rules_json(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
         def fake_get_rules(
@@ -52,7 +54,59 @@ class TestGetRulesRoute:
             },
         ]
 
-    def test_client_returns_422_when_limit_is_invalid(self, client):
+    def test_route_excludes_archived_rules_by_default(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        archived_rule_id = 21
+
+        def fake_get_rules(
+            session, *, regulation_id, limit, offset, include_archived=False
+        ):
+            assert session is mock_db
+            assert include_archived is False
+            return [rules_router.RuleOut.model_validate(rule_record_factory())]
+
+        monkeypatch.setattr(rules_router, "get_rules", fake_get_rules)
+
+        response = client.get("/rules")
+
+        assert response.status_code == 200
+        returned_ids = {rule["id"] for rule in response.json()}
+        assert 20 in returned_ids
+        assert archived_rule_id not in returned_ids
+
+    def test_route_include_archived_returns_archived_rule(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        archived_rule_id = 21
+
+        def fake_get_rules(
+            session, *, regulation_id, limit, offset, include_archived=False
+        ):
+            assert session is mock_db
+            assert include_archived is True
+            return [
+                rules_router.RuleOut.model_validate(rule_record_factory()),
+                rules_router.RuleOut.model_validate(
+                    rule_record_factory(
+                        id=archived_rule_id,
+                        rule_index="FS-102",
+                        archived_at=archived_at,
+                        archive_reason="merged",
+                    )
+                ),
+            ]
+
+        monkeypatch.setattr(rules_router, "get_rules", fake_get_rules)
+
+        response = client.get("/rules?include_archived=true")
+
+        assert response.status_code == 200
+        returned_ids = {rule["id"] for rule in response.json()}
+        assert archived_rule_id in returned_ids
+
+    def test_route_returns_422_when_limit_is_invalid(self, client):
         response = client.get("/rules?limit=0")
 
         assert response.status_code == 422
@@ -111,7 +165,7 @@ class TestGetRulesRoute:
 
 
 class TestGetRuleByIdRoute:
-    def test_client_returns_rule_json_when_found(
+    def test_route_returns_rule_json_when_found(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
         def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
@@ -134,7 +188,7 @@ class TestGetRuleByIdRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_404_when_rule_is_not_found(
+    def test_route_returns_404_when_rule_is_not_found(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_rule_by_id(session, rule_id, *, include_archived=False):
@@ -149,7 +203,7 @@ class TestGetRuleByIdRoute:
         assert response.status_code == 404
         assert response.json() == {"detail": "No rule for this id found: 999"}
 
-    def test_client_returns_422_when_rule_id_is_not_an_int(self, client):
+    def test_route_returns_422_when_rule_id_is_not_an_int(self, client):
         response = client.get("/rules/not-an-int")
 
         assert response.status_code == 422
@@ -192,7 +246,7 @@ class TestGetRuleByIdRoute:
 
 
 class TestPostNewRuleRoute:
-    def test_client_returns_created_rule_json(
+    def test_route_returns_created_rule_json(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
         created_rule = rule_record_factory()
@@ -226,7 +280,7 @@ class TestPostNewRuleRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_409_when_rule_conflicts(self, client, mock_db, monkeypatch):
+    def test_route_returns_409_when_rule_conflicts(self, client, mock_db, monkeypatch):
         def fake_post_new_rule(session, rule):
             assert session is mock_db
             raise rules_router.RuleConflictError()
@@ -246,7 +300,7 @@ class TestPostNewRuleRoute:
         assert response.status_code == 409
         assert response.json()["detail"].startswith("Rule was not added: ")
 
-    def test_client_returns_422_when_rule_index_is_too_long(self, client):
+    def test_route_returns_422_when_rule_index_is_too_long(self, client):
         response = client.post(
             "/rules",
             json={
@@ -355,6 +409,77 @@ class TestPostNewRuleRoute:
 
 
 class TestPostRuleArchivedByIdRoute:
+    # TestClient
+    def test_route_archives_active_rule(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+            assert session is mock_db
+            assert rule_id == 20
+            assert archive_request.archive_reason == "duplicate"
+            return rule_record_factory(
+                archived_at=archived_at, archive_reason="duplicate"
+            )
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_archived_by_id", fake_post_rule_archived_by_id
+        )
+
+        response = client.post(
+            "/rules/20/archive", json={"archive_reason": "duplicate"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+        assert response.json()["archive_reason"] == "duplicate"
+
+    def test_route_archive_already_archived_rule_returns_200(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+            assert session is mock_db
+            assert rule_id == 20
+            return rule_record_factory(
+                archived_at=archived_at, archive_reason="old reason"
+            )
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_archived_by_id", fake_post_rule_archived_by_id
+        )
+
+        response = client.post(
+            "/rules/20/archive", json={"archive_reason": "old reason"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+
+    def test_route_returns_404_when_rule_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+            assert session is mock_db
+            assert rule_id == 20
+            return None
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_archived_by_id", fake_post_rule_archived_by_id
+        )
+
+        response = client.post("/rules/20/archive")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Rule does not exist: 20."}
+
+    def test_route_returns_422_when_rule_id_is_invalid(self, client):
+        response = client.post("/rules/not-an-id/archive")
+
+        assert response.status_code == 422
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = rules_router.RuleOut(
@@ -401,6 +526,65 @@ class TestPostRuleArchivedByIdRoute:
 
 
 class TestPostRuleRestoredByIdRoute:
+    # TestClient
+    def test_route_restores_archived_rule(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        def fake_post_rule_restored_by_id(session, rule_id):
+            assert session is mock_db
+            assert rule_id == 20
+            return rule_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_restored_by_id", fake_post_rule_restored_by_id
+        )
+
+        response = client.post("/rules/20/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_restore_active_rule_returns_200(
+        self, client, mock_db, monkeypatch, rule_record_factory
+    ):
+        def fake_post_rule_restored_by_id(session, rule_id):
+            assert session is mock_db
+            assert rule_id == 20
+            return rule_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_restored_by_id", fake_post_rule_restored_by_id
+        )
+
+        response = client.post("/rules/20/restore")
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is None
+
+    def test_route_returns_404_when_rule_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_rule_restored_by_id(session, rule_id):
+            assert session is mock_db
+            assert rule_id == 20
+            return None
+
+        monkeypatch.setattr(
+            rules_router, "post_rule_restored_by_id", fake_post_rule_restored_by_id
+        )
+
+        response = client.post("/rules/20/restore")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Rule does not exist: 20."}
+
+    def test_route_returns_422_when_rule_id_is_invalid(self, client):
+        response = client.post("/rules/not-an-id/restore")
+
+        assert response.status_code == 422
+
     def test_returns_restored_rule(self, monkeypatch) -> None:
         fake_session = object()
         expected = rules_router.RuleOut(

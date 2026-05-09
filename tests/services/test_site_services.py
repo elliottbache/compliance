@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import ArchiveRequest, SiteCertificationsOut, SiteCreate
-from compliance.db.models import Certification, Client, Site
+from compliance.db.models import Base, Certification, Client, Site
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services._helpers import (
     _build_finding_history_from_site_attachments,
@@ -183,31 +183,108 @@ class TestGetSites:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
 
-    def test_excludes_archived_sites_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_sites_by_default(self, sqlite_session) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        active = _site()
+        archived = _site(
+            id=13,
+            city="Valencia",
+            archived_at=datetime.now(UTC),
+            archive_reason="closed",
+        )
+        sqlite_session.add(client)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_sites(session, nif=None, limit=None, offset=0)
+        sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
 
-        stmt = session.execute.call_args.args[0]
-        assert "sites.archived_at IS NULL" in str(stmt)
-        assert "clients.archived_at IS NULL" in str(stmt)
+        assert [site.id for site in sites] == [12]
 
-    def test_includes_archived_sites_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_sites_when_requested(self, sqlite_session) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        active = _site()
+        archived = _site(
+            id=13,
+            city="Valencia",
+            archived_at=datetime.now(UTC),
+            archive_reason="closed",
+        )
+        sqlite_session.add(client)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_sites(
-            session,
+        sites = get_sites(
+            sqlite_session,
             nif=None,
             limit=None,
             offset=0,
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "clients.archived_at IS NULL" not in str(stmt)
+        returned_ids = {site.id for site in sites}
+        assert returned_ids == {12, 13}
+
+    def test_excludes_sites_when_client_is_archived_by_default(
+        self, sqlite_session
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+            archived_at=datetime.now(UTC),
+            archive_reason="closed client",
+        )
+        site = _site()
+
+        sqlite_session.add(client)
+        sqlite_session.add(site)
+        sqlite_session.commit()
+
+        sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
+
+        assert sites == []
+
+    def test_includes_sites_with_archived_client_when_requested(
+        self, sqlite_session
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+            archived_at=datetime.now(UTC),
+            archive_reason="closed client",
+        )
+        site = _site()
+
+        sqlite_session.add(client)
+        sqlite_session.add(site)
+        sqlite_session.commit()
+
+        sites = get_sites(
+            sqlite_session,
+            nif=None,
+            limit=None,
+            offset=0,
+            include_archived=True,
+        )
+
+        assert [site.id for site in sites] == [12]
 
     def test_filters_by_client_nif_when_client_exists(self) -> None:
         session = MagicMock()
@@ -875,6 +952,57 @@ class TestPostSiteRestoredById:
         assert result is None
         session.get.assert_called_once_with(Site, 71)
         session.commit.assert_not_called()
+
+
+class TestPostSiteArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            client = Client(
+                nif="A1234567B",
+                company_name="Acme Compliance",
+                contact_name="Ada Lovelace",
+                email=None,
+                telephone=None,
+            )
+            site = Site(
+                id=71,
+                nif="A1234567B",
+                city="Madrid",
+                postal_code=28013,
+                street="Gran Via",
+                street_number=None,
+                suite=None,
+                address_info=None,
+            )
+            session.add(client)
+            session.add(site)
+            session.commit()
+
+            archived = post_site_archived_by_id(
+                session,
+                71,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_site_archived_by_id(
+                session,
+                71,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_site_restored_by_id(session, 71)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None
 
     def test_formats_site_history_when_query_returns_multiple_rows(
         self, site_history_row_factory, db_access_mocks

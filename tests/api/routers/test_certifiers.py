@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import HTTPException
 
@@ -6,7 +8,7 @@ from compliance.api.routers import certifiers as certifiers_router
 
 class TestGetCertifiersRoute:
     # TestClient
-    def test_client_returns_certifier_json(
+    def test_route_returns_certifier_json(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
         def fake_get_certifiers(session, *, limit, offset, include_archived=False):
@@ -41,7 +43,53 @@ class TestGetCertifiersRoute:
             },
         ]
 
-    def test_client_returns_422_when_limit_is_invalid(self, client):
+    def test_route_excludes_archived_certifiers_by_default(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        archived_certifier_id = 11
+
+        def fake_get_certifiers(session, *, limit, offset, include_archived=False):
+            assert session is mock_db
+            assert include_archived is False
+            return [certifier_record_factory()]
+
+        monkeypatch.setattr(certifiers_router, "get_certifiers", fake_get_certifiers)
+
+        response = client.get("/certifiers")
+
+        assert response.status_code == 200
+        returned_ids = {certifier["id"] for certifier in response.json()}
+        assert 10 in returned_ids
+        assert archived_certifier_id not in returned_ids
+
+    def test_route_include_archived_returns_archived_certifier(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        archived_certifier_id = 11
+
+        def fake_get_certifiers(session, *, limit, offset, include_archived=False):
+            assert session is mock_db
+            assert include_archived is True
+            return [
+                certifier_record_factory(),
+                certifier_record_factory(
+                    id=archived_certifier_id,
+                    organization_name="Archived Certifier",
+                    archived_at=archived_at,
+                    archive_reason="merged",
+                ),
+            ]
+
+        monkeypatch.setattr(certifiers_router, "get_certifiers", fake_get_certifiers)
+
+        response = client.get("/certifiers?include_archived=true")
+
+        assert response.status_code == 200
+        returned_ids = {certifier["id"] for certifier in response.json()}
+        assert archived_certifier_id in returned_ids
+
+    def test_route_returns_422_when_limit_is_invalid(self, client):
         response = client.get("/certifiers?limit=0")
 
         assert response.status_code == 422
@@ -82,7 +130,7 @@ class TestGetCertifiersRoute:
 
 class TestGetCertifierByIdRoute:
     # TestClient
-    def test_client_returns_certifier_json_when_found(
+    def test_route_returns_certifier_json_when_found(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
         def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
@@ -104,7 +152,7 @@ class TestGetCertifierByIdRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_404_when_certifier_is_not_found(
+    def test_route_returns_404_when_certifier_is_not_found(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_certifier_by_id(session, certifier_id, *, include_archived=False):
@@ -121,7 +169,7 @@ class TestGetCertifierByIdRoute:
         assert response.status_code == 404
         assert response.json() == {"detail": "Certifier 10 not found."}
 
-    def test_client_returns_422_when_certifier_id_is_invalid(self, client):
+    def test_route_returns_422_when_certifier_id_is_invalid(self, client):
         response = client.get("/certifiers/not-an-id")
 
         assert response.status_code == 422
@@ -173,7 +221,7 @@ class TestGetCertifierByIdRoute:
 
 class TestPostNewCertifierRoute:
     # TestClient
-    def test_client_returns_certifier_json_when_created(
+    def test_route_returns_certifier_json_when_created(
         self, client, mock_db, monkeypatch, certifier_record_factory
     ):
         def fake_post_new_certifier(session, certifier_record):
@@ -198,7 +246,7 @@ class TestPostNewCertifierRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_409_when_certifier_already_exists(
+    def test_route_returns_409_when_certifier_already_exists(
         self, client, mock_db, monkeypatch
     ):
         def fake_post_new_certifier(session, certifier_record):
@@ -219,7 +267,7 @@ class TestPostNewCertifierRoute:
             "detail": "Certifier was not added because of a data conflict."
         }
 
-    def test_client_returns_422_when_certifier_is_invalid(self, client):
+    def test_route_returns_422_when_certifier_is_invalid(self, client):
         response = client.post("/certifiers", json={"organization_name": ""})
 
         assert response.status_code == 422
@@ -309,6 +357,89 @@ class TestPostNewCertifierRoute:
 
 
 class TestPostCertifierArchivedByIdRoute:
+    # TestClient
+    def test_route_archives_active_certifier(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_certifier_archived_by_id(
+            session, certifier_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert certifier_id == 10
+            assert archive_request.archive_reason == "duplicate"
+            return certifier_record_factory(
+                archived_at=archived_at, archive_reason="duplicate"
+            )
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_archived_by_id",
+            fake_post_certifier_archived_by_id,
+        )
+
+        response = client.post(
+            "/certifiers/10/archive", json={"archive_reason": "duplicate"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+        assert response.json()["archive_reason"] == "duplicate"
+
+    def test_route_archive_already_archived_certifier_returns_200(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_certifier_archived_by_id(
+            session, certifier_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert certifier_id == 10
+            return certifier_record_factory(
+                archived_at=archived_at, archive_reason="old reason"
+            )
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_archived_by_id",
+            fake_post_certifier_archived_by_id,
+        )
+
+        response = client.post(
+            "/certifiers/10/archive", json={"archive_reason": "old reason"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+
+    def test_route_returns_404_when_certifier_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_certifier_archived_by_id(
+            session, certifier_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert certifier_id == 10
+            return None
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_archived_by_id",
+            fake_post_certifier_archived_by_id,
+        )
+
+        response = client.post("/certifiers/10/archive")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Certifier does not exist: 10."}
+
+    def test_route_returns_422_when_certifier_id_is_invalid(self, client):
+        response = client.post("/certifiers/not-an-id/archive")
+
+        assert response.status_code == 422
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = certifiers_router.CertifierOut(
@@ -356,6 +487,71 @@ class TestPostCertifierArchivedByIdRoute:
 
 
 class TestPostCertifierRestoredByIdRoute:
+    # TestClient
+    def test_route_restores_archived_certifier(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        def fake_post_certifier_restored_by_id(session, certifier_id):
+            assert session is mock_db
+            assert certifier_id == 10
+            return certifier_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_restored_by_id",
+            fake_post_certifier_restored_by_id,
+        )
+
+        response = client.post("/certifiers/10/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_restore_active_certifier_returns_200(
+        self, client, mock_db, monkeypatch, certifier_record_factory
+    ):
+        def fake_post_certifier_restored_by_id(session, certifier_id):
+            assert session is mock_db
+            assert certifier_id == 10
+            return certifier_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_restored_by_id",
+            fake_post_certifier_restored_by_id,
+        )
+
+        response = client.post("/certifiers/10/restore")
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is None
+
+    def test_route_returns_404_when_certifier_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_certifier_restored_by_id(session, certifier_id):
+            assert session is mock_db
+            assert certifier_id == 10
+            return None
+
+        monkeypatch.setattr(
+            certifiers_router,
+            "post_certifier_restored_by_id",
+            fake_post_certifier_restored_by_id,
+        )
+
+        response = client.post("/certifiers/10/restore")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Certifier does not exist: 10."}
+
+    def test_route_returns_422_when_certifier_id_is_invalid(self, client):
+        response = client.post("/certifiers/not-an-id/restore")
+
+        assert response.status_code == 422
+
     def test_returns_restored_certifier(self, monkeypatch) -> None:
         fake_session = object()
         expected = certifiers_router.CertifierOut(

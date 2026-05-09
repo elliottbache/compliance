@@ -10,7 +10,17 @@ from compliance.api.schemas import (
     AttachmentOut,
     AttachmentWithContextOut,
 )
-from compliance.db.models import Attachment, Certification, Finding, Rule, Site
+from compliance.db.models import (
+    Attachment,
+    Base,
+    Certification,
+    Certifier,
+    Client,
+    Finding,
+    Regulation,
+    Rule,
+    Site,
+)
 from compliance.services._helpers import _format_attachment
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
@@ -87,22 +97,78 @@ class TestGetAttachments:
         session.get.assert_called_once_with(Finding, 1)
         assert "finding_attachments.finding_id = :finding_id_1" in str(stmt)
 
-    def test_excludes_archived_attachments_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_excludes_archived_attachments_by_default(
+        self, sqlite_session, monkeypatch
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=71,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        certification = Certification(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=date(2026, 4, 15),
+        )
+        active = Attachment(
+            id=50,
+            file_type="pdf",
+            certification_id=100,
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+        )
+        archived = Attachment(
+            id=51,
+            file_type="pdf",
+            certification_id=100,
+            file_path="dummy/old.pdf",
+            description="Old evidence",
+            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
+            archived_at=datetime.now(UTC),
+            archive_reason="obsolete",
+        )
+        sqlite_session.add_all(
+            [client, site, certifier, regulation, certification, active, archived]
+        )
+        sqlite_session.commit()
+        monkeypatch.setattr(
+            "compliance.services.attachments._format_attachments",
+            lambda rows: [row["Attachment"].id for row in rows],
+        )
 
-        get_attachments(
-            session,
+        attachment_ids = get_attachments(
+            sqlite_session,
             site_id=None,
             certification_id=None,
             rule_id=None,
             finding_id=None,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "attachments.archived_at IS NULL" in str(stmt)
-        assert "JOIN sites" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
+        assert attachment_ids == [50]
 
     def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
         session = MagicMock()
@@ -125,12 +191,71 @@ class TestGetAttachments:
         assert "AND (findings.id IS NULL" not in statement_text
         assert "AND (rules.id IS NULL" not in statement_text
 
-    def test_includes_archived_attachments_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_includes_archived_attachments_when_requested(
+        self, sqlite_session, monkeypatch
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=71,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        certification = Certification(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=date(2026, 4, 15),
+        )
+        active = Attachment(
+            id=50,
+            file_type="pdf",
+            certification_id=100,
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+        )
+        archived = Attachment(
+            id=51,
+            file_type="pdf",
+            certification_id=100,
+            file_path="dummy/old.pdf",
+            description="Old evidence",
+            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
+            archived_at=datetime.now(UTC),
+            archive_reason="obsolete",
+        )
+        sqlite_session.add_all(
+            [client, site, certifier, regulation, certification, active, archived]
+        )
+        sqlite_session.commit()
+        monkeypatch.setattr(
+            "compliance.services.attachments._format_attachments",
+            lambda rows: [row["Attachment"].id for row in rows],
+        )
 
-        get_attachments(
-            session,
+        attachment_ids = get_attachments(
+            sqlite_session,
             site_id=None,
             certification_id=None,
             rule_id=None,
@@ -138,11 +263,7 @@ class TestGetAttachments:
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "attachments.archived_at IS NULL" not in str(stmt)
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "findings.archived_at IS NULL" not in str(stmt)
-        assert "rules.archived_at IS NULL" not in str(stmt)
+        assert set(attachment_ids) == {50, 51}
 
 
 class TestFormatAttachments:
@@ -448,7 +569,7 @@ class TestPostAttachmentRestoredById:
 
         monkeypatch.setattr(
             "compliance.services.attachments.get_attachment_by_id",
-            lambda attachment_id, session_arg, *, include_archived: expected,
+            lambda session_arg, attachment_id, *, include_archived: expected,
         )
 
         result = post_attachment_restored_by_id(session, 50)
@@ -468,3 +589,89 @@ class TestPostAttachmentRestoredById:
         assert result is None
         session.get.assert_called_once_with(Attachment, 50)
         session.commit.assert_not_called()
+
+
+class TestPostAttachmentArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self, monkeypatch) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            client = Client(
+                nif="A1234567B",
+                company_name="Acme Compliance",
+                contact_name="Ada Lovelace",
+                email=None,
+                telephone=None,
+            )
+            site = Site(
+                id=71,
+                nif="A1234567B",
+                city="Madrid",
+                postal_code=28013,
+                street="Gran Via",
+                street_number=None,
+                suite=None,
+                address_info=None,
+            )
+            certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+            regulation = Regulation(
+                id=5,
+                title="USDA Organic",
+                description="Organic handling requirements.",
+                published_date=date(2026, 1, 15),
+            )
+            certification = Certification(
+                id=100,
+                certifier_id=7,
+                regulation_id=5,
+                site_id=71,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=date(2026, 4, 15),
+            )
+            attachment = Attachment(
+                id=50,
+                file_type="pdf",
+                certification_id=100,
+                file_path="dummy/evidence.pdf",
+                description="Inspection evidence",
+                uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+            )
+            session.add(client)
+            session.add(site)
+            session.add(certifier)
+            session.add(regulation)
+            session.add(certification)
+            session.add(attachment)
+            session.commit()
+            monkeypatch.setattr(
+                "compliance.services.attachments.get_attachment_by_id",
+                lambda session_arg, attachment_id, *, include_archived: session_arg.get(
+                    Attachment, attachment_id
+                ),
+            )
+
+            archived = post_attachment_archived_by_id(
+                session,
+                50,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_attachment_archived_by_id(
+                session,
+                50,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_attachment_restored_by_id(session, 50)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

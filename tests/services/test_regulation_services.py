@@ -10,7 +10,7 @@ from compliance.api.schemas import (
     RegulationCreate,
     RegulationOut,
 )
-from compliance.db.models import Certifier, Regulation
+from compliance.db.models import Base, Certifier, Regulation
 from compliance.services.regulations import (
     RegulationConflictError,
     RegulationTitleConflictError,
@@ -76,29 +76,44 @@ class TestGetRegulations:
             "regulations.title, regulations.id" in str(stmt)
         )
 
-    def test_excludes_archived_regulations_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_regulations_by_default(self, sqlite_session) -> None:
+        active = _regulation()
+        archived = _regulation(
+            id=4,
+            title="Archived Regulation",
+            archived_at=datetime.now(UTC),
+            archive_reason="replaced",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_regulations(session, certifier_id=None, limit=None, offset=0)
+        regulations = get_regulations(
+            sqlite_session, certifier_id=None, limit=None, offset=0
+        )
 
-        stmt = session.execute.call_args.args[0]
-        assert "regulations.archived_at IS NULL" in str(stmt)
+        assert [regulation.id for regulation in regulations] == [3]
 
-    def test_includes_archived_regulations_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_regulations_when_requested(self, sqlite_session) -> None:
+        active = _regulation()
+        archived = _regulation(
+            id=4,
+            title="Archived Regulation",
+            archived_at=datetime.now(UTC),
+            archive_reason="replaced",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_regulations(
-            session,
+        regulations = get_regulations(
+            sqlite_session,
             certifier_id=None,
             limit=None,
             offset=0,
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "regulations.archived_at IS NULL" not in str(stmt)
+        returned_ids = {regulation.id for regulation in regulations}
+        assert returned_ids == {3, 4}
 
     def test_filters_by_certifier_when_certifier_exists(self) -> None:
         session = MagicMock()
@@ -288,3 +303,42 @@ class TestPostNewRegulationConflicts:
             post_new_regulation(session, _regulation_create())
 
         session.rollback.assert_called_once_with()
+
+
+class TestPostRegulationArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            regulation = Regulation(
+                id=3,
+                title="Fire Safety 2026",
+                description="Fire safety requirements.",
+                published_date=date(2026, 1, 15),
+            )
+            session.add(regulation)
+            session.commit()
+
+            archived = post_regulation_archived_by_id(
+                session,
+                3,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_regulation_archived_by_id(
+                session,
+                3,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_regulation_restored_by_id(session, 3)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

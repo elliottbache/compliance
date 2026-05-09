@@ -10,7 +10,7 @@ from compliance.api.schemas import (
     RuleCreate,
     RuleOut,
 )
-from compliance.db.models import Regulation, Rule
+from compliance.db.models import Base, Regulation, Rule
 from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
@@ -74,31 +74,56 @@ class TestGetRules:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY rules.regulation_id, rules.rule_index, rules.id" in str(stmt)
 
-    def test_excludes_archived_rules_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_rules_by_default(self, sqlite_session) -> None:
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=datetime(2026, 1, 15).date(),
+        )
+        active = _rule()
+        archived = _rule(
+            id=21,
+            rule_index="FS-102",
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add(regulation)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_rules(session, regulation_id=None, limit=None, offset=0)
+        rules = get_rules(sqlite_session, regulation_id=None, limit=None, offset=0)
 
-        stmt = session.execute.call_args.args[0]
-        assert "rules.archived_at IS NULL" in str(stmt)
-        assert "regulations.archived_at IS NULL" in str(stmt)
+        assert [rule.id for rule in rules] == [20]
 
-    def test_includes_archived_rules_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_rules_when_requested(self, sqlite_session) -> None:
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=datetime(2026, 1, 15).date(),
+        )
+        active = _rule()
+        archived = _rule(
+            id=21,
+            rule_index="FS-102",
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add(regulation)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_rules(
-            session,
+        rules = get_rules(
+            sqlite_session,
             regulation_id=None,
             limit=None,
             offset=0,
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "rules.archived_at IS NULL" not in str(stmt)
-        assert "regulations.archived_at IS NULL" not in str(stmt)
+        returned_ids = {rule.id for rule in rules}
+        assert returned_ids == {20, 21}
 
     def test_filters_by_regulation_when_regulation_exists(self) -> None:
         session = MagicMock()
@@ -290,6 +315,53 @@ class TestPostNewRuleConflicts:
             post_new_rule(session, _rule_create())
 
         session.rollback.assert_called_once_with()
+
+
+class TestPostRuleArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            regulation = Regulation(
+                id=3,
+                title="Fire Safety 2026",
+                description="Fire safety requirements.",
+                published_date=datetime(2026, 1, 15).date(),
+            )
+            rule = Rule(
+                id=20,
+                regulation_id=3,
+                rule_index="FS-101",
+                title="Equipment Maintenance",
+                description="Equipment must be maintained.",
+            )
+            session.add(regulation)
+            session.add(rule)
+            session.commit()
+
+            archived = post_rule_archived_by_id(
+                session,
+                20,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_rule_archived_by_id(
+                session,
+                20,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_rule_restored_by_id(session, 20)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None
 
     @pytest.mark.parametrize(
         "constraint_name",

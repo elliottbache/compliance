@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi import HTTPException
@@ -7,7 +7,7 @@ from compliance.api.routers import regulations as regulations_router
 
 
 class TestGetRegulationsRoute:
-    def test_client_returns_regulations_json(
+    def test_route_returns_regulations_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
         def fake_get_regulations(
@@ -53,7 +53,61 @@ class TestGetRegulationsRoute:
             },
         ]
 
-    def test_client_returns_422_when_limit_is_invalid(self, client):
+    def test_route_excludes_archived_regulations_by_default(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        archived_regulation_id = 4
+
+        def fake_get_regulations(
+            session, *, certifier_id, limit, offset, include_archived=False
+        ):
+            assert session is mock_db
+            assert include_archived is False
+            return [regulation_record_factory()]
+
+        monkeypatch.setattr(regulations_router, "get_regulations", fake_get_regulations)
+
+        response = client.get("/regulations")
+
+        assert response.status_code == 200
+        returned_ids = {regulation["id"] for regulation in response.json()}
+        assert 3 in returned_ids
+        assert archived_regulation_id not in returned_ids
+
+    def test_route_include_archived_returns_archived_regulation(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        archived_regulation_id = 4
+
+        def fake_get_regulations(
+            session, *, certifier_id, limit, offset, include_archived=False
+        ):
+            assert session is mock_db
+            assert include_archived is True
+            return [
+                regulations_router.RegulationOut.model_validate(
+                    regulation_record_factory()
+                ),
+                regulations_router.RegulationOut.model_validate(
+                    regulation_record_factory(
+                        id=archived_regulation_id,
+                        title="Archived Regulation",
+                        archived_at=archived_at,
+                        archive_reason="replaced",
+                    )
+                ),
+            ]
+
+        monkeypatch.setattr(regulations_router, "get_regulations", fake_get_regulations)
+
+        response = client.get("/regulations?include_archived=true")
+
+        assert response.status_code == 200
+        returned_ids = {regulation["id"] for regulation in response.json()}
+        assert archived_regulation_id in returned_ids
+
+    def test_route_returns_422_when_limit_is_invalid(self, client):
         response = client.get("/regulations?limit=0")
 
         assert response.status_code == 422
@@ -114,7 +168,7 @@ class TestGetRegulationsRoute:
 
 
 class TestGetRegulationByIdRoute:
-    def test_client_returns_regulation_json_when_found(
+    def test_route_returns_regulation_json_when_found(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
         def fake_get_regulation_by_id(
@@ -140,7 +194,7 @@ class TestGetRegulationByIdRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_404_when_regulation_is_not_found(
+    def test_route_returns_404_when_regulation_is_not_found(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_regulation_by_id(
@@ -159,7 +213,7 @@ class TestGetRegulationByIdRoute:
         assert response.status_code == 404
         assert response.json() == {"detail": "No regulation for this id found: 999"}
 
-    def test_client_returns_422_when_regulation_id_is_not_an_int(self, client):
+    def test_route_returns_422_when_regulation_id_is_not_an_int(self, client):
         response = client.get("/regulations/not-an-int")
 
         assert response.status_code == 422
@@ -212,7 +266,7 @@ class TestGetRegulationByIdRoute:
 
 
 class TestPostNewRegulationRoute:
-    def test_client_returns_created_regulation_json(
+    def test_route_returns_created_regulation_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
         created_regulation = regulation_record_factory()
@@ -245,7 +299,7 @@ class TestPostNewRegulationRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_409_when_regulation_conflicts(
+    def test_route_returns_409_when_regulation_conflicts(
         self, client, mock_db, monkeypatch
     ):
         def fake_post_new_regulation(session, regulation):
@@ -268,7 +322,7 @@ class TestPostNewRegulationRoute:
         assert response.status_code == 409
         assert response.json()["detail"].startswith("Regulation was not added: ")
 
-    def test_client_returns_422_when_title_is_too_long(self, client):
+    def test_route_returns_422_when_title_is_too_long(self, client):
         response = client.post(
             "/regulations",
             json={
@@ -366,6 +420,89 @@ class TestPostNewRegulationRoute:
 
 
 class TestPostRegulationArchivedByIdRoute:
+    # TestClient
+    def test_route_archives_active_regulation(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_regulation_archived_by_id(
+            session, regulation_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert regulation_id == 3
+            assert archive_request.archive_reason == "duplicate"
+            return regulation_record_factory(
+                archived_at=archived_at, archive_reason="duplicate"
+            )
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_archived_by_id",
+            fake_post_regulation_archived_by_id,
+        )
+
+        response = client.post(
+            "/regulations/3/archive", json={"archive_reason": "duplicate"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+        assert response.json()["archive_reason"] == "duplicate"
+
+    def test_route_archive_already_archived_regulation_returns_200(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_regulation_archived_by_id(
+            session, regulation_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert regulation_id == 3
+            return regulation_record_factory(
+                archived_at=archived_at, archive_reason="old reason"
+            )
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_archived_by_id",
+            fake_post_regulation_archived_by_id,
+        )
+
+        response = client.post(
+            "/regulations/3/archive", json={"archive_reason": "old reason"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+
+    def test_route_returns_404_when_regulation_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_regulation_archived_by_id(
+            session, regulation_id, *, archive_request
+        ):
+            assert session is mock_db
+            assert regulation_id == 3
+            return None
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_archived_by_id",
+            fake_post_regulation_archived_by_id,
+        )
+
+        response = client.post("/regulations/3/archive")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Regulation does not exist: 3."}
+
+    def test_route_returns_422_when_regulation_id_is_invalid(self, client):
+        response = client.post("/regulations/not-an-id/archive")
+
+        assert response.status_code == 422
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = regulations_router.RegulationOut(
@@ -417,6 +554,71 @@ class TestPostRegulationArchivedByIdRoute:
 
 
 class TestPostRegulationRestoredByIdRoute:
+    # TestClient
+    def test_route_restores_archived_regulation(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        def fake_post_regulation_restored_by_id(session, regulation_id):
+            assert session is mock_db
+            assert regulation_id == 3
+            return regulation_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_restored_by_id",
+            fake_post_regulation_restored_by_id,
+        )
+
+        response = client.post("/regulations/3/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_restore_active_regulation_returns_200(
+        self, client, mock_db, monkeypatch, regulation_record_factory
+    ):
+        def fake_post_regulation_restored_by_id(session, regulation_id):
+            assert session is mock_db
+            assert regulation_id == 3
+            return regulation_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_restored_by_id",
+            fake_post_regulation_restored_by_id,
+        )
+
+        response = client.post("/regulations/3/restore")
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is None
+
+    def test_route_returns_404_when_regulation_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_regulation_restored_by_id(session, regulation_id):
+            assert session is mock_db
+            assert regulation_id == 3
+            return None
+
+        monkeypatch.setattr(
+            regulations_router,
+            "post_regulation_restored_by_id",
+            fake_post_regulation_restored_by_id,
+        )
+
+        response = client.post("/regulations/3/restore")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Regulation does not exist: 3."}
+
+    def test_route_returns_422_when_regulation_id_is_invalid(self, client):
+        response = client.post("/regulations/not-an-id/restore")
+
+        assert response.status_code == 422
+
     def test_returns_restored_regulation(self, monkeypatch) -> None:
         fake_session = object()
         expected = regulations_router.RegulationOut(

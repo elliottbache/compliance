@@ -8,7 +8,7 @@ from compliance.api.schemas import (
     ArchiveRequest,
     CertifierCreate,
 )
-from compliance.db.models import Certifier
+from compliance.db.models import Base, Certifier
 from compliance.services.certifiers import (
     CertifierConflictError,
     CertifierOrganizationNameConflictError,
@@ -52,23 +52,38 @@ class TestGetCertifiers:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifiers.organization_name, certifiers.id" in str(stmt)
 
-    def test_excludes_archived_certifiers_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_certifiers_by_default(self, sqlite_session) -> None:
+        active = _certifier()
+        archived = _certifier(
+            id=11,
+            organization_name="Archived Certifier",
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_certifiers(session, limit=None, offset=0)
+        certifiers = get_certifiers(sqlite_session, limit=None, offset=0)
 
-        stmt = session.execute.call_args.args[0]
-        assert "certifiers.archived_at IS NULL" in str(stmt)
+        assert [certifier.id for certifier in certifiers] == [10]
 
-    def test_includes_archived_certifiers_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_certifiers_when_requested(self, sqlite_session) -> None:
+        active = _certifier()
+        archived = _certifier(
+            id=11,
+            organization_name="Archived Certifier",
+            archived_at=datetime.now(UTC),
+            archive_reason="merged",
+        )
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_certifiers(session, limit=None, offset=0, include_archived=True)
+        certifiers = get_certifiers(
+            sqlite_session, limit=None, offset=0, include_archived=True
+        )
 
-        stmt = session.execute.call_args.args[0]
-        assert "certifiers.archived_at IS NULL" not in str(stmt)
+        returned_ids = {certifier.id for certifier in certifiers}
+        assert returned_ids == {10, 11}
 
 
 class TestGetCertifierById:
@@ -243,3 +258,38 @@ class TestPostCertifierRestoredById:
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
+
+
+class TestPostCertifierArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            certifier = Certifier(id=10, organization_name="SafeCheck Inc.")
+            session.add(certifier)
+            session.commit()
+
+            archived = post_certifier_archived_by_id(
+                session,
+                10,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_certifier_archived_by_id(
+                session,
+                10,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_certifier_restored_by_id(session, 10)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

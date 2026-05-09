@@ -11,7 +11,14 @@ from compliance.api.schemas import (
     CertificationCreate,
     CertificationOut,
 )
-from compliance.db.models import Certification, Site
+from compliance.db.models import (
+    Base,
+    Certification,
+    Certifier,
+    Client,
+    Regulation,
+    Site,
+)
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
     CertificationConflictError,
@@ -127,24 +134,92 @@ class TestGetCertifications:
         stmt = session.execute.call_args.args[0]
         assert "certifications.resolution_date IS NULL" in str(stmt)
 
-    def test_excludes_archived_certifications_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_excludes_archived_certifications_by_default(self, sqlite_session) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        active = _certification()
+        archived = _certification(
+            id=43,
+            archived_at=datetime.now(UTC),
+            archive_reason="superseded",
+        )
+        sqlite_session.add(client)
+        sqlite_session.add(site)
+        sqlite_session.add(certifier)
+        sqlite_session.add(regulation)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_certifications(session, site_id=None, open_only=False, limit=None, offset=0)
+        certifications = get_certifications(
+            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
+        )
 
-        stmt = session.execute.call_args.args[0]
-        assert "certifications.archived_at IS NULL" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
-        assert "regulations.archived_at IS NULL" in str(stmt)
-        assert "certifiers.archived_at IS NULL" in str(stmt)
+        assert [certification.id for certification in certifications] == [42]
 
-    def test_includes_archived_certifications_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
+    def test_includes_archived_certifications_when_requested(
+        self, sqlite_session
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        active = _certification()
+        archived = _certification(
+            id=43,
+            archived_at=datetime.now(UTC),
+            archive_reason="superseded",
+        )
+        sqlite_session.add(client)
+        sqlite_session.add(site)
+        sqlite_session.add(certifier)
+        sqlite_session.add(regulation)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
 
-        get_certifications(
-            session,
+        certifications = get_certifications(
+            sqlite_session,
             site_id=None,
             open_only=False,
             limit=None,
@@ -152,11 +227,8 @@ class TestGetCertifications:
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "certifications.archived_at IS NULL" not in str(stmt)
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "regulations.archived_at IS NULL" not in str(stmt)
-        assert "certifiers.archived_at IS NULL" not in str(stmt)
+        returned_ids = {certification.id for certification in certifications}
+        assert returned_ids == {42, 43}
 
 
 class TestGetCertificationById:
@@ -519,3 +591,74 @@ class TestPostCertificationRestoredById:
         assert result is None
         session.get.assert_called_once_with(Certification, 42)
         session.commit.assert_not_called()
+
+
+class TestPostCertificationArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            client = Client(
+                nif="A1234567B",
+                company_name="Acme Compliance",
+                contact_name="Ada Lovelace",
+                email=None,
+                telephone=None,
+            )
+            site = Site(
+                id=12,
+                nif="A1234567B",
+                city="Madrid",
+                postal_code=28013,
+                street="Gran Via",
+                street_number=None,
+                suite=None,
+                address_info=None,
+            )
+            certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+            regulation = Regulation(
+                id=3,
+                title="Fire Safety 2026",
+                description="Fire safety requirements.",
+                published_date=date(2026, 1, 15),
+            )
+            certification = Certification(
+                id=42,
+                certifier_id=7,
+                regulation_id=3,
+                site_id=12,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=date(2026, 4, 15),
+            )
+            session.add(client)
+            session.add(site)
+            session.add(certifier)
+            session.add(regulation)
+            session.add(certification)
+            session.commit()
+
+            archived = post_certification_archived_by_id(
+                session,
+                42,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_certification_archived_by_id(
+                session,
+                42,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_certification_restored_by_id(session, 42)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

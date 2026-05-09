@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import HTTPException
 
@@ -5,7 +7,7 @@ from compliance.api.routers import findings as findings_router
 
 
 class TestGetFindingsRoute:
-    def test_client_returns_findings_json(
+    def test_route_returns_findings_json(
         self, main_module, client, mock_db, monkeypatch, finding_factory
     ):
         def fake_get_findings(
@@ -49,7 +51,7 @@ class TestGetFindingsRoute:
             }
         ]
 
-    def test_client_passes_query_filters_to_service(
+    def test_route_passes_query_filters_to_service(
         self, main_module, client, mock_db, monkeypatch
     ):
         def fake_get_findings(
@@ -80,7 +82,70 @@ class TestGetFindingsRoute:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_client_returns_422_when_filter_type_is_invalid(self, client):
+    def test_route_excludes_archived_findings_by_default(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        archived_finding_id = 2
+
+        def fake_get_findings(
+            session,
+            *,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
+        ):
+            assert session is mock_db
+            assert include_archived is False
+            return [finding_factory()]
+
+        monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
+
+        response = client.get("/findings")
+
+        assert response.status_code == 200
+        returned_ids = {finding["finding_id"] for finding in response.json()}
+        assert 1 in returned_ids
+        assert archived_finding_id not in returned_ids
+
+    def test_route_include_archived_returns_archived_finding(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        archived_finding_id = 2
+
+        def fake_get_findings(
+            session,
+            *,
+            site_id,
+            certification_id,
+            rule_id,
+            attachment_id,
+            open_only,
+            include_archived=False,
+        ):
+            assert session is mock_db
+            assert include_archived is True
+            return [
+                finding_factory(),
+                finding_factory(
+                    finding_id=archived_finding_id,
+                    archived_at=archived_at,
+                    archive_reason="resolved",
+                ),
+            ]
+
+        monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
+
+        response = client.get("/findings?include_archived=true")
+
+        assert response.status_code == 200
+        returned_ids = {finding["finding_id"] for finding in response.json()}
+        assert archived_finding_id in returned_ids
+
+    def test_route_returns_422_when_filter_type_is_invalid(self, client):
         response = client.get("/findings?site_id=not-an-int")
 
         assert response.status_code == 422
@@ -221,7 +286,7 @@ class TestGetFindingsRoute:
 
 
 class TestPostNewFindingRoute:
-    def test_client_returns_created_finding_json(
+    def test_route_returns_created_finding_json(
         self, client, mock_db, monkeypatch, finding_factory
     ):
         expected_finding = finding_factory()
@@ -261,7 +326,7 @@ class TestPostNewFindingRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_422_when_body_is_invalid(self, client):
+    def test_route_returns_422_when_body_is_invalid(self, client):
         response = client.post(
             "/findings",
             json={
@@ -363,6 +428,79 @@ class TestPostNewFindingRoute:
 
 
 class TestPostFindingArchivedByIdRoute:
+    # TestClient
+    def test_route_archives_active_finding(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+            assert session is mock_db
+            assert finding_id == 1
+            assert archive_request.archive_reason == "duplicate"
+            return finding_factory(archived_at=archived_at, archive_reason="duplicate")
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        response = client.post(
+            "/findings/1/archive", json={"archive_reason": "duplicate"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+        assert response.json()["archive_reason"] == "duplicate"
+
+    def test_route_archive_already_archived_finding_returns_200(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+            assert session is mock_db
+            assert finding_id == 1
+            return finding_factory(archived_at=archived_at, archive_reason="old reason")
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        response = client.post(
+            "/findings/1/archive", json={"archive_reason": "old reason"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is not None
+
+    def test_route_returns_404_when_finding_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+            assert session is mock_db
+            assert finding_id == 1
+            return None
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        response = client.post("/findings/1/archive")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Finding does not exist: 1."}
+
+    def test_route_returns_422_when_finding_id_is_invalid(self, client):
+        response = client.post("/findings/not-an-id/archive")
+
+        assert response.status_code == 422
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = findings_router.FindingOut(
@@ -415,6 +553,71 @@ class TestPostFindingArchivedByIdRoute:
 
 
 class TestPostFindingRestoredByIdRoute:
+    # TestClient
+    def test_route_restores_archived_finding(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        def fake_post_finding_restored_by_id(session, finding_id):
+            assert session is mock_db
+            assert finding_id == 1
+            return finding_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        response = client.post("/findings/1/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_restore_active_finding_returns_200(
+        self, client, mock_db, monkeypatch, finding_factory
+    ):
+        def fake_post_finding_restored_by_id(session, finding_id):
+            assert session is mock_db
+            assert finding_id == 1
+            return finding_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        response = client.post("/findings/1/restore")
+
+        assert response.status_code == 200
+        assert response.json()["archived_at"] is None
+
+    def test_route_returns_404_when_finding_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_finding_restored_by_id(session, finding_id):
+            assert session is mock_db
+            assert finding_id == 1
+            return None
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        response = client.post("/findings/1/restore")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Finding does not exist: 1."}
+
+    def test_route_returns_422_when_finding_id_is_invalid(self, client):
+        response = client.post("/findings/not-an-id/restore")
+
+        assert response.status_code == 422
+
     def test_returns_restored_finding(self, monkeypatch) -> None:
         fake_session = object()
         expected = findings_router.FindingOut(

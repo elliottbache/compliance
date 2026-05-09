@@ -7,8 +7,12 @@ import pytest
 from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,
+    Base,
     Certification,
+    Certifier,
+    Client,
     Finding,
+    Regulation,
     Rule,
     Site,
 )
@@ -83,12 +87,68 @@ class TestGetFindings:
         assert "LEFT OUTER JOIN finding_attachments" in str(stmt)
         assert "LEFT OUTER JOIN attachments" in str(stmt)
 
-    def test_excludes_archived_findings_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_excludes_archived_findings_by_default(self, sqlite_session) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=71,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        rule = Rule(
+            id=5,
+            regulation_id=5,
+            rule_index="7 CFR 205.201",
+            title="Organic plan",
+            description="Producer must maintain an organic system plan.",
+        )
+        certification = Certification(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=date(2026, 4, 15),
+        )
+        active = Finding(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+            finding="Missing document",
+        )
+        archived = Finding(
+            id=2,
+            certification_id=100,
+            rule_id=5,
+            finding="Resolved document",
+            archived_at=datetime.now(UTC),
+            archive_reason="resolved",
+        )
+        sqlite_session.add_all(
+            [client, site, certifier, regulation, rule, certification, active, archived]
+        )
+        sqlite_session.commit()
 
-        get_findings(
-            session,
+        findings = get_findings(
+            sqlite_session,
             site_id=None,
             certification_id=None,
             rule_id=None,
@@ -96,18 +156,70 @@ class TestGetFindings:
             open_only=False,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "findings.archived_at IS NULL" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
-        assert "attachments.archived_at IS NULL" in str(stmt)
-        assert "AND (attachments.id IS NULL" not in str(stmt)
+        assert [finding.finding_id for finding in findings] == [1]
 
-    def test_includes_archived_findings_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_includes_archived_findings_when_requested(self, sqlite_session) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=71,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=5,
+            title="USDA Organic",
+            description="Organic handling requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        rule = Rule(
+            id=5,
+            regulation_id=5,
+            rule_index="7 CFR 205.201",
+            title="Organic plan",
+            description="Producer must maintain an organic system plan.",
+        )
+        certification = Certification(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=date(2026, 4, 15),
+        )
+        active = Finding(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+            finding="Missing document",
+        )
+        archived = Finding(
+            id=2,
+            certification_id=100,
+            rule_id=5,
+            finding="Resolved document",
+            archived_at=datetime.now(UTC),
+            archive_reason="resolved",
+        )
+        sqlite_session.add_all(
+            [client, site, certifier, regulation, rule, certification, active, archived]
+        )
+        sqlite_session.commit()
 
-        get_findings(
-            session,
+        findings = get_findings(
+            sqlite_session,
             site_id=None,
             certification_id=None,
             rule_id=None,
@@ -116,10 +228,8 @@ class TestGetFindings:
             include_archived=True,
         )
 
-        stmt = session.execute.call_args.args[0]
-        assert "findings.archived_at IS NULL" not in str(stmt)
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "attachments.archived_at IS NULL" not in str(stmt)
+        returned_ids = {finding.finding_id for finding in findings}
+        assert returned_ids == {1, 2}
 
     def test_filters_by_attachment_id_when_attachment_exists(self) -> None:
         session = MagicMock()
@@ -416,7 +526,7 @@ class TestPostFindingRestoredById:
 
         monkeypatch.setattr(
             "compliance.services.findings.get_finding_by_id",
-            lambda finding_id, session_arg, *, include_archived: expected,
+            lambda session_arg, finding_id, *, include_archived: expected,
         )
 
         result = post_finding_restored_by_id(session, 1)
@@ -436,3 +546,89 @@ class TestPostFindingRestoredById:
         assert result is None
         session.get.assert_called_once_with(Finding, 1)
         session.commit.assert_not_called()
+
+
+class TestPostFindingArchiveRestoreIntegration:
+    def test_archive_then_restore_works(self) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            client = Client(
+                nif="A1234567B",
+                company_name="Acme Compliance",
+                contact_name="Ada Lovelace",
+                email=None,
+                telephone=None,
+            )
+            site = Site(
+                id=71,
+                nif="A1234567B",
+                city="Madrid",
+                postal_code=28013,
+                street="Gran Via",
+                street_number=None,
+                suite=None,
+                address_info=None,
+            )
+            certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+            regulation = Regulation(
+                id=5,
+                title="USDA Organic",
+                description="Organic handling requirements.",
+                published_date=date(2026, 1, 15),
+            )
+            rule = Rule(
+                id=5,
+                regulation_id=5,
+                rule_index="7 CFR 205.201",
+                title="Organic plan",
+                description="Producer must maintain an organic system plan.",
+            )
+            certification = Certification(
+                id=100,
+                certifier_id=7,
+                regulation_id=5,
+                site_id=71,
+                result="Pass",
+                inspection_date=date(2026, 4, 1),
+                resolution_date=date(2026, 4, 15),
+            )
+            finding = Finding(
+                id=1,
+                certification_id=100,
+                rule_id=5,
+                finding="Missing document",
+            )
+            session.add(client)
+            session.add(site)
+            session.add(certifier)
+            session.add(regulation)
+            session.add(rule)
+            session.add(certification)
+            session.add(finding)
+            session.commit()
+
+            archived = post_finding_archived_by_id(
+                session,
+                1,
+                archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            )
+            archived = post_finding_archived_by_id(
+                session,
+                1,
+                archive_request=ArchiveRequest(archive_reason=" second "),
+            )
+
+            assert archived is not None
+            assert archived.archived_at is not None
+            assert archived.archive_reason == "duplicate"
+
+            restored = post_finding_restored_by_id(session, 1)
+
+            assert restored is not None
+            assert restored.archived_at is None
+            assert restored.archive_reason is None

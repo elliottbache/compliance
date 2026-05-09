@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import HTTPException
 
@@ -6,7 +8,7 @@ from compliance.api.routers import clients as clients_router
 
 class TestGetClientsRoute:
     # TestClient
-    def test_client_returns_client_json(
+    def test_route_returns_client_json(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
         def fake_get_clients(session, *, limit, offset, include_archived=False):
@@ -51,7 +53,7 @@ class TestGetClientsRoute:
             },
         ]
 
-    def test_client_passes_include_archived_to_service(
+    def test_route_passes_include_archived_to_service(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_clients(session, *, limit, offset, include_archived=False):
@@ -68,7 +70,54 @@ class TestGetClientsRoute:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_client_returns_422_when_limit_is_invalid(self, client):
+    def test_route_excludes_archived_clients_by_default(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        archived_client_nif = "B1234567C"
+
+        def fake_get_clients(session, *, limit, offset, include_archived=False):
+            assert session is mock_db
+            assert include_archived is False
+            return [client_record_factory()]
+
+        monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
+
+        response = client.get("/clients")
+
+        assert response.status_code == 200
+        returned_nifs = {client_record["nif"] for client_record in response.json()}
+        assert "A1234567B" in returned_nifs
+        assert archived_client_nif not in returned_nifs
+
+    def test_route_include_archived_returns_archived_client(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+        archived_client_nif = "B1234567C"
+
+        def fake_get_clients(session, *, limit, offset, include_archived=False):
+            assert session is mock_db
+            assert include_archived is True
+            return [
+                client_record_factory(),
+                client_record_factory(
+                    nif=archived_client_nif,
+                    company_name="Archived Corp",
+                    archived_at=archived_at,
+                    archive_reason="merged",
+                ),
+            ]
+
+        monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
+
+        response = client.get("/clients?include_archived=true")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        returned_nifs = {client_record["nif"] for client_record in response_json}
+        assert archived_client_nif in returned_nifs
+
+    def test_route_returns_422_when_limit_is_invalid(self, client):
         response = client.get("/clients?limit=0")
 
         assert response.status_code == 422
@@ -107,7 +156,7 @@ class TestGetClientsRoute:
 
 class TestGetClientByNifRoute:
     # TestClient
-    def test_client_returns_client_json_when_found(
+    def test_route_returns_client_json_when_found(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
         def fake_get_client_by_nif(session, nif, *, include_archived=False):
@@ -130,7 +179,7 @@ class TestGetClientByNifRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_404_when_client_is_not_found(
+    def test_route_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_client_by_nif(session, nif, *, include_archived=False):
@@ -145,7 +194,7 @@ class TestGetClientByNifRoute:
         assert response.status_code == 404
         assert response.json() == {"detail": "Client A1234567B not found."}
 
-    def test_client_returns_422_when_nif_is_invalid(self, client):
+    def test_route_returns_422_when_nif_is_invalid(self, client):
         response = client.get("/clients/short")
 
         assert response.status_code == 422
@@ -193,7 +242,7 @@ class TestGetClientByNifRoute:
 
 class TestGetClientSitesRoute:
     # TestClient
-    def test_client_returns_sites_json_when_client_is_found(
+    def test_route_returns_sites_json_when_client_is_found(
         self, client, mock_db, monkeypatch, client_record_factory, site_factory
     ):
         def fake_get_client_by_nif(session, nif, *, include_archived=False):
@@ -249,7 +298,7 @@ class TestGetClientSitesRoute:
             },
         ]
 
-    def test_client_returns_empty_sites_json_when_client_has_no_sites(
+    def test_route_returns_empty_sites_json_when_client_has_no_sites(
         self, client, mock_db, monkeypatch, client_record_factory
     ):
         def fake_get_client_by_nif(session, nif, *, include_archived=False):
@@ -268,7 +317,7 @@ class TestGetClientSitesRoute:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_client_returns_404_when_client_is_not_found(
+    def test_route_returns_404_when_client_is_not_found(
         self, client, mock_db, monkeypatch
     ):
         def fake_get_client_by_nif(session, nif, *, include_archived=False):
@@ -283,7 +332,7 @@ class TestGetClientSitesRoute:
         assert response.status_code == 404
         assert response.json() == {"detail": "Client A1234567B not found."}
 
-    def test_client_returns_422_when_nif_is_invalid(self, client):
+    def test_route_returns_422_when_nif_is_invalid(self, client):
         response = client.get("/clients/short/sites")
 
         assert response.status_code == 422
@@ -355,7 +404,7 @@ class TestGetClientSitesRoute:
 
 class TestPostNewClientRoute:
     # TestClient
-    def test_client_returns_client_json_when_found(
+    def test_route_returns_client_json_when_found(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
         def fake_post_new_client(session, client_record):
@@ -379,7 +428,7 @@ class TestPostNewClientRoute:
             "archive_reason": None,
         }
 
-    def test_client_returns_409_when_client_already_exists(
+    def test_route_returns_409_when_client_already_exists(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
     ):
         def fake_post_new_client(session, client_record):
@@ -395,7 +444,7 @@ class TestPostNewClientRoute:
             "detail": "Client was not added because of a data conflict."
         }
 
-    def test_client_returns_422_when_client_is_invalid(
+    def test_route_returns_422_when_client_is_invalid(
         self, client, client_record_factory
     ):
         response = client.post("/clients", json=vars(client_record_factory(nif=12)))
@@ -513,6 +562,87 @@ class TestPostNewClientRoute:
 
 
 class TestPostClientArchivedByNifRoute:
+    # TestClient
+    def test_route_archives_active_client(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            assert archive_request.archive_reason == "duplicate client"
+            return client_record_factory(
+                archived_at=archived_at, archive_reason="duplicate client"
+            )
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        response = client.post(
+            "/clients/A1234567B/archive",
+            json={"archive_reason": "duplicate client"},
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["nif"] == "A1234567B"
+        assert response_json["archived_at"] is not None
+        assert response_json["archive_reason"] == "duplicate client"
+
+    def test_route_returns_already_archived_client(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
+
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            return client_record_factory(
+                archived_at=archived_at, archive_reason="old reason"
+            )
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        response = client.post("/clients/A1234567B/archive")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["nif"] == "A1234567B"
+        assert response_json["archived_at"] is not None
+        assert response_json["archive_reason"] == "old reason"
+
+    def test_route_returns_404_when_client_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_client_archived_by_nif(session, nif, *, archive_request):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            return None
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_archived_by_nif",
+            fake_post_client_archived_by_nif,
+        )
+
+        response = client.post("/clients/A1234567B/archive")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Client does not exist: A1234567B."}
+
+    def test_route_returns_422_when_nif_is_invalid(self, client):
+        response = client.post("/clients/invalid/archive")
+
+        assert response.status_code == 422
+
     def test_returns_archived_client(self, monkeypatch, client_record_factory) -> None:
         fake_session = object()
         archive_request = clients_router.ArchiveRequest(
@@ -588,6 +718,75 @@ class TestPostClientArchivedByNifRoute:
 
 
 class TestPostClientRestoredByNifRoute:
+    # TestClient
+    def test_route_restores_archived_client(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        def fake_post_client_restored_by_nif(session, nif):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            return client_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_restored_by_nif",
+            fake_post_client_restored_by_nif,
+        )
+
+        response = client.post("/clients/A1234567B/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["nif"] == "A1234567B"
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_returns_active_client(
+        self, client, mock_db, monkeypatch, client_record_factory
+    ):
+        def fake_post_client_restored_by_nif(session, nif):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            return client_record_factory(archived_at=None, archive_reason=None)
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_restored_by_nif",
+            fake_post_client_restored_by_nif,
+        )
+
+        response = client.post("/clients/A1234567B/restore")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["nif"] == "A1234567B"
+        assert response_json["archived_at"] is None
+        assert response_json["archive_reason"] is None
+
+    def test_route_returns_404_when_client_does_not_exist(
+        self, client, mock_db, monkeypatch
+    ):
+        def fake_post_client_restored_by_nif(session, nif):
+            assert session is mock_db
+            assert nif == "A1234567B"
+            return None
+
+        monkeypatch.setattr(
+            clients_router,
+            "post_client_restored_by_nif",
+            fake_post_client_restored_by_nif,
+        )
+
+        response = client.post("/clients/A1234567B/restore")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Client does not exist: A1234567B."}
+
+    def test_route_returns_422_when_nif_is_invalid(self, client):
+        response = client.post("/clients/invalid/restore")
+
+        assert response.status_code == 422
+
     def test_returns_restored_client(self, monkeypatch) -> None:
         fake_session = object()
         expected_client = clients_router.ClientOut(
