@@ -23,19 +23,6 @@ from compliance.services.rules import (
 )
 
 
-def _rule(**overrides) -> Rule:
-    rule = Rule(
-        id=20,
-        regulation_id=3,
-        rule_index="FS-101",
-        title="Equipment Maintenance",
-        description="Equipment must be maintained.",
-    )
-    for key, value in overrides.items():
-        setattr(rule, key, value)
-    return rule
-
-
 def _rule_create(**overrides) -> RuleCreate:
     data = {
         "regulation_id": 3,
@@ -53,11 +40,11 @@ def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
 
 
 class TestGetRules:
-    def test_returns_rules_from_session(self) -> None:
+    def test_returns_rules_from_session(self, rule_row_factory) -> None:
         session = MagicMock()
         rules = [
-            _rule(id=20),
-            _rule(id=21, rule_index="FS-102"),
+            rule_row_factory(id=20),
+            rule_row_factory(id=21, rule_index="FS-102"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = rules
 
@@ -74,15 +61,17 @@ class TestGetRules:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY rules.regulation_id, rules.rule_index, rules.id" in str(stmt)
 
-    def test_excludes_archived_rules_by_default(self, sqlite_session) -> None:
+    def test_excludes_archived_rules_by_default(
+        self, sqlite_session, rule_row_factory
+    ) -> None:
         regulation = Regulation(
             id=3,
             title="Fire Safety 2026",
             description="Fire safety requirements.",
             published_date=datetime(2026, 1, 15).date(),
         )
-        active = _rule()
-        archived = _rule(
+        active = rule_row_factory()
+        archived = rule_row_factory(
             id=21,
             rule_index="FS-102",
             archived_at=datetime.now(UTC),
@@ -96,15 +85,17 @@ class TestGetRules:
 
         assert [rule.id for rule in rules] == [20]
 
-    def test_includes_archived_rules_when_requested(self, sqlite_session) -> None:
+    def test_includes_archived_rules_when_requested(
+        self, sqlite_session, rule_row_factory
+    ) -> None:
         regulation = Regulation(
             id=3,
             title="Fire Safety 2026",
             description="Fire safety requirements.",
             published_date=datetime(2026, 1, 15).date(),
         )
-        active = _rule()
-        archived = _rule(
+        active = rule_row_factory()
+        archived = rule_row_factory(
             id=21,
             rule_index="FS-102",
             archived_at=datetime.now(UTC),
@@ -181,9 +172,9 @@ class TestGetRuleById:
         assert "regulations.archived_at IS NULL" in str(stmt)
         assert result is None
 
-    def test_returns_archived_rule_when_requested(self) -> None:
+    def test_returns_archived_rule_when_requested(self, rule_row_factory) -> None:
         session = MagicMock()
-        rule = _rule(archived_at=datetime(2026, 5, 7))
+        rule = rule_row_factory(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = rule
 
         result = get_rule_by_id(session, 20, include_archived=True)
@@ -224,9 +215,9 @@ class TestPostNewRule:
 
 
 class TestPostRuleArchivedById:
-    def test_archives_rule_with_stripped_reason(self) -> None:
+    def test_archives_rule_with_stripped_reason(self, rule_row_factory) -> None:
         session = MagicMock()
-        rule = _rule()
+        rule = rule_row_factory()
         session.get.return_value = rule
 
         result = post_rule_archived_by_id(
@@ -242,10 +233,10 @@ class TestPostRuleArchivedById:
         session.get.assert_called_once_with(Rule, 20)
         session.commit.assert_called_once_with()
 
-    def test_does_not_rearchive_existing_archived_rule(self) -> None:
+    def test_does_not_rearchive_existing_archived_rule(self, rule_row_factory) -> None:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
         session = MagicMock()
-        rule = _rule(archived_at=archived_at, archive_reason="old")
+        rule = rule_row_factory(archived_at=archived_at, archive_reason="old")
         session.get.return_value = rule
 
         result = post_rule_archived_by_id(
@@ -269,9 +260,9 @@ class TestPostRuleArchivedById:
 
 
 class TestPostRuleRestoredById:
-    def test_restores_archived_rule(self) -> None:
+    def test_restores_archived_rule(self, rule_row_factory) -> None:
         session = MagicMock()
-        rule = _rule(
+        rule = rule_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="old",
         )
@@ -285,9 +276,9 @@ class TestPostRuleRestoredById:
         session.get.assert_called_once_with(Rule, 20)
         session.commit.assert_called_once_with()
 
-    def test_returns_active_rule_without_commit(self) -> None:
+    def test_returns_active_rule_without_commit(self, rule_row_factory) -> None:
         session = MagicMock()
-        rule = _rule(archived_at=None, archive_reason=None)
+        rule = rule_row_factory(archived_at=None, archive_reason=None)
         session.get.return_value = rule
 
         result = post_rule_restored_by_id(session, 20)

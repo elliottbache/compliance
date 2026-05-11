@@ -34,21 +34,6 @@ from compliance.services.certifications import (
 )
 
 
-def _certification(**overrides) -> Certification:
-    certification = Certification(
-        id=42,
-        certifier_id=7,
-        regulation_id=3,
-        site_id=12,
-        result="Pass",
-        inspection_date=date(2026, 4, 1),
-        resolution_date=None,
-    )
-    for key, value in overrides.items():
-        setattr(certification, key, value)
-    return certification
-
-
 def _certification_create(**overrides) -> CertificationCreate:
     data = {
         "certifier_id": 7,
@@ -68,11 +53,13 @@ def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
 
 
 class TestGetCertifications:
-    def test_returns_certifications_from_session(self) -> None:
+    def test_returns_certifications_from_session(
+        self, certification_row_factory
+    ) -> None:
         session = MagicMock()
         certifications = [
-            _certification(id=42),
-            _certification(id=43, regulation_id=4),
+            certification_row_factory(id=42),
+            certification_row_factory(id=43, regulation_id=4),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = (
             certifications
@@ -134,52 +121,8 @@ class TestGetCertifications:
         stmt = session.execute.call_args.args[0]
         assert "certifications.resolution_date IS NULL" in str(stmt)
 
-    def test_excludes_archived_certifications_by_default(self, sqlite_session) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-        )
-        site = Site(
-            id=12,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
-        )
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
-            id=3,
-            title="Fire Safety 2026",
-            description="Fire safety requirements.",
-            published_date=date(2026, 1, 15),
-        )
-        active = _certification()
-        archived = _certification(
-            id=43,
-            archived_at=datetime.now(UTC),
-            archive_reason="superseded",
-        )
-        sqlite_session.add(client)
-        sqlite_session.add(site)
-        sqlite_session.add(certifier)
-        sqlite_session.add(regulation)
-        sqlite_session.add_all([active, archived])
-        sqlite_session.commit()
-
-        certifications = get_certifications(
-            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
-        )
-
-        assert [certification.id for certification in certifications] == [42]
-
-    def test_includes_archived_certifications_when_requested(
-        self, sqlite_session
+    def test_excludes_archived_certifications_by_default(
+        self, sqlite_session, certification_row_factory
     ) -> None:
         client = Client(
             nif="A1234567B",
@@ -205,8 +148,54 @@ class TestGetCertifications:
             description="Fire safety requirements.",
             published_date=date(2026, 1, 15),
         )
-        active = _certification()
-        archived = _certification(
+        active = certification_row_factory()
+        archived = certification_row_factory(
+            id=43,
+            archived_at=datetime.now(UTC),
+            archive_reason="superseded",
+        )
+        sqlite_session.add(client)
+        sqlite_session.add(site)
+        sqlite_session.add(certifier)
+        sqlite_session.add(regulation)
+        sqlite_session.add_all([active, archived])
+        sqlite_session.commit()
+
+        certifications = get_certifications(
+            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
+        )
+
+        assert [certification.id for certification in certifications] == [42]
+
+    def test_includes_archived_certifications_when_requested(
+        self, sqlite_session, certification_row_factory
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        active = certification_row_factory()
+        archived = certification_row_factory(
             id=43,
             archived_at=datetime.now(UTC),
             archive_reason="superseded",
@@ -257,7 +246,9 @@ class TestGetCertificationById:
         session.execute.assert_called_once()
         assert result is None
 
-    def test_returns_none_when_certification_is_archived_by_default(self) -> None:
+    def test_returns_none_when_certification_is_archived_by_default(
+        self, certification_row_factory
+    ) -> None:
         session = MagicMock()
         session.execute.return_value.scalar_one_or_none.return_value = None
 
@@ -270,9 +261,11 @@ class TestGetCertificationById:
         assert "certifiers.archived_at IS NULL" in str(stmt)
         assert result is None
 
-    def test_returns_archived_certification_when_requested(self) -> None:
+    def test_returns_archived_certification_when_requested(
+        self, certification_row_factory
+    ) -> None:
         session = MagicMock()
-        certification = _certification(archived_at=datetime(2026, 5, 7))
+        certification = certification_row_factory(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = certification
 
         result = get_certification_by_id(session, 42, include_archived=True)
@@ -313,9 +306,9 @@ class TestGetCertificationAttachmentsById:
         )
 
     def test_formats_certification_attachments_when_query_returns_rows(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        rows = [attachment_row_factory()]
+        rows = [attachment_out_factory()]
         session = MagicMock()
         session.get.return_value = MagicMock(spec=Certification)
         session.execute.return_value.mappings.return_value.all.return_value = rows
@@ -432,9 +425,9 @@ class TestPostNewCertification:
 
 class TestFormatCertificationAttachmentsOut:
     def test_creates_certification_attachments_with_finding_link(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        result = _format_certification_attachments([attachment_row_factory()])
+        result = _format_certification_attachments([attachment_out_factory()])
 
         assert result.certification_id == 100
         assert len(result.attachments) == 1
@@ -444,11 +437,11 @@ class TestFormatCertificationAttachmentsOut:
         assert result.attachments[0].finding_links[0].finding_id == 1
 
     def test_groups_multiple_findings_under_same_attachment(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         rows = [
-            attachment_row_factory(),
-            attachment_row_factory(
+            attachment_out_factory(),
+            attachment_out_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -466,7 +459,7 @@ class TestFormatCertificationAttachmentsOut:
         ] == [1, 2]
 
     def test_groups_attachments_by_id_without_reordering(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
@@ -479,9 +472,9 @@ class TestFormatCertificationAttachmentsOut:
             certification_id=100,
         )
         rows = [
-            attachment_row_factory(Attachment=second_attachment),
-            attachment_row_factory(),
-            attachment_row_factory(
+            attachment_out_factory(Attachment=second_attachment),
+            attachment_out_factory(),
+            attachment_out_factory(
                 Attachment=second_attachment,
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
@@ -509,9 +502,11 @@ class TestFormatCertificationAttachmentsOut:
 
 
 class TestPostCertificationArchivedById:
-    def test_archives_certification_with_stripped_reason(self) -> None:
+    def test_archives_certification_with_stripped_reason(
+        self, certification_row_factory
+    ) -> None:
         session = MagicMock()
-        certification = _certification()
+        certification = certification_row_factory()
         session.get.return_value = certification
 
         result = post_certification_archived_by_id(
@@ -527,10 +522,14 @@ class TestPostCertificationArchivedById:
         session.get.assert_called_once_with(Certification, 42)
         session.commit.assert_called_once_with()
 
-    def test_does_not_rearchive_existing_archived_certification(self) -> None:
+    def test_does_not_rearchive_existing_archived_certification(
+        self, certification_row_factory
+    ) -> None:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
         session = MagicMock()
-        certification = _certification(archived_at=archived_at, archive_reason="old")
+        certification = certification_row_factory(
+            archived_at=archived_at, archive_reason="old"
+        )
         session.get.return_value = certification
 
         result = post_certification_archived_by_id(
@@ -556,9 +555,9 @@ class TestPostCertificationArchivedById:
 
 
 class TestPostCertificationRestoredById:
-    def test_restores_archived_certification(self) -> None:
+    def test_restores_archived_certification(self, certification_row_factory) -> None:
         session = MagicMock()
-        certification = _certification(
+        certification = certification_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="old",
         )
@@ -572,9 +571,11 @@ class TestPostCertificationRestoredById:
         session.get.assert_called_once_with(Certification, 42)
         session.commit.assert_called_once_with()
 
-    def test_returns_active_certification_without_commit(self) -> None:
+    def test_returns_active_certification_without_commit(
+        self, certification_row_factory
+    ) -> None:
         session = MagicMock()
-        certification = _certification(archived_at=None, archive_reason=None)
+        certification = certification_row_factory(archived_at=None, archive_reason=None)
         session.get.return_value = certification
 
         result = post_certification_restored_by_id(session, 42)

@@ -3,10 +3,16 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session
 
-from compliance.db.models import Base
+from compliance.db.models import (
+    Attachment,
+    Certification,
+    Client,
+    Finding,
+    Regulation,
+    Rule,
+    Site,
+)
 from compliance.llm.schemas import (
     EvidenceRef,
     HumanReviewItem,
@@ -109,7 +115,7 @@ def site_analysis_factory(evidence_ref_factory):
 
 
 @pytest.fixture
-def attachment_row_factory():
+def attachment_out_factory():
     def _build(**overrides):
         row = {
             "Attachment": SimpleNamespace(
@@ -151,21 +157,123 @@ def attachment_row_factory():
 
 
 @pytest.fixture
-def sqlite_session(tmp_path):
-    """Create a temporary SQLite DB session for service-level tests."""
-    db_path = tmp_path / "test_compliance.db"
-    engine = create_engine(f"sqlite+pysqlite:///{db_path}")
+def certification_row_factory():
+    def _build(**overrides):
+        certification = Certification(
+            id=42,
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            result="Pass",
+            inspection_date=date(2026, 4, 1),
+            resolution_date=None,
+        )
+        for key, value in overrides.items():
+            setattr(certification, key, value)
+        return certification
 
-    @event.listens_for(engine, "connect")
-    def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    return _build
 
-    Base.metadata.create_all(engine)
 
-    with Session(engine) as session:
-        yield session
+@pytest.fixture
+def site_row_factory():
+    def _site(**overrides) -> Site:
+        site = Site(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info="Main entrance",
+        )
+        for key, value in overrides.items():
+            setattr(site, key, value)
+        return site
 
-    Base.metadata.drop_all(engine)
-    engine.dispose()
+    return _site
+
+
+@pytest.fixture
+def rule_row_factory():
+    def _rule(**overrides) -> Rule:
+        rule = Rule(
+            id=20,
+            regulation_id=3,
+            rule_index="FS-101",
+            title="Equipment Maintenance",
+            description="Equipment must be maintained.",
+        )
+        for key, value in overrides.items():
+            setattr(rule, key, value)
+        return rule
+
+    return _rule
+
+
+@pytest.fixture
+def regulation_row_factory():
+    def _regulation(**overrides) -> Regulation:
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements for commercial sites.",
+            published_date=date(2026, 1, 15),
+        )
+        for key, value in overrides.items():
+            setattr(regulation, key, value)
+        return regulation
+
+    return _regulation
+
+
+@pytest.fixture
+def finding_row_factory():
+    def _finding(**overrides) -> Finding:
+        finding = Finding(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+            finding="Missing document",
+        )
+        for key, value in overrides.items():
+            setattr(finding, key, value)
+        return finding
+
+    return _finding
+
+
+@pytest.fixture
+def client_row_factory():
+    def _client(**overrides) -> Client:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email="ada@example.com",
+            telephone=123456789,
+        )
+        for key, value in overrides.items():
+            setattr(client, key, value)
+        return client
+
+    return _client
+
+
+@pytest.fixture
+def attachment_row_factory():
+    def _attachment(**overrides) -> Attachment:
+        attachment = Attachment(
+            id=50,
+            file_type="pdf",
+            certification_id=100,
+            file_path="dummy/evidence.pdf",
+            description="Inspection evidence",
+            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
+        )
+        for key, value in overrides.items():
+            setattr(attachment, key, value)
+        return attachment
+
+    return _attachment

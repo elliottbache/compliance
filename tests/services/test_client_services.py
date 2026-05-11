@@ -21,25 +21,12 @@ from compliance.services.clients import (
 )
 
 
-def _client(**overrides) -> Client:
-    client = Client(
-        nif="A1234567B",
-        company_name="Acme Compliance",
-        contact_name="Ada Lovelace",
-        email="ada@example.com",
-        telephone=123456789,
-    )
-    for key, value in overrides.items():
-        setattr(client, key, value)
-    return client
-
-
 class TestGetClients:
-    def test_returns_clients_from_session(self) -> None:
+    def test_returns_clients_from_session(self, client_row_factory) -> None:
         session = MagicMock()
         clients = [
-            _client(nif="A1234567B", company_name="Acme Compliance"),
-            _client(nif="B1234567C", company_name="Beta Compliance"),
+            client_row_factory(nif="A1234567B", company_name="Acme Compliance"),
+            client_row_factory(nif="B1234567C", company_name="Beta Compliance"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = clients
 
@@ -56,9 +43,11 @@ class TestGetClients:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY clients.company_name, clients.nif" in str(stmt)
 
-    def test_excludes_archived_clients_by_default(self, sqlite_session) -> None:
-        active = _client()
-        archived = _client(
+    def test_excludes_archived_clients_by_default(
+        self, sqlite_session, client_row_factory
+    ) -> None:
+        active = client_row_factory()
+        archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
             contact_name="Grace",
@@ -74,9 +63,11 @@ class TestGetClients:
 
         assert [client.nif for client in clients] == ["A1234567B"]
 
-    def test_includes_archived_clients_when_requested(self, sqlite_session) -> None:
-        active = _client()
-        archived = _client(
+    def test_includes_archived_clients_when_requested(
+        self, sqlite_session, client_row_factory
+    ) -> None:
+        active = client_row_factory()
+        archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
             contact_name="Grace",
@@ -100,9 +91,9 @@ class TestGetClients:
 
 
 class TestGetClientByNif:
-    def test_returns_client_when_found(self) -> None:
+    def test_returns_client_when_found(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client()
+        client = client_row_factory()
         session.get.return_value = client
 
         result = get_client_by_nif(session, "A1234567B")
@@ -119,18 +110,20 @@ class TestGetClientByNif:
         assert result is None
         session.get.assert_called_once_with(Client, "A1234567B")
 
-    def test_returns_none_when_client_is_archived_by_default(self) -> None:
+    def test_returns_none_when_client_is_archived_by_default(
+        self, client_row_factory
+    ) -> None:
         session = MagicMock()
-        client = _client(archived_at=datetime(2026, 5, 7))
+        client = client_row_factory(archived_at=datetime(2026, 5, 7))
         session.get.return_value = client
 
         result = get_client_by_nif(session, "A1234567B")
 
         assert result is None
 
-    def test_returns_archived_client_when_requested(self) -> None:
+    def test_returns_archived_client_when_requested(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client(archived_at=datetime(2026, 5, 7))
+        client = client_row_factory(archived_at=datetime(2026, 5, 7))
         session.get.return_value = client
 
         result = get_client_by_nif(session, "A1234567B", include_archived=True)
@@ -211,9 +204,9 @@ class TestPostNewClient:
 
 
 class TestPostClientArchivedByNif:
-    def test_archives_client_with_stripped_reason(self) -> None:
+    def test_archives_client_with_stripped_reason(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client()
+        client = client_row_factory()
         session.get.return_value = client
 
         result = post_client_archived_by_nif(
@@ -229,9 +222,9 @@ class TestPostClientArchivedByNif:
         session.get.assert_called_once_with(Client, "A1234567B")
         session.commit.assert_called_once_with()
 
-    def test_stores_none_when_reason_is_blank(self) -> None:
+    def test_stores_none_when_reason_is_blank(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client()
+        client = client_row_factory()
         session.get.return_value = client
 
         post_client_archived_by_nif(
@@ -243,10 +236,14 @@ class TestPostClientArchivedByNif:
         assert client.archive_reason is None
         session.commit.assert_called_once_with()
 
-    def test_returns_existing_archived_client_without_commit(self) -> None:
+    def test_returns_existing_archived_client_without_commit(
+        self, client_row_factory
+    ) -> None:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
         session = MagicMock()
-        client = _client(archived_at=archived_at, archive_reason="old reason")
+        client = client_row_factory(
+            archived_at=archived_at, archive_reason="old reason"
+        )
         session.get.return_value = client
 
         result = post_client_archived_by_nif(
@@ -274,9 +271,9 @@ class TestPostClientArchivedByNif:
 
 
 class TestPostClientRestoredByNif:
-    def test_restores_archived_client(self) -> None:
+    def test_restores_archived_client(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client(
+        client = client_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="duplicate client",
         )
@@ -290,9 +287,9 @@ class TestPostClientRestoredByNif:
         session.get.assert_called_once_with(Client, "A1234567B")
         session.commit.assert_called_once_with()
 
-    def test_returns_active_client_without_commit(self) -> None:
+    def test_returns_active_client_without_commit(self, client_row_factory) -> None:
         session = MagicMock()
-        client = _client(archived_at=None, archive_reason=None)
+        client = client_row_factory(archived_at=None, archive_reason=None)
         session.get.return_value = client
 
         result = post_client_restored_by_nif(session, "A1234567B")

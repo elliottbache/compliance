@@ -12,6 +12,7 @@ from compliance.db.models import (
     Certifier,
     Client,
     Finding,
+    FindingAttachment,
     Regulation,
     Rule,
     Site,
@@ -87,61 +88,39 @@ class TestGetFindings:
         assert "LEFT OUTER JOIN finding_attachments" in str(stmt)
         assert "LEFT OUTER JOIN attachments" in str(stmt)
 
-    def test_excludes_archived_findings_by_default(self, sqlite_session) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-        )
-        site = Site(
-            id=71,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
-        )
+    def test_excludes_archived_findings_by_default(
+        self,
+        sqlite_session,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        client_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
         certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
+        regulation = regulation_row_factory(
             id=5,
-            title="USDA Organic",
-            description="Organic handling requirements.",
-            published_date=date(2026, 1, 15),
         )
-        rule = Rule(
+        rule = rule_row_factory(
             id=5,
             regulation_id=5,
-            rule_index="7 CFR 205.201",
-            title="Organic plan",
-            description="Producer must maintain an organic system plan.",
         )
-        certification = Certification(
+        certification = certification_row_factory(
             id=100,
             certifier_id=7,
             regulation_id=5,
             site_id=71,
-            result="Pass",
-            inspection_date=date(2026, 4, 1),
-            resolution_date=date(2026, 4, 15),
         )
-        active = Finding(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-            finding="Missing document",
-        )
-        archived = Finding(
+        active = finding_row_factory()
+        archived = finding_row_factory(
             id=2,
-            certification_id=100,
-            rule_id=5,
-            finding="Resolved document",
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
+
         sqlite_session.add_all(
             [client, site, certifier, regulation, rule, certification, active, archived]
         )
@@ -158,58 +137,35 @@ class TestGetFindings:
 
         assert [finding.finding_id for finding in findings] == [1]
 
-    def test_includes_archived_findings_when_requested(self, sqlite_session) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-        )
-        site = Site(
-            id=71,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
-        )
+    def test_includes_archived_findings_when_requested(
+        self,
+        sqlite_session,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        client_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
         certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
+        regulation = regulation_row_factory(
             id=5,
-            title="USDA Organic",
-            description="Organic handling requirements.",
-            published_date=date(2026, 1, 15),
         )
-        rule = Rule(
+        rule = rule_row_factory(
             id=5,
             regulation_id=5,
-            rule_index="7 CFR 205.201",
-            title="Organic plan",
-            description="Producer must maintain an organic system plan.",
         )
-        certification = Certification(
+        certification = certification_row_factory(
             id=100,
             certifier_id=7,
             regulation_id=5,
             site_id=71,
-            result="Pass",
-            inspection_date=date(2026, 4, 1),
-            resolution_date=date(2026, 4, 15),
         )
-        active = Finding(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-            finding="Missing document",
-        )
-        archived = Finding(
+        active = finding_row_factory()
+        archived = finding_row_factory(
             id=2,
-            certification_id=100,
-            rule_id=5,
-            finding="Resolved document",
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
@@ -274,6 +230,133 @@ class TestGetFindings:
             ((Certification, 100),),
             ((Rule, 5),),
             ((Attachment, 50),),
+        ]
+
+    def test_excludes_findings_when_certification_is_archived_by_default(
+        self,
+        sqlite_session,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = regulation_row_factory(id=5)
+        rule = rule_row_factory(id=5, regulation_id=5)
+        certification = certification_row_factory(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+            archived_at=datetime.now(UTC),
+            archive_reason="superseded",
+        )
+        finding = finding_row_factory(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+        )
+
+        sqlite_session.add_all(
+            [client, site, certifier, regulation, rule, certification, finding]
+        )
+        sqlite_session.commit()
+
+        findings = get_findings(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+        )
+
+        assert findings == []
+
+    def test_archived_attachment_hides_linked_attachment_context_by_default(
+        self,
+        sqlite_session,
+        monkeypatch,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        attachment_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = regulation_row_factory(id=5)
+        rule = rule_row_factory(id=5, regulation_id=5)
+        certification = certification_row_factory(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+        )
+        finding = finding_row_factory(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+        )
+        archived_attachment = attachment_row_factory(
+            id=50,
+            certification_id=100,
+            archived_at=datetime.now(UTC),
+            archive_reason="obsolete",
+        )
+        finding_attachment = FindingAttachment(
+            finding_id=1,
+            attachment_id=50,
+            certification_id=100,
+        )
+
+        sqlite_session.add_all(
+            [
+                client,
+                site,
+                certifier,
+                regulation,
+                rule,
+                certification,
+                finding,
+                archived_attachment,
+                finding_attachment,
+            ]
+        )
+        sqlite_session.commit()
+
+        monkeypatch.setattr(
+            "compliance.services.findings._format_findings",
+            lambda rows: [
+                {
+                    "finding_id": row["Finding"].id,
+                    "attachment": row["Attachment"],
+                }
+                for row in rows
+            ],
+        )
+
+        rows = get_findings(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+        )
+
+        assert rows == [
+            {
+                "finding_id": 1,
+                "attachment": None,
+            }
         ]
 
 

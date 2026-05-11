@@ -6,10 +6,20 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import ArchiveRequest, SiteCertificationsOut, SiteCreate
-from compliance.db.models import Base, Certification, Client, Site
+from compliance.db.models import (
+    Base,
+    Certification,
+    Certifier,
+    Client,
+    Regulation,
+    Site,
+)
 from compliance.schemas import FindingHistory, SiteHistory
 from compliance.services._helpers import (
     _build_finding_history_from_site_attachments,
+)
+from compliance.services.certifications import (
+    get_certifications,
 )
 from compliance.services.sites import (
     SiteClientNotFoundError,
@@ -90,7 +100,7 @@ def db_access_mocks():
 
 
 @pytest.fixture
-def attachment_row_factory():
+def attachment_out_factory():
     def _build(**overrides):
         row = {
             "Attachment": SimpleNamespace(
@@ -131,22 +141,6 @@ def attachment_row_factory():
     return _build
 
 
-def _site(**overrides) -> Site:
-    site = Site(
-        id=12,
-        nif="A1234567B",
-        city="Madrid",
-        postal_code=28013,
-        street="Gran Via",
-        street_number=None,
-        suite=None,
-        address_info="Main entrance",
-    )
-    for key, value in overrides.items():
-        setattr(site, key, value)
-    return site
-
-
 def _site_create(**overrides) -> SiteCreate:
     data = {
         "nif": "A1234567B",
@@ -162,11 +156,11 @@ def _site_create(**overrides) -> SiteCreate:
 
 
 class TestGetSites:
-    def test_returns_sites_from_session(self) -> None:
+    def test_returns_sites_from_session(self, site_row_factory) -> None:
         session = MagicMock()
         sites = [
-            _site(id=12, city="Madrid"),
-            _site(id=13, city="Valencia"),
+            site_row_factory(id=12, city="Madrid"),
+            site_row_factory(id=13, city="Valencia"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = sites
 
@@ -183,7 +177,9 @@ class TestGetSites:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
 
-    def test_excludes_archived_sites_by_default(self, sqlite_session) -> None:
+    def test_excludes_archived_sites_by_default(
+        self, sqlite_session, site_row_factory
+    ) -> None:
         client = Client(
             nif="A1234567B",
             company_name="Acme Compliance",
@@ -191,8 +187,8 @@ class TestGetSites:
             email=None,
             telephone=None,
         )
-        active = _site()
-        archived = _site(
+        active = site_row_factory()
+        archived = site_row_factory(
             id=13,
             city="Valencia",
             archived_at=datetime.now(UTC),
@@ -206,7 +202,9 @@ class TestGetSites:
 
         assert [site.id for site in sites] == [12]
 
-    def test_includes_archived_sites_when_requested(self, sqlite_session) -> None:
+    def test_includes_archived_sites_when_requested(
+        self, sqlite_session, site_row_factory
+    ) -> None:
         client = Client(
             nif="A1234567B",
             company_name="Acme Compliance",
@@ -214,8 +212,8 @@ class TestGetSites:
             email=None,
             telephone=None,
         )
-        active = _site()
-        archived = _site(
+        active = site_row_factory()
+        archived = site_row_factory(
             id=13,
             city="Valencia",
             archived_at=datetime.now(UTC),
@@ -237,7 +235,7 @@ class TestGetSites:
         assert returned_ids == {12, 13}
 
     def test_excludes_sites_when_client_is_archived_by_default(
-        self, sqlite_session
+        self, sqlite_session, site_row_factory
     ) -> None:
         client = Client(
             nif="A1234567B",
@@ -248,7 +246,7 @@ class TestGetSites:
             archived_at=datetime.now(UTC),
             archive_reason="closed client",
         )
-        site = _site()
+        site = site_row_factory()
 
         sqlite_session.add(client)
         sqlite_session.add(site)
@@ -259,7 +257,7 @@ class TestGetSites:
         assert sites == []
 
     def test_includes_sites_with_archived_client_when_requested(
-        self, sqlite_session
+        self, sqlite_session, site_row_factory
     ) -> None:
         client = Client(
             nif="A1234567B",
@@ -270,7 +268,7 @@ class TestGetSites:
             archived_at=datetime.now(UTC),
             archive_reason="closed client",
         )
-        site = _site()
+        site = site_row_factory()
 
         sqlite_session.add(client)
         sqlite_session.add(site)
@@ -308,11 +306,55 @@ class TestGetSites:
         session.get.assert_called_once_with(Client, "A1234567B")
         session.execute.assert_not_called()
 
+    def test_excludes_certifications_when_site_is_archived_by_default(
+        self, sqlite_session, certification_row_factory
+    ) -> None:
+        client = Client(
+            nif="A1234567B",
+            company_name="Acme Compliance",
+            contact_name="Ada Lovelace",
+            email=None,
+            telephone=None,
+        )
+        site = Site(
+            id=12,
+            nif="A1234567B",
+            city="Madrid",
+            postal_code=28013,
+            street="Gran Via",
+            street_number=None,
+            suite=None,
+            address_info=None,
+            archived_at=datetime.now(UTC),
+            archive_reason="closed site",
+        )
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = Regulation(
+            id=3,
+            title="Fire Safety 2026",
+            description="Fire safety requirements.",
+            published_date=date(2026, 1, 15),
+        )
+        certification = certification_row_factory()
+
+        sqlite_session.add_all([client, site, certifier, regulation, certification])
+        sqlite_session.commit()
+
+        certifications = get_certifications(
+            sqlite_session,
+            site_id=None,
+            open_only=False,
+            limit=None,
+            offset=0,
+        )
+
+        assert certifications == []
+
 
 class TestGetSiteById:
-    def test_gets_site_by_id_from_session(self) -> None:
+    def test_gets_site_by_id_from_session(self, site_row_factory) -> None:
         session = MagicMock()
-        expected_site = _site()
+        expected_site = site_row_factory()
         session.execute.return_value.scalar_one_or_none.return_value = expected_site
 
         result = get_site_by_id(session, 12)
@@ -342,9 +384,9 @@ class TestGetSiteById:
         assert "clients.archived_at IS NULL" in str(stmt)
         assert result is None
 
-    def test_returns_archived_site_when_requested(self) -> None:
+    def test_returns_archived_site_when_requested(self, site_row_factory) -> None:
         session = MagicMock()
-        site = _site(archived_at=datetime(2026, 5, 7))
+        site = site_row_factory(archived_at=datetime(2026, 5, 7))
         session.execute.return_value.scalar_one_or_none.return_value = site
 
         result = get_site_by_id(session, 12, include_archived=True)
@@ -562,9 +604,9 @@ class TestGetSiteAttachments:
         assert result is None
 
     def test_formats_site_attachments_when_query_returns_rows(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        rows = [attachment_row_factory()]
+        rows = [attachment_out_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -676,9 +718,9 @@ class TestBuildFindingHistoryFromSiteHistory:
 
 class TestBuildFindingHistoryFromSiteAttachmentsOut:
     def test_builds_finding_history_from_nested_row_objects(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        result = _build_finding_history_from_site_attachments(attachment_row_factory())
+        result = _build_finding_history_from_site_attachments(attachment_out_factory())
 
         assert result == FindingHistory(
             finding_id=1,
@@ -689,18 +731,18 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
         )
 
     def test_raises_key_error_when_required_row_object_is_missing(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        row = attachment_row_factory()
+        row = attachment_out_factory()
         del row["Rule"]
 
         with pytest.raises(KeyError, match="Missing finding history fields"):
             _build_finding_history_from_site_attachments(row)
 
     def test_raises_key_error_when_required_finding_history_field_is_missing(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        row = attachment_row_factory(
+        row = attachment_out_factory(
             Rule=SimpleNamespace(
                 rule_index="7 CFR 205.201",
                 title="Organic plan",
@@ -713,9 +755,9 @@ class TestBuildFindingHistoryFromSiteAttachmentsOut:
 
 class TestFormatSiteAttachmentsOut:
     def test_creates_site_attachments_with_finding_link(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        result = _format_site_attachments([attachment_row_factory()])
+        result = _format_site_attachments([attachment_out_factory()])
 
         assert result.site_id == 71
         assert len(result.attachments) == 1
@@ -725,11 +767,11 @@ class TestFormatSiteAttachmentsOut:
         assert result.attachments[0].finding_links[0].finding_id == 1
 
     def test_groups_multiple_findings_under_same_attachment(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         rows = [
-            attachment_row_factory(),
-            attachment_row_factory(
+            attachment_out_factory(),
+            attachment_out_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
@@ -747,7 +789,7 @@ class TestFormatSiteAttachmentsOut:
         ] == [1, 2]
 
     def test_groups_attachments_by_id_without_reordering(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
@@ -760,9 +802,9 @@ class TestFormatSiteAttachmentsOut:
             certification_id=100,
         )
         rows = [
-            attachment_row_factory(Attachment=second_attachment),
-            attachment_row_factory(),
-            attachment_row_factory(
+            attachment_out_factory(Attachment=second_attachment),
+            attachment_out_factory(),
+            attachment_out_factory(
                 Attachment=second_attachment,
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
@@ -872,9 +914,9 @@ class TestGetSiteHistory:
 
 
 class TestPostSiteArchivedById:
-    def test_archives_site_with_stripped_reason(self) -> None:
+    def test_archives_site_with_stripped_reason(self, site_row_factory) -> None:
         session = MagicMock()
-        site = _site()
+        site = site_row_factory()
         session.get.return_value = site
 
         result = post_site_archived_by_id(
@@ -890,10 +932,10 @@ class TestPostSiteArchivedById:
         session.get.assert_called_once_with(Site, 71)
         session.commit.assert_called_once_with()
 
-    def test_does_not_rearchive_existing_archived_site(self) -> None:
+    def test_does_not_rearchive_existing_archived_site(self, site_row_factory) -> None:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
         session = MagicMock()
-        site = _site(archived_at=archived_at, archive_reason="old")
+        site = site_row_factory(archived_at=archived_at, archive_reason="old")
         session.get.return_value = site
 
         result = post_site_archived_by_id(
@@ -917,9 +959,9 @@ class TestPostSiteArchivedById:
 
 
 class TestPostSiteRestoredById:
-    def test_restores_archived_site(self) -> None:
+    def test_restores_archived_site(self, site_row_factory) -> None:
         session = MagicMock()
-        site = _site(
+        site = site_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="old",
         )
@@ -933,9 +975,9 @@ class TestPostSiteRestoredById:
         session.get.assert_called_once_with(Site, 71)
         session.commit.assert_called_once_with()
 
-    def test_returns_active_site_without_commit(self) -> None:
+    def test_returns_active_site_without_commit(self, site_row_factory) -> None:
         session = MagicMock()
-        site = _site(archived_at=None, archive_reason=None)
+        site = site_row_factory(archived_at=None, archive_reason=None)
         session.get.return_value = site
 
         result = post_site_restored_by_id(session, 71)

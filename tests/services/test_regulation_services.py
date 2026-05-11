@@ -22,18 +22,6 @@ from compliance.services.regulations import (
 )
 
 
-def _regulation(**overrides) -> Regulation:
-    regulation = Regulation(
-        id=3,
-        title="Fire Safety 2026",
-        description="Fire safety requirements for commercial sites.",
-        published_date=date(2026, 1, 15),
-    )
-    for key, value in overrides.items():
-        setattr(regulation, key, value)
-    return regulation
-
-
 def _regulation_create(**overrides) -> RegulationCreate:
     data = {
         "title": "Fire Safety 2026",
@@ -50,11 +38,11 @@ def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
 
 
 class TestGetRegulations:
-    def test_returns_regulations_from_session(self) -> None:
+    def test_returns_regulations_from_session(self, regulation_row_factory) -> None:
         session = MagicMock()
         regulations = [
-            _regulation(id=3),
-            _regulation(id=4, title="Electrical Safety 2026"),
+            regulation_row_factory(id=3),
+            regulation_row_factory(id=4, title="Electrical Safety 2026"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = regulations
 
@@ -76,9 +64,11 @@ class TestGetRegulations:
             "regulations.title, regulations.id" in str(stmt)
         )
 
-    def test_excludes_archived_regulations_by_default(self, sqlite_session) -> None:
-        active = _regulation()
-        archived = _regulation(
+    def test_excludes_archived_regulations_by_default(
+        self, sqlite_session, regulation_row_factory
+    ) -> None:
+        active = regulation_row_factory()
+        archived = regulation_row_factory(
             id=4,
             title="Archived Regulation",
             archived_at=datetime.now(UTC),
@@ -93,9 +83,11 @@ class TestGetRegulations:
 
         assert [regulation.id for regulation in regulations] == [3]
 
-    def test_includes_archived_regulations_when_requested(self, sqlite_session) -> None:
-        active = _regulation()
-        archived = _regulation(
+    def test_includes_archived_regulations_when_requested(
+        self, sqlite_session, regulation_row_factory
+    ) -> None:
+        active = regulation_row_factory()
+        archived = regulation_row_factory(
             id=4,
             title="Archived Regulation",
             archived_at=datetime.now(UTC),
@@ -159,18 +151,22 @@ class TestGetRegulationById:
         session.get.assert_called_once_with(Regulation, 999)
         assert result is None
 
-    def test_returns_none_when_regulation_is_archived_by_default(self) -> None:
+    def test_returns_none_when_regulation_is_archived_by_default(
+        self, regulation_row_factory
+    ) -> None:
         session = MagicMock()
-        regulation = _regulation(archived_at=datetime(2026, 5, 7))
+        regulation = regulation_row_factory(archived_at=datetime(2026, 5, 7))
         session.get.return_value = regulation
 
         result = get_regulation_by_id(session, 3)
 
         assert result is None
 
-    def test_returns_archived_regulation_when_requested(self) -> None:
+    def test_returns_archived_regulation_when_requested(
+        self, regulation_row_factory
+    ) -> None:
         session = MagicMock()
-        regulation = _regulation(archived_at=datetime(2026, 5, 7))
+        regulation = regulation_row_factory(archived_at=datetime(2026, 5, 7))
         session.get.return_value = regulation
 
         result = get_regulation_by_id(session, 3, include_archived=True)
@@ -210,9 +206,11 @@ class TestPostNewRegulation:
 
 
 class TestPostRegulationArchivedById:
-    def test_archives_regulation_with_stripped_reason(self) -> None:
+    def test_archives_regulation_with_stripped_reason(
+        self, regulation_row_factory
+    ) -> None:
         session = MagicMock()
-        regulation = _regulation()
+        regulation = regulation_row_factory()
         session.get.return_value = regulation
 
         result = post_regulation_archived_by_id(
@@ -228,10 +226,14 @@ class TestPostRegulationArchivedById:
         session.get.assert_called_once_with(Regulation, 3)
         session.commit.assert_called_once_with()
 
-    def test_does_not_rearchive_existing_archived_regulation(self) -> None:
+    def test_does_not_rearchive_existing_archived_regulation(
+        self, regulation_row_factory
+    ) -> None:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
         session = MagicMock()
-        regulation = _regulation(archived_at=archived_at, archive_reason="old")
+        regulation = regulation_row_factory(
+            archived_at=archived_at, archive_reason="old"
+        )
         session.get.return_value = regulation
 
         result = post_regulation_archived_by_id(
@@ -257,9 +259,9 @@ class TestPostRegulationArchivedById:
 
 
 class TestPostRegulationRestoredById:
-    def test_restores_archived_regulation(self) -> None:
+    def test_restores_archived_regulation(self, regulation_row_factory) -> None:
         session = MagicMock()
-        regulation = _regulation(
+        regulation = regulation_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="old",
         )
@@ -273,9 +275,11 @@ class TestPostRegulationRestoredById:
         session.get.assert_called_once_with(Regulation, 3)
         session.commit.assert_called_once_with()
 
-    def test_returns_active_regulation_without_commit(self) -> None:
+    def test_returns_active_regulation_without_commit(
+        self, regulation_row_factory
+    ) -> None:
         session = MagicMock()
-        regulation = _regulation(archived_at=None, archive_reason=None)
+        regulation = regulation_row_factory(archived_at=None, archive_reason=None)
         session.get.return_value = regulation
 
         result = post_regulation_restored_by_id(session, 3)

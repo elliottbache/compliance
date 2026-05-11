@@ -17,6 +17,7 @@ from compliance.db.models import (
     Certifier,
     Client,
     Finding,
+    FindingAttachment,
     Regulation,
     Rule,
     Site,
@@ -38,9 +39,9 @@ from compliance.services.attachments import (
 
 class TestGetAttachments:
     def test_returns_formatted_attachments_from_session(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        rows = [attachment_row_factory()]
+        rows = [attachment_out_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -98,56 +99,34 @@ class TestGetAttachments:
         assert "finding_attachments.finding_id = :finding_id_1" in str(stmt)
 
     def test_excludes_archived_attachments_by_default(
-        self, sqlite_session, monkeypatch
+        self,
+        sqlite_session,
+        monkeypatch,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        attachment_row_factory,
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-        )
-        site = Site(
+        client = client_row_factory()
+        site = site_row_factory(
             id=71,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
         )
         certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
+        regulation = regulation_row_factory(
             id=5,
-            title="USDA Organic",
-            description="Organic handling requirements.",
-            published_date=date(2026, 1, 15),
         )
-        certification = Certification(
+        certification = certification_row_factory(
             id=100,
             certifier_id=7,
             regulation_id=5,
             site_id=71,
-            result="Pass",
-            inspection_date=date(2026, 4, 1),
-            resolution_date=date(2026, 4, 15),
         )
-        active = Attachment(
-            id=50,
-            file_type="pdf",
-            certification_id=100,
-            file_path="dummy/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-        )
-        archived = Attachment(
+        active = attachment_row_factory()
+        archived = attachment_row_factory(
             id=51,
-            file_type="pdf",
-            certification_id=100,
-            file_path="dummy/old.pdf",
-            description="Old evidence",
-            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
             archived_at=datetime.now(UTC),
             archive_reason="obsolete",
         )
@@ -192,56 +171,31 @@ class TestGetAttachments:
         assert "AND (rules.id IS NULL" not in statement_text
 
     def test_includes_archived_attachments_when_requested(
-        self, sqlite_session, monkeypatch
+        self,
+        sqlite_session,
+        monkeypatch,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        regulation_row_factory,
+        attachment_row_factory,
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-        )
-        site = Site(
-            id=71,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
-        )
+        client = client_row_factory()
+        site = site_row_factory(id=71)
         certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
-            id=5,
-            title="USDA Organic",
-            description="Organic handling requirements.",
-            published_date=date(2026, 1, 15),
-        )
-        certification = Certification(
+        regulation = regulation_row_factory(id=5)
+        certification = certification_row_factory(
             id=100,
             certifier_id=7,
             regulation_id=5,
             site_id=71,
-            result="Pass",
-            inspection_date=date(2026, 4, 1),
-            resolution_date=date(2026, 4, 15),
+            archived_at=datetime.now(UTC),
+            archive_reason="superseded",
         )
-        active = Attachment(
-            id=50,
-            file_type="pdf",
-            certification_id=100,
-            file_path="dummy/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-        )
-        archived = Attachment(
+
+        active = attachment_row_factory()
+        archived = attachment_row_factory(
             id=51,
-            file_type="pdf",
-            certification_id=100,
-            file_path="dummy/old.pdf",
-            description="Old evidence",
-            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
             archived_at=datetime.now(UTC),
             archive_reason="obsolete",
         )
@@ -265,12 +219,92 @@ class TestGetAttachments:
 
         assert set(attachment_ids) == {50, 51}
 
+    def test_archived_finding_hides_linked_finding_context_by_default(
+        self,
+        sqlite_session,
+        monkeypatch,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        attachment_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = regulation_row_factory(id=5)
+        rule = rule_row_factory(id=5, regulation_id=5)
+        certification = certification_row_factory(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+        )
+        archived_finding = finding_row_factory(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+            archived_at=datetime.now(UTC),
+            archive_reason="resolved",
+        )
+        attachment = attachment_row_factory()
+        finding_attachment = FindingAttachment(
+            finding_id=1,
+            attachment_id=50,
+            certification_id=100,
+        )
+
+        sqlite_session.add_all(
+            [
+                client,
+                site,
+                certifier,
+                regulation,
+                rule,
+                certification,
+                archived_finding,
+                attachment,
+                finding_attachment,
+            ]
+        )
+        sqlite_session.commit()
+
+        monkeypatch.setattr(
+            "compliance.services.attachments._format_attachments",
+            lambda rows: [
+                {
+                    "attachment_id": row["Attachment"].id,
+                    "finding": row["Finding"],
+                    "rule": row["Rule"],
+                }
+                for row in rows
+            ],
+        )
+
+        rows = get_attachments(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+        )
+
+        assert rows == [
+            {
+                "attachment_id": 50,
+                "finding": None,
+                "rule": None,
+            }
+        ]
+
 
 class TestFormatAttachments:
     def test_formats_attachment_without_finding_ids(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        result = _format_attachments([attachment_row_factory(Finding=None)])
+        result = _format_attachments([attachment_out_factory(Finding=None)])
 
         assert result == [
             AttachmentOut(
@@ -290,11 +324,11 @@ class TestFormatAttachments:
         ]
 
     def test_groups_finding_ids_under_one_attachment(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         rows = [
-            attachment_row_factory(),
-            attachment_row_factory(Finding=SimpleNamespace(id=2)),
+            attachment_out_factory(),
+            attachment_out_factory(Finding=SimpleNamespace(id=2)),
         ]
 
         result = _format_attachments(rows)
@@ -302,10 +336,10 @@ class TestFormatAttachments:
         assert len(result) == 1
         assert result[0].finding_ids == [1, 2]
 
-    def test_deduplicates_repeated_finding_ids(self, attachment_row_factory) -> None:
+    def test_deduplicates_repeated_finding_ids(self, attachment_out_factory) -> None:
         rows = [
-            attachment_row_factory(),
-            attachment_row_factory(),
+            attachment_out_factory(),
+            attachment_out_factory(),
         ]
 
         result = _format_attachments(rows)
@@ -324,9 +358,9 @@ class TestGetAttachmentById:
         assert result is None
 
     def test_formats_attachment_when_query_returns_rows(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        rows = [attachment_row_factory()]
+        rows = [attachment_out_factory()]
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
@@ -469,9 +503,9 @@ class TestFormatNewAttachmentWithContext:
 
 class TestFormatAttachment:
     def test_creates_attachment_without_finding_links(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
-        rows = [attachment_row_factory(Finding=None, Rule=None)]
+        rows = [attachment_out_factory(Finding=None, Rule=None)]
 
         result = _format_attachment(rows)
 
@@ -491,11 +525,11 @@ class TestFormatAttachment:
         )
 
     def test_collects_two_finding_links_for_attachment(
-        self, attachment_row_factory
+        self, attachment_out_factory
     ) -> None:
         rows = [
-            attachment_row_factory(),
-            attachment_row_factory(
+            attachment_out_factory(),
+            attachment_out_factory(
                 Finding=SimpleNamespace(id=2, finding="Incomplete record"),
                 Rule=SimpleNamespace(
                     rule_index="7 CFR 205.202",
