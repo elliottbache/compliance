@@ -225,9 +225,9 @@ class TestGetSites:
             },
         )
 
-        sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
+        sites = get_sites(sqlite_session, nif="A1234567B", limit=None, offset=0)
 
-        assert sites == []
+        assert sites is None
 
     def test_includes_sites_with_archived_client_when_requested(
         self, sqlite_session, db_factory
