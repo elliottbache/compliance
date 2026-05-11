@@ -219,7 +219,7 @@ class TestGetAttachments:
 
         assert set(attachment_ids) == {50, 51}
 
-    def test_archived_finding_hides_linked_finding_context_by_default(
+    def test_archived_finding_does_not_appear_in_attachment_context_or_finding_ids(
         self,
         sqlite_session,
         monkeypatch,
@@ -230,86 +230,6 @@ class TestGetAttachments:
         regulation_row_factory,
         finding_row_factory,
         attachment_row_factory,
-    ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        rule = rule_row_factory(id=5, regulation_id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-        )
-        archived_finding = finding_row_factory(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-            archived_at=datetime.now(UTC),
-            archive_reason="resolved",
-        )
-        attachment = attachment_row_factory()
-        finding_attachment = FindingAttachment(
-            finding_id=1,
-            attachment_id=50,
-            certification_id=100,
-        )
-
-        sqlite_session.add_all(
-            [
-                client,
-                site,
-                certifier,
-                regulation,
-                rule,
-                certification,
-                archived_finding,
-                attachment,
-                finding_attachment,
-            ]
-        )
-        sqlite_session.commit()
-
-        monkeypatch.setattr(
-            "compliance.services.attachments._format_attachments",
-            lambda rows: [
-                {
-                    "attachment_id": row["Attachment"].id,
-                    "finding": row["Finding"],
-                    "rule": row["Rule"],
-                }
-                for row in rows
-            ],
-        )
-
-        rows = get_attachments(
-            sqlite_session,
-            site_id=None,
-            certification_id=None,
-            rule_id=None,
-            finding_id=None,
-        )
-
-        assert rows == [
-            {
-                "attachment_id": 50,
-                "finding": None,
-                "rule": None,
-            }
-        ]
-
-    def test_finding_ids_exclude_archived_findings_by_default(
-        self,
-        sqlite_session,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        attachment_row_factory,
-        monkeypatch,
     ) -> None:
         client = client_row_factory()
         site = site_row_factory(id=71)
@@ -366,15 +286,26 @@ class TestGetAttachments:
         )
         sqlite_session.commit()
 
-        # remove sqlite naive datetimes
+        def fake_format_attachments(rows):
+            return [
+                {
+                    "attachment_id": rows[0]["Attachment"].id,
+                    "finding_ids": [
+                        row["Finding"].id for row in rows if row["Finding"] is not None
+                    ],
+                    "has_archived_finding_context": any(
+                        row["Finding"] is not None and row["Finding"].id == 2
+                        for row in rows
+                    ),
+                }
+            ]
+
         monkeypatch.setattr(
             "compliance.services.attachments._format_attachments",
-            lambda rows: [
-                row["Finding"].id for row in rows if row["Finding"] is not None
-            ],
+            fake_format_attachments,
         )
 
-        attachments_finding_ids = get_attachments(
+        attachments = get_attachments(
             sqlite_session,
             site_id=None,
             certification_id=None,
@@ -382,7 +313,13 @@ class TestGetAttachments:
             finding_id=None,
         )
 
-        assert attachments_finding_ids == [1]
+        assert attachments == [
+            {
+                "attachment_id": 50,
+                "finding_ids": [1],
+                "has_archived_finding_context": False,
+            }
+        ]
 
 
 class TestFormatAttachments:
