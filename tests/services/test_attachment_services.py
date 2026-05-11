@@ -299,6 +299,91 @@ class TestGetAttachments:
             }
         ]
 
+    def test_finding_ids_exclude_archived_findings_by_default(
+        self,
+        sqlite_session,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        attachment_row_factory,
+        monkeypatch,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = regulation_row_factory(id=5)
+        rule = rule_row_factory(id=5, regulation_id=5)
+        certification = certification_row_factory(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+        )
+        active_finding = finding_row_factory(
+            id=1,
+            certification_id=100,
+            rule_id=5,
+        )
+        archived_finding = finding_row_factory(
+            id=2,
+            certification_id=100,
+            rule_id=5,
+            archived_at=datetime.now(UTC),
+            archive_reason="resolved",
+        )
+        attachment = attachment_row_factory(
+            id=50,
+            certification_id=100,
+        )
+        active_link = FindingAttachment(
+            finding_id=1,
+            attachment_id=50,
+            certification_id=100,
+        )
+        archived_link = FindingAttachment(
+            finding_id=2,
+            attachment_id=50,
+            certification_id=100,
+        )
+
+        sqlite_session.add_all(
+            [
+                client,
+                site,
+                certifier,
+                regulation,
+                rule,
+                certification,
+                active_finding,
+                archived_finding,
+                attachment,
+                active_link,
+                archived_link,
+            ]
+        )
+        sqlite_session.commit()
+
+        # remove sqlite naive datetimes
+        monkeypatch.setattr(
+            "compliance.services.attachments._format_attachments",
+            lambda rows: [
+                row["Finding"].id for row in rows if row["Finding"] is not None
+            ],
+        )
+
+        attachments_finding_ids = get_attachments(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+        )
+
+        assert attachments_finding_ids == [1]
+
 
 class TestFormatAttachments:
     def test_formats_attachment_without_finding_ids(
