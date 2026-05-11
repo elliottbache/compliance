@@ -441,8 +441,6 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
                 "reg_description": row["reg_description"],
                 "certifier_org_name": row["certifier_org_name"],
                 "inspection_date": row["inspection_date"],
-                "archived_at": row["archived_at"],
-                "archive_reason": row["archive_reason"],
                 "findings": [],
             }
             certification = CertificationHistory.model_validate(cert_dict)
