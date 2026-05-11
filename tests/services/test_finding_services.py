@@ -9,7 +9,6 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Finding,
-    FindingAttachment,
     Rule,
     Site,
 )
@@ -51,20 +50,6 @@ def finding_row(**overrides):
     return row
 
 
-def attachment(**overrides):
-    data = {
-        "id": 50,
-        "file_type": "pdf",
-        "file_path": "dummy/evidence.pdf",
-        "description": "Inspection evidence",
-        "uploaded_at": datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-        "archived_at": None,
-        "archive_reason": None,
-    }
-    data.update(overrides)
-    return SimpleNamespace(**data)
-
-
 class TestGetFindings:
     def test_outer_joins_attachment_details(self) -> None:
         session = MagicMock()
@@ -88,16 +73,10 @@ class TestGetFindings:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             attachment_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         findings = get_findings(
@@ -114,18 +93,10 @@ class TestGetFindings:
     def test_includes_archived_findings_when_requested(
         self, monkeypatch, sqlite_session, db_factory, finding_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = finding_row_factory(
             id=2,
-            certification_id=42,
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
@@ -197,15 +168,10 @@ class TestGetFindings:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
             certification_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         findings = get_findings(
@@ -223,15 +189,10 @@ class TestGetFindings:
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             attachment_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         monkeypatch.setattr(
@@ -262,25 +223,21 @@ class TestGetFindings:
         ]
 
     def test_archived_attachment_does_not_hide_finding_or_appear_in_context(
-        self, monkeypatch, sqlite_session, db_factory, attachment_row_factory
+        self,
+        monkeypatch,
+        sqlite_session,
+        db_factory,
+        attachment_row_factory,
+        finding_attachment_row_factory,
     ) -> None:
-        db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived_attachment = attachment_row_factory(
             id=51,
-            certification_id=42,
             archived_at=datetime.now(UTC),
             archive_reason="obsolete",
         )
-        archived_link = FindingAttachment(
-            finding_id=1,
+        archived_link = finding_attachment_row_factory(
             attachment_id=51,
-            certification_id=42,
         )
 
         sqlite_session.add_all(
@@ -330,15 +287,10 @@ class TestGetFindingById:
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
             finding_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         monkeypatch.setattr(
@@ -437,10 +389,12 @@ class TestFormatFindings:
             )
         ]
 
-    def test_groups_attachment_rows_under_one_finding(self) -> None:
+    def test_groups_attachment_rows_under_one_finding(
+        self, attachment_row_factory
+    ) -> None:
         rows = [
-            finding_row(Attachment=attachment(id=50)),
-            finding_row(Attachment=attachment(id=51, file_type="jpg")),
+            finding_row(Attachment=attachment_row_factory()),
+            finding_row(Attachment=attachment_row_factory(id=51, file_type="jpg")),
         ]
 
         result = _format_findings(rows)
@@ -468,10 +422,12 @@ class TestFormatFindings:
             ),
         ]
 
-    def test_deduplicates_repeated_attachment_rows(self) -> None:
+    def test_deduplicates_repeated_attachment_rows(
+        self, attachment_row_factory
+    ) -> None:
         rows = [
-            finding_row(Attachment=attachment(id=50)),
-            finding_row(Attachment=attachment(id=50)),
+            finding_row(Attachment=attachment_row_factory()),
+            finding_row(Attachment=attachment_row_factory()),
         ]
 
         result = _format_findings(rows)
@@ -611,14 +567,7 @@ class TestPostFindingArchiveRestoreIntegration:
     def test_archive_then_restore_works(
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         monkeypatch.setattr(
             "compliance.services.findings.get_finding_by_id",
             lambda session_arg, finding_id, *, include_archived: session_arg.get(

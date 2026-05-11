@@ -68,16 +68,10 @@ class TestGetRegulations:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             regulation_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         regulations = get_regulations(
@@ -90,16 +84,10 @@ class TestGetRegulations:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             regulation_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         regulations = get_regulations(
@@ -165,11 +153,6 @@ class TestGetRegulationById:
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         result = get_regulation_by_id(sqlite_session, 3)
@@ -185,11 +168,6 @@ class TestGetRegulationById:
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         result = get_regulation_by_id(sqlite_session, 3, include_archived=False)
@@ -336,14 +314,7 @@ class TestPostRegulationArchiveRestoreIntegration:
     def test_archive_then_restore_works(
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         monkeypatch.setattr(
             "compliance.services.regulations.get_regulation_by_id",
             lambda session_arg, regulation_id, *, include_archived: session_arg.get(

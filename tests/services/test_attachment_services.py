@@ -14,7 +14,6 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Finding,
-    FindingAttachment,
     Rule,
     Site,
 )
@@ -98,16 +97,10 @@ class TestGetAttachments:
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             attachment_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         monkeypatch.setattr(
@@ -150,16 +143,10 @@ class TestGetAttachments:
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             attachment_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         monkeypatch.setattr(
@@ -184,28 +171,17 @@ class TestGetAttachments:
         sqlite_session,
         db_factory,
         finding_row_factory,
-        attachment_row_factory,
+        finding_attachment_row_factory,
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived_finding = finding_row_factory(
             id=2,
-            certification_id=42,
-            rule_id=5,
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
-        archived_link = FindingAttachment(
+        archived_link = finding_attachment_row_factory(
             finding_id=2,
-            attachment_id=50,
-            certification_id=42,
         )
 
         sqlite_session.add_all(
@@ -325,15 +301,10 @@ class TestGetAttachmentById:
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             attachment_overrides={
-                "certification_id": 42,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         monkeypatch.setattr(
@@ -589,14 +560,7 @@ class TestPostAttachmentArchiveRestoreIntegration:
     def test_archive_then_restore_works(
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         monkeypatch.setattr(
             "compliance.services.attachments.get_attachment_by_id",
             lambda session_arg, attachment_id, *, include_archived: session_arg.get(

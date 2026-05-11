@@ -212,7 +212,7 @@ def site_row_factory():
 def rule_row_factory():
     def _rule(**overrides) -> Rule:
         rule = Rule(
-            id=20,
+            id=5,
             regulation_id=3,
             rule_index="FS-101",
             title="Equipment Maintenance",
@@ -246,7 +246,7 @@ def finding_row_factory():
     def _finding(**overrides) -> Finding:
         finding = Finding(
             id=1,
-            certification_id=100,
+            certification_id=42,
             rule_id=5,
             finding="Missing document",
         )
@@ -280,7 +280,7 @@ def attachment_row_factory():
         attachment = Attachment(
             id=50,
             file_type="pdf",
-            certification_id=100,
+            certification_id=42,
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -296,7 +296,7 @@ def attachment_row_factory():
 def finding_attachment_row_factory():
     def _finding_attachment(**overrides) -> FindingAttachment:
         finding_attachment = FindingAttachment(
-            finding_id=1, attachment_id=50, certification_id=100
+            finding_id=1, attachment_id=50, certification_id=42
         )
         for key, value in overrides.items():
             setattr(finding_attachment, key, value)

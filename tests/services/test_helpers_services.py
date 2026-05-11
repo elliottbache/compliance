@@ -37,7 +37,6 @@ class TestFormatAttachment:
 
         result = format_attachment(rows)
 
-        print(f"result: {result}")
         assert result == AttachmentWithContextOut(
             id=50,
             file_type="pdf",
@@ -46,7 +45,7 @@ class TestFormatAttachment:
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
             archived_at=None,
             archive_reason=None,
-            certification_id=100,
+            certification_id=42,
             inspection_date=date(2026, 4, 1),
             regulation_id=3,
             regulation_title="Fire Safety 2026",

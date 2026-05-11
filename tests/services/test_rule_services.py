@@ -43,7 +43,7 @@ class TestGetRules:
     def test_returns_rules_from_session(self, rule_row_factory) -> None:
         session = MagicMock()
         rules = [
-            rule_row_factory(id=20),
+            rule_row_factory(),
             rule_row_factory(id=21, rule_index="FS-102"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = rules
@@ -64,14 +64,7 @@ class TestGetRules:
     def test_excludes_archived_rules_by_default(
         self, sqlite_session, db_factory, rule_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = rule_row_factory(
             id=21,
@@ -89,14 +82,7 @@ class TestGetRules:
     def test_includes_archived_rules_when_requested(
         self, sqlite_session, db_factory, rule_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = rule_row_factory(
             id=21,
             rule_index="FS-102",
@@ -166,12 +152,7 @@ class TestGetRuleById:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             rule_overrides={
-                "id": 5,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
@@ -186,12 +167,7 @@ class TestGetRuleById:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             rule_overrides={
-                "id": 5,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
@@ -257,7 +233,7 @@ class TestPostRuleArchivedById:
 
         result = post_rule_archived_by_id(
             session,
-            20,
+            5,
             archive_request=ArchiveRequest(archive_reason="  duplicate  "),
         )
 
@@ -265,7 +241,7 @@ class TestPostRuleArchivedById:
         assert rule.archived_at is not None
         assert rule.archived_at.tzinfo is UTC
         assert rule.archive_reason == "duplicate"
-        session.get.assert_called_once_with(Rule, 20)
+        session.get.assert_called_once_with(Rule, 5)
         session.commit.assert_called_once_with()
 
     def test_does_not_rearchive_existing_archived_rule(self, rule_row_factory) -> None:
@@ -275,7 +251,7 @@ class TestPostRuleArchivedById:
         session.get.return_value = rule
 
         result = post_rule_archived_by_id(
-            session, 20, archive_request=ArchiveRequest(archive_reason="new")
+            session, 5, archive_request=ArchiveRequest(archive_reason="new")
         )
 
         assert result is rule
@@ -303,12 +279,12 @@ class TestPostRuleRestoredById:
         )
         session.get.return_value = rule
 
-        result = post_rule_restored_by_id(session, 20)
+        result = post_rule_restored_by_id(session, 5)
 
         assert result is rule
         assert rule.archived_at is None
         assert rule.archive_reason is None
-        session.get.assert_called_once_with(Rule, 20)
+        session.get.assert_called_once_with(Rule, 5)
         session.commit.assert_called_once_with()
 
     def test_returns_active_rule_without_commit(self, rule_row_factory) -> None:
@@ -347,14 +323,7 @@ class TestPostRuleArchiveRestoreIntegration:
     def test_archive_then_restore_works(
         self, sqlite_session, db_factory, rule_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = post_rule_archived_by_id(
             sqlite_session,

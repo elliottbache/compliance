@@ -46,13 +46,7 @@ class TestGetClients:
     def test_excludes_archived_clients_by_default(
         self, sqlite_session, db_factory, client_row_factory
     ) -> None:
-        db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
@@ -72,13 +66,7 @@ class TestGetClients:
     def test_includes_archived_clients_when_requested(
         self, sqlite_session, db_factory, client_row_factory
     ) -> None:
-        db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
@@ -130,11 +118,6 @@ class TestGetClientByNif:
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
         result = get_client_by_nif(sqlite_session, "A1234567B")
 
@@ -358,14 +341,7 @@ class TestPostClientRestoredByNif:
 
 class TestClientArchiveRestoreService:
     def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = post_client_archived_by_nif(
             sqlite_session,

@@ -156,7 +156,7 @@ class TestGetSites:
     def test_returns_sites_from_session(self, site_row_factory) -> None:
         session = MagicMock()
         sites = [
-            site_row_factory(id=12, city="Madrid"),
+            site_row_factory(),
             site_row_factory(id=13, city="Valencia"),
         ]
         session.execute.return_value.scalars.return_value.all.return_value = sites
@@ -177,14 +177,7 @@ class TestGetSites:
     def test_excludes_archived_sites_by_default(
         self, sqlite_session, db_factory, site_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
@@ -201,14 +194,7 @@ class TestGetSites:
     def test_includes_archived_sites_when_requested(
         self, sqlite_session, db_factory, site_row_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
@@ -233,16 +219,10 @@ class TestGetSites:
         self, sqlite_session, db_factory, site_row_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             client_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
@@ -253,16 +233,10 @@ class TestGetSites:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             client_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         sites = get_sites(
@@ -305,11 +279,6 @@ class TestGetSites:
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         certifications = get_certifications(
@@ -350,14 +319,9 @@ class TestGetSiteById:
     ) -> None:
         db_factory(
             site_overrides={
-                "id": 12,
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         result = get_site_by_id(sqlite_session, 12)
@@ -503,20 +467,10 @@ class TestGetSiteCertifications:
 
 
 class TestFormatSiteCertifications:
-    def test_wraps_certifications_in_site_response(self) -> None:
-        certifications = [
-            SimpleNamespace(
-                id=100,
-                certifier_id=200,
-                regulation_id=300,
-                site_id=12,
-                result="Pass",
-                inspection_date=date(2023, 10, 15),
-                resolution_date=date(2023, 10, 20),
-                archived_at=None,
-                archive_reason=None,
-            )
-        ]
+    def test_wraps_certifications_in_site_response(
+        self, certification_row_factory
+    ) -> None:
+        certifications = [certification_row_factory()]
 
         result = format_site_certifications(12, certifications)
 
@@ -770,16 +724,10 @@ class TestFormatSiteAttachmentsOut:
         ] == [1, 2]
 
     def test_groups_attachments_by_id_without_reordering(
-        self, attachment_out_factory
+        self, attachment_out_factory, attachment_row_factory
     ) -> None:
-        second_attachment = SimpleNamespace(
+        second_attachment = attachment_row_factory(
             id=60,
-            file_type="pdf",
-            file_path="dummy/second.pdf",
-            description="Second attachment",
-            uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),
-            archived_at=None,
-            archive_reason=None,
             certification_id=100,
         )
         rows = [
@@ -846,15 +794,7 @@ class TestGetSiteHistory:
     def test_formats_site_history_when_query_returns_one_row(
         self, site_history_row_factory, db_access_mocks
     ) -> None:
-        rows = [
-            site_history_row_factory(
-                finding_id=None,
-                finding=None,
-                rule_index=None,
-                rule_title=None,
-                rule_description=None,
-            )
-        ]
+        rows = [site_history_row_factory()]
         formatted_site = SiteHistory(
             site_id=71,
             certifications=[],
@@ -979,14 +919,7 @@ class TestPostSiteRestoredById:
 
 class TestPostSiteArchiveRestoreIntegration:
     def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
         archived = post_site_archived_by_id(
             sqlite_session,
             12,

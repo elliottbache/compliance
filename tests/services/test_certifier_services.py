@@ -53,19 +53,13 @@ class TestGetCertifiers:
         assert "ORDER BY certifiers.organization_name, certifiers.id" in str(stmt)
 
     def test_excludes_archived_certifiers_by_default(
-        self, monkeypatch, sqlite_session, db_factory
+        self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
             certifier_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
         )
 
         certifiers = get_certifiers(sqlite_session, limit=None, offset=0)
@@ -73,16 +67,9 @@ class TestGetCertifiers:
         assert [certifier.id for certifier in certifiers] == []
 
     def test_includes_archived_certifiers_when_requested(
-        self, monkeypatch, sqlite_session, db_factory
+        self, sqlite_session, db_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = _certifier(
             id=11,
@@ -125,15 +112,10 @@ class TestGetCertifierById:
         self, sqlite_session, db_factory
     ) -> None:
         db_factory(
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
             certifier_overrides={
                 "archived_at": datetime.now(UTC),
                 "archive_reason": "closed",
             },
-            rule_overrides={"id": 5},
         )
 
         result = get_certifier_by_id(sqlite_session, 7)
@@ -290,14 +272,7 @@ class TestPostCertifierArchiveRestoreIntegration:
     def test_archive_then_restore_works(
         self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        db_factory(
-            certification_overrides={},
-            site_overrides={"id": 12},
-            finding_overrides={"certification_id": 42},
-            finding_attachment_overrides={"certification_id": 42},
-            attachment_overrides={"certification_id": 42},
-            rule_overrides={"id": 5},
-        )
+        db_factory()
 
         archived = post_certifier_archived_by_id(
             sqlite_session,
