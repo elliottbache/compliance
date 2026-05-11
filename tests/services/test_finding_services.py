@@ -359,6 +359,98 @@ class TestGetFindings:
             }
         ]
 
+    def test_archived_attachment_does_not_hide_finding_or_appear_in_context(
+        self,
+        sqlite_session,
+        monkeypatch,
+        client_row_factory,
+        site_row_factory,
+        certification_row_factory,
+        rule_row_factory,
+        regulation_row_factory,
+        finding_row_factory,
+        attachment_row_factory,
+    ) -> None:
+        client = client_row_factory()
+        site = site_row_factory(id=71)
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        regulation = regulation_row_factory(id=5)
+        rule = rule_row_factory(id=5, regulation_id=5)
+        certification = certification_row_factory(
+            id=100,
+            certifier_id=7,
+            regulation_id=5,
+            site_id=71,
+        )
+        finding = finding_row_factory(id=1, certification_id=100, rule_id=5)
+        active_attachment = attachment_row_factory(id=50, certification_id=100)
+        archived_attachment = attachment_row_factory(
+            id=51,
+            certification_id=100,
+            archived_at=datetime.now(UTC),
+            archive_reason="obsolete",
+        )
+        active_link = FindingAttachment(
+            finding_id=1,
+            attachment_id=50,
+            certification_id=100,
+        )
+        archived_link = FindingAttachment(
+            finding_id=1,
+            attachment_id=51,
+            certification_id=100,
+        )
+
+        sqlite_session.add_all(
+            [
+                client,
+                site,
+                certifier,
+                regulation,
+                rule,
+                certification,
+                finding,
+                active_attachment,
+                archived_attachment,
+                active_link,
+                archived_link,
+            ]
+        )
+        sqlite_session.commit()
+
+        def fake_format_findings(rows):
+            return [
+                {
+                    "finding_id": rows[0]["Finding"].id,
+                    "attachment_ids": [
+                        row["Attachment"].id
+                        for row in rows
+                        if row["Attachment"] is not None
+                    ],
+                }
+            ]
+
+        monkeypatch.setattr(
+            "compliance.services.findings._format_findings",
+            fake_format_findings,
+        )
+
+        findings = get_findings(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+        )
+
+        assert findings == [
+            {
+                "finding_id": 1,
+                "attachment_ids": [50],
+            }
+        ]
+
 
 class TestGetFindingById:
     def test_excludes_archived_finding_by_default(self) -> None:
