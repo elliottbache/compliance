@@ -53,7 +53,7 @@ def get_clients(
 
 
 def get_client_by_nif(
-    session: Session, nif: str, *, include_archived: bool = False
+    session: Session, nif: str, *, include_archived: bool = True
 ) -> Client | None:
     """Retrieve one client by NIF.
 

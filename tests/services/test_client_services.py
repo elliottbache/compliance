@@ -8,7 +8,7 @@ from compliance.api.schemas import (
     ArchiveRequest,
     ClientCreate,
 )
-from compliance.db.models import Base, Client
+from compliance.db.models import Client
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
     ClientConflictError,
@@ -44,9 +44,15 @@ class TestGetClients:
         assert "ORDER BY clients.company_name, clients.nif" in str(stmt)
 
     def test_excludes_archived_clients_by_default(
-        self, sqlite_session, client_row_factory
+        self, sqlite_session, db_factory, client_row_factory
     ) -> None:
-        active = client_row_factory()
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
         archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
@@ -56,7 +62,7 @@ class TestGetClients:
             archived_at=datetime.now(UTC),
             archive_reason="merged",
         )
-        sqlite_session.add_all([active, archived])
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
         clients = get_clients(sqlite_session, limit=None, offset=0)
@@ -64,9 +70,15 @@ class TestGetClients:
         assert [client.nif for client in clients] == ["A1234567B"]
 
     def test_includes_archived_clients_when_requested(
-        self, sqlite_session, client_row_factory
+        self, sqlite_session, db_factory, client_row_factory
     ) -> None:
-        active = client_row_factory()
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
         archived = client_row_factory(
             nif="B1234567C",
             company_name="Archived Co",
@@ -76,7 +88,7 @@ class TestGetClients:
             archived_at=datetime.now(UTC),
             archive_reason="merged",
         )
-        sqlite_session.add_all([active, archived])
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
         clients = get_clients(
@@ -110,25 +122,35 @@ class TestGetClientByNif:
         assert result is None
         session.get.assert_called_once_with(Client, "A1234567B")
 
-    def test_returns_none_when_client_is_archived_by_default(
+    def test_includes_archived_client_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+        result = get_client_by_nif(sqlite_session, "A1234567B")
+
+        assert result is not None
+        assert result.archived_at is not None
+
+    def test_returns_none_when_archived_client_excluded(
         self, client_row_factory
     ) -> None:
         session = MagicMock()
         client = client_row_factory(archived_at=datetime(2026, 5, 7))
         session.get.return_value = client
 
-        result = get_client_by_nif(session, "A1234567B")
+        result = get_client_by_nif(session, "A1234567B", include_archived=False)
 
         assert result is None
-
-    def test_returns_archived_client_when_requested(self, client_row_factory) -> None:
-        session = MagicMock()
-        client = client_row_factory(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = client
-
-        result = get_client_by_nif(session, "A1234567B", include_archived=True)
-
-        assert result is client
 
 
 class TestPostNewClient:
@@ -335,43 +357,35 @@ class TestPostClientRestoredByNif:
 
 
 class TestClientArchiveRestoreService:
-    def test_archive_then_restore_works(self) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
+    def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        archived = post_client_archived_by_nif(
+            sqlite_session,
+            "A1234567B",
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
 
-        with Session(engine) as session:
-            client = Client(
-                nif="A1234567B",
-                company_name="Test Co",
-                contact_name="Elliott",
-                email=None,
-                telephone=None,
-            )
-            session.add(client)
-            session.commit()
+        archived = post_client_archived_by_nif(
+            sqlite_session,
+            "A1234567B",
+            archive_request=ArchiveRequest(archive_reason=" second request "),
+        )
 
-            archived = post_client_archived_by_nif(
-                session,
-                "A1234567B",
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
 
-            archived = post_client_archived_by_nif(
-                session,
-                "A1234567B",
-                archive_request=ArchiveRequest(archive_reason=" second request "),
-            )
+        restored = post_client_restored_by_nif(sqlite_session, "A1234567B")
+        restored = post_client_restored_by_nif(sqlite_session, "A1234567B")
 
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_client_restored_by_nif(session, "A1234567B")
-            restored = post_client_restored_by_nif(session, "A1234567B")
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None

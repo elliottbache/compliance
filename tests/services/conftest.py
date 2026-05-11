@@ -7,8 +7,10 @@ import pytest
 from compliance.db.models import (
     Attachment,
     Certification,
+    Certifier,
     Client,
     Finding,
+    FindingAttachment,
     Regulation,
     Rule,
     Site,
@@ -176,6 +178,17 @@ def certification_row_factory():
 
 
 @pytest.fixture
+def certifier_row_factory():
+    def _build(**overrides):
+        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
+        for key, value in overrides.items():
+            setattr(certifier, key, value)
+        return certifier
+
+    return _build
+
+
+@pytest.fixture
 def site_row_factory():
     def _site(**overrides) -> Site:
         site = Site(
@@ -277,3 +290,87 @@ def attachment_row_factory():
         return attachment
 
     return _attachment
+
+
+@pytest.fixture
+def finding_attachment_row_factory():
+    def _finding_attachment(**overrides) -> FindingAttachment:
+        finding_attachment = FindingAttachment(
+            finding_id=1, attachment_id=50, certification_id=100
+        )
+        for key, value in overrides.items():
+            setattr(finding_attachment, key, value)
+        return finding_attachment
+
+    return _finding_attachment
+
+
+@pytest.fixture
+def db_factory(
+    sqlite_session,
+    attachment_row_factory,
+    certification_row_factory,
+    certifier_row_factory,
+    client_row_factory,
+    site_row_factory,
+    regulation_row_factory,
+    finding_attachment_row_factory,
+    finding_row_factory,
+    rule_row_factory,
+):
+    def _make(
+        *,
+        attachment_overrides=None,
+        certification_overrides=None,
+        certifier_overrides=None,
+        client_overrides=None,
+        regulation_overrides=None,
+        site_overrides=None,
+        finding_overrides=None,
+        finding_attachment_overrides=None,
+        rule_overrides=None,
+    ):
+        attachment = attachment_row_factory(
+            **(attachment_overrides or {}),
+        )
+        certification = certification_row_factory(
+            **(certification_overrides or {}),
+        )
+        certifier = certifier_row_factory(**(certifier_overrides or {}))
+        client = client_row_factory(**(client_overrides or {}))
+        regulation = regulation_row_factory(**(regulation_overrides or {}))
+        site = site_row_factory(**(site_overrides or {}))
+        finding_attachment = finding_attachment_row_factory(
+            **(finding_attachment_overrides or {})
+        )
+        finding = finding_row_factory(**(finding_overrides or {}))
+        rule = rule_row_factory(**(rule_overrides or {}))
+
+        sqlite_session.add_all(
+            [
+                attachment,
+                certification,
+                certifier,
+                client,
+                regulation,
+                site,
+                finding_attachment,
+                finding,
+                rule,
+            ]
+        )
+        sqlite_session.commit()
+
+        return {
+            "attachment": attachment,
+            "certification": certification,
+            "certifier": certifier,
+            "client": client,
+            "regulation": regulation,
+            "site": site,
+            "finding_attachment": finding_attachment,
+            "finding": finding,
+            "rule": rule,
+        }
+
+    return _make

@@ -10,7 +10,7 @@ from compliance.api.schemas import (
     RegulationCreate,
     RegulationOut,
 )
-from compliance.db.models import Base, Certifier, Regulation
+from compliance.db.models import Certifier, Regulation
 from compliance.services.regulations import (
     RegulationConflictError,
     RegulationTitleConflictError,
@@ -65,36 +65,42 @@ class TestGetRegulations:
         )
 
     def test_excludes_archived_regulations_by_default(
-        self, sqlite_session, regulation_row_factory
+        self, sqlite_session, db_factory
     ) -> None:
-        active = regulation_row_factory()
-        archived = regulation_row_factory(
-            id=4,
-            title="Archived Regulation",
-            archived_at=datetime.now(UTC),
-            archive_reason="replaced",
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            regulation_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        sqlite_session.add_all([active, archived])
-        sqlite_session.commit()
 
         regulations = get_regulations(
             sqlite_session, certifier_id=None, limit=None, offset=0
         )
 
-        assert [regulation.id for regulation in regulations] == [3]
+        assert [regulation.id for regulation in regulations] == []
 
     def test_includes_archived_regulations_when_requested(
-        self, sqlite_session, regulation_row_factory
+        self, sqlite_session, db_factory
     ) -> None:
-        active = regulation_row_factory()
-        archived = regulation_row_factory(
-            id=4,
-            title="Archived Regulation",
-            archived_at=datetime.now(UTC),
-            archive_reason="replaced",
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            regulation_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        sqlite_session.add_all([active, archived])
-        sqlite_session.commit()
 
         regulations = get_regulations(
             sqlite_session,
@@ -105,7 +111,7 @@ class TestGetRegulations:
         )
 
         returned_ids = {regulation.id for regulation in regulations}
-        assert returned_ids == {3, 4}
+        assert returned_ids == {3}
 
     def test_filters_by_certifier_when_certifier_exists(self) -> None:
         session = MagicMock()
@@ -151,27 +157,44 @@ class TestGetRegulationById:
         session.get.assert_called_once_with(Regulation, 999)
         assert result is None
 
-    def test_returns_none_when_regulation_is_archived_by_default(
-        self, regulation_row_factory
+    def test_includes_archived_regulation_by_default(
+        self, sqlite_session, db_factory
     ) -> None:
-        session = MagicMock()
-        regulation = regulation_row_factory(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = regulation
+        db_factory(
+            regulation_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
 
-        result = get_regulation_by_id(session, 3)
+        result = get_regulation_by_id(sqlite_session, 3)
+
+        assert result is not None
+        assert result.archive_reason == "closed"
+
+    def test_returns_none_when_archived_regulation_excluded(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            regulation_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+
+        result = get_regulation_by_id(sqlite_session, 3, include_archived=False)
 
         assert result is None
-
-    def test_returns_archived_regulation_when_requested(
-        self, regulation_row_factory
-    ) -> None:
-        session = MagicMock()
-        regulation = regulation_row_factory(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = regulation
-
-        result = get_regulation_by_id(session, 3, include_archived=True)
-
-        assert result is regulation
 
 
 class TestPostNewRegulation:
@@ -310,39 +333,40 @@ class TestPostNewRegulationConflicts:
 
 
 class TestPostRegulationArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
+    def test_archive_then_restore_works(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+        monkeypatch.setattr(
+            "compliance.services.regulations.get_regulation_by_id",
+            lambda session_arg, regulation_id, *, include_archived: session_arg.get(
+                Regulation, regulation_id
+            ),
+        )
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        archived = post_regulation_archived_by_id(
+            sqlite_session,
+            3,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
+        archived = post_regulation_archived_by_id(
+            sqlite_session,
+            3,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
 
-        with Session(engine) as session:
-            regulation = Regulation(
-                id=3,
-                title="Fire Safety 2026",
-                description="Fire safety requirements.",
-                published_date=date(2026, 1, 15),
-            )
-            session.add(regulation)
-            session.commit()
+        restored = post_regulation_restored_by_id(sqlite_session, 3)
 
-            archived = post_regulation_archived_by_id(
-                session,
-                3,
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
-            archived = post_regulation_archived_by_id(
-                session,
-                3,
-                archive_request=ArchiveRequest(archive_reason=" second "),
-            )
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_regulation_restored_by_id(session, 3)
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None

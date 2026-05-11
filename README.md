@@ -39,3 +39,5 @@ comparison of past certifications while keeping factual retrieval and validation
 - FindingAttachment is not archived; link rows may be deleted because they do not delete evidence.
 - Hard delete endpoints are deferred for MVP.
 - Child rows are not archived when a parent row is archived.  Using ``include_archived = False``, only child rows with non-archived parents are shown.
+- Merge row factories in tests into higher-level conftest.py
+- Change default row factory values to be interrelated

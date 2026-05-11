@@ -90,7 +90,7 @@ def get_findings_route(
 def get_finding_by_id_route(
     session: SessionDep,
     finding_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> FindingOut:
     """Return one finding by ID.
 

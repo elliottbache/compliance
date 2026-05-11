@@ -7,11 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from compliance.api.schemas import ArchiveRequest, SiteCertificationsOut, SiteCreate
 from compliance.db.models import (
-    Base,
     Certification,
-    Certifier,
     Client,
-    Regulation,
     Site,
 )
 from compliance.schemas import FindingHistory, SiteHistory
@@ -178,24 +175,23 @@ class TestGetSites:
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
 
     def test_excludes_archived_sites_by_default(
-        self, sqlite_session, site_row_factory
+        self, sqlite_session, db_factory, site_row_factory
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        active = site_row_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
             archived_at=datetime.now(UTC),
             archive_reason="closed",
         )
-        sqlite_session.add(client)
-        sqlite_session.add_all([active, archived])
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
         sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
@@ -203,24 +199,23 @@ class TestGetSites:
         assert [site.id for site in sites] == [12]
 
     def test_includes_archived_sites_when_requested(
-        self, sqlite_session, site_row_factory
+        self, sqlite_session, db_factory, site_row_factory
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        active = site_row_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
             archived_at=datetime.now(UTC),
             archive_reason="closed",
         )
-        sqlite_session.add(client)
-        sqlite_session.add_all([active, archived])
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
         sites = get_sites(
@@ -235,44 +230,40 @@ class TestGetSites:
         assert returned_ids == {12, 13}
 
     def test_excludes_sites_when_client_is_archived_by_default(
-        self, sqlite_session, site_row_factory
+        self, sqlite_session, db_factory, site_row_factory
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-            archived_at=datetime.now(UTC),
-            archive_reason="closed client",
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        site = site_row_factory()
-
-        sqlite_session.add(client)
-        sqlite_session.add(site)
-        sqlite_session.commit()
 
         sites = get_sites(sqlite_session, nif=None, limit=None, offset=0)
 
         assert sites == []
 
     def test_includes_sites_with_archived_client_when_requested(
-        self, sqlite_session, site_row_factory
+        self, sqlite_session, db_factory
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
-            archived_at=datetime.now(UTC),
-            archive_reason="closed client",
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        site = site_row_factory()
-
-        sqlite_session.add(client)
-        sqlite_session.add(site)
-        sqlite_session.commit()
 
         sites = get_sites(
             sqlite_session,
@@ -307,38 +298,19 @@ class TestGetSites:
         session.execute.assert_not_called()
 
     def test_excludes_certifications_when_site_is_archived_by_default(
-        self, sqlite_session, certification_row_factory
+        self, sqlite_session, db_factory
     ) -> None:
-        client = Client(
-            nif="A1234567B",
-            company_name="Acme Compliance",
-            contact_name="Ada Lovelace",
-            email=None,
-            telephone=None,
+        db_factory(
+            certification_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        site = Site(
-            id=12,
-            nif="A1234567B",
-            city="Madrid",
-            postal_code=28013,
-            street="Gran Via",
-            street_number=None,
-            suite=None,
-            address_info=None,
-            archived_at=datetime.now(UTC),
-            archive_reason="closed site",
-        )
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = Regulation(
-            id=3,
-            title="Fire Safety 2026",
-            description="Fire safety requirements.",
-            published_date=date(2026, 1, 15),
-        )
-        certification = certification_row_factory()
-
-        sqlite_session.add_all([client, site, certifier, regulation, certification])
-        sqlite_session.commit()
 
         certifications = get_certifications(
             sqlite_session,
@@ -373,16 +345,25 @@ class TestGetSiteById:
         session.execute.assert_called_once()
         assert result is None
 
-    def test_returns_none_when_site_is_archived_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalar_one_or_none.return_value = None
+    def test_includes_archived_site_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={
+                "id": 12,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
 
-        result = get_site_by_id(session, 12)
+        result = get_site_by_id(sqlite_session, 12)
 
-        stmt = session.execute.call_args.args[0]
-        assert "sites.archived_at IS NULL" in str(stmt)
-        assert "clients.archived_at IS NULL" in str(stmt)
-        assert result is None
+        assert result is not None
+        assert result.archive_reason == "closed"
 
     def test_returns_archived_site_when_requested(self, site_row_factory) -> None:
         session = MagicMock()
@@ -997,110 +978,31 @@ class TestPostSiteRestoredById:
 
 
 class TestPostSiteArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
-
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
-
-        with Session(engine) as session:
-            client = Client(
-                nif="A1234567B",
-                company_name="Acme Compliance",
-                contact_name="Ada Lovelace",
-                email=None,
-                telephone=None,
-            )
-            site = Site(
-                id=71,
-                nif="A1234567B",
-                city="Madrid",
-                postal_code=28013,
-                street="Gran Via",
-                street_number=None,
-                suite=None,
-                address_info=None,
-            )
-            session.add(client)
-            session.add(site)
-            session.commit()
-
-            archived = post_site_archived_by_id(
-                session,
-                71,
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
-            archived = post_site_archived_by_id(
-                session,
-                71,
-                archive_request=ArchiveRequest(archive_reason=" second "),
-            )
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_site_restored_by_id(session, 71)
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
-
-    def test_formats_site_history_when_query_returns_multiple_rows(
-        self, site_history_row_factory, db_access_mocks
-    ) -> None:
-        rows = [
-            site_history_row_factory(
-                cert_id=100,
-                finding_id=1,
-                finding="Issue A",
-                rule_index="7 CFR 205.201",
-                rule_title="Rule A",
-                rule_description="Rule description A",
-            ),
-            site_history_row_factory(
-                cert_id=100,
-                finding_id=2,
-                finding="Issue B",
-                rule_index="7 CFR 205.202",
-                rule_title="Rule B",
-                rule_description="Rule description B",
-            ),
-        ]
-        formatted_site = SiteHistory(
-            site_id=71,
-            certifications=[],
-            inspection_count=1,
-            latest_inspection_date=None,
+    def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        db_access_mocks[
-            "conn"
-        ].execute.return_value.mappings.return_value.all.return_value = rows
-
-        with (
-            patch(
-                "compliance.services.sites.get_engine_metadata",
-                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
-            ) as mock_get_engine_metadata,
-            patch(
-                "compliance.services.sites.get_tables",
-                return_value=db_access_mocks["tables"],
-            ) as mock_get_tables,
-            patch(
-                "compliance.services.sites.select",
-                return_value=db_access_mocks["stmt"],
-            ) as mock_select,
-            patch(
-                "compliance.services.sites._format_site_history",
-                return_value=formatted_site,
-            ) as mock_format,
-        ):
-            result = get_site_history_legacy(71)
-
-        assert result == formatted_site
-        mock_get_engine_metadata.assert_called_once_with()
-        mock_get_tables.assert_called_once_with(
-            db_access_mocks["engine"], db_access_mocks["meta"]
+        archived = post_site_archived_by_id(
+            sqlite_session,
+            12,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
         )
-        mock_select.assert_called_once()
-        mock_format.assert_called_once_with(rows)
+        archived = post_site_archived_by_id(
+            sqlite_session,
+            12,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
+
+        restored = post_site_restored_by_id(sqlite_session, 12)
+
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None

@@ -52,7 +52,7 @@ def get_clients_route(
 def get_clients_by_nif_route(
     session: SessionDep,
     nif: Annotated[str, Path(min_length=9, max_length=9)],
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> ClientOut:
     """Return one client by NIF.
 

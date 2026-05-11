@@ -84,7 +84,7 @@ def get_rules(
 
 
 def get_rule_by_id(
-    session: Session, rule_id: int, *, include_archived: bool = False
+    session: Session, rule_id: int, *, include_archived: bool = True
 ) -> Rule | None:
     """Return one rule when it and its parent regulation are visible."""
     stmt = select(Rule).where(Rule.id == rule_id).join(Rule.rule_regulation_rel)

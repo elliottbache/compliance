@@ -67,7 +67,7 @@ def get_rules_route(
 def get_rule_by_id_route(
     session: SessionDep,
     rule_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> RuleOut:
     """Return one rule by ID.
 

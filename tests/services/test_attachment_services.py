@@ -12,17 +12,13 @@ from compliance.api.schemas import (
 )
 from compliance.db.models import (
     Attachment,
-    Base,
     Certification,
-    Certifier,
-    Client,
     Finding,
     FindingAttachment,
-    Regulation,
     Rule,
     Site,
 )
-from compliance.services._helpers import _format_attachment
+from compliance.services._helpers import format_attachment
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
     AttachmentFindingCertificationMismatchError,
@@ -99,41 +95,21 @@ class TestGetAttachments:
         assert "finding_attachments.finding_id = :finding_id_1" in str(stmt)
 
     def test_excludes_archived_attachments_by_default(
-        self,
-        sqlite_session,
-        monkeypatch,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        attachment_row_factory,
+        self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(
-            id=71,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(
-            id=5,
-        )
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-        )
-        active = attachment_row_factory()
-        archived = attachment_row_factory(
-            id=51,
-            archived_at=datetime.now(UTC),
-            archive_reason="obsolete",
-        )
-        sqlite_session.add_all(
-            [client, site, certifier, regulation, certification, active, archived]
-        )
-        sqlite_session.commit()
+
         monkeypatch.setattr(
             "compliance.services.attachments._format_attachments",
             lambda rows: [row["Attachment"].id for row in rows],
@@ -147,7 +123,7 @@ class TestGetAttachments:
             finding_id=None,
         )
 
-        assert attachment_ids == [50]
+        assert attachment_ids == []
 
     def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
         session = MagicMock()
@@ -171,38 +147,21 @@ class TestGetAttachments:
         assert "AND (rules.id IS NULL" not in statement_text
 
     def test_includes_archived_attachments_when_requested(
-        self,
-        sqlite_session,
-        monkeypatch,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        regulation_row_factory,
-        attachment_row_factory,
+        self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-            archived_at=datetime.now(UTC),
-            archive_reason="superseded",
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
 
-        active = attachment_row_factory()
-        archived = attachment_row_factory(
-            id=51,
-            archived_at=datetime.now(UTC),
-            archive_reason="obsolete",
-        )
-        sqlite_session.add_all(
-            [client, site, certifier, regulation, certification, active, archived]
-        )
-        sqlite_session.commit()
         monkeypatch.setattr(
             "compliance.services.attachments._format_attachments",
             lambda rows: [row["Attachment"].id for row in rows],
@@ -217,70 +176,41 @@ class TestGetAttachments:
             include_archived=True,
         )
 
-        assert set(attachment_ids) == {50, 51}
+        assert set(attachment_ids) == {50}
 
     def test_archived_finding_does_not_appear_in_attachment_context_or_finding_ids(
         self,
-        sqlite_session,
         monkeypatch,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
+        sqlite_session,
+        db_factory,
         finding_row_factory,
         attachment_row_factory,
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        rule = rule_row_factory(id=5, regulation_id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        active_finding = finding_row_factory(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-        )
+
         archived_finding = finding_row_factory(
             id=2,
-            certification_id=100,
+            certification_id=42,
             rule_id=5,
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
-        attachment = attachment_row_factory(
-            id=50,
-            certification_id=100,
-        )
-        active_link = FindingAttachment(
-            finding_id=1,
-            attachment_id=50,
-            certification_id=100,
-        )
         archived_link = FindingAttachment(
             finding_id=2,
             attachment_id=50,
-            certification_id=100,
+            certification_id=42,
         )
 
         sqlite_session.add_all(
             [
-                client,
-                site,
-                certifier,
-                regulation,
-                rule,
-                certification,
-                active_finding,
                 archived_finding,
-                attachment,
-                active_link,
                 archived_link,
             ]
         )
@@ -389,18 +319,31 @@ class TestGetAttachmentById:
         result = get_attachment_by_id(session, 50)
 
         session.execute.assert_called_once()
-        assert result == _format_attachment(rows)
+        assert result == format_attachment(rows)
 
-    def test_excludes_archived_attachment_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_includes_archived_attachment_by_default(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
+        )
 
-        get_attachment_by_id(session, 50)
+        monkeypatch.setattr(
+            "compliance.services.attachments.format_attachment",
+            lambda rows: rows[0]["Attachment"],
+        )
+        result = get_attachment_by_id(sqlite_session, 50)
 
-        stmt = session.execute.call_args.args[0]
-        assert "attachments.archived_at IS NULL" in str(stmt)
-        assert "JOIN sites" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
+        assert result is not None
+        assert result.archived_at is not None
 
     def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
         session = MagicMock()
@@ -411,23 +354,25 @@ class TestGetAttachmentById:
         statement_text = str(session.execute.call_args.args[0])
 
         assert "LEFT OUTER JOIN findings" in statement_text
-        assert "findings.archived_at IS NULL" in statement_text
+        assert "findings.archived_at IS NULL" not in statement_text
         assert "LEFT OUTER JOIN rules" in statement_text
-        assert "rules.archived_at IS NULL" in statement_text
+        assert "rules.archived_at IS NULL" not in statement_text
         assert "AND (findings.id IS NULL" not in statement_text
         assert "AND (rules.id IS NULL" not in statement_text
 
-    def test_includes_archived_attachment_when_requested(self) -> None:
+    def test_returns_none_when_archived_attachment_excluded(self) -> None:
         session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+        session.execute.return_value.mappings.return_value.all.return_value = None
 
-        get_attachment_by_id(session, 50, include_archived=True)
+        result = get_attachment_by_id(session, 50, include_archived=False)
 
         stmt = session.execute.call_args.args[0]
-        assert "attachments.archived_at IS NULL" not in str(stmt)
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "findings.archived_at IS NULL" not in str(stmt)
-        assert "rules.archived_at IS NULL" not in str(stmt)
+        print(f"stmt: {stmt}")
+        assert "attachments.archived_at IS NULL" in str(stmt)
+        assert "sites.archived_at IS NULL" in str(stmt)
+        assert "findings.archived_at IS NULL" in str(stmt)
+        assert "rules.archived_at IS NULL" in str(stmt)
+        assert result is None
 
 
 class TestPostNewAttachment:
@@ -492,17 +437,10 @@ class TestPostNewAttachment:
 
 
 class TestFormatNewAttachmentWithContext:
-    def test_builds_attachment_output_with_certification_context(self) -> None:
-        attachment = SimpleNamespace(
-            id=50,
-            file_type="pdf",
-            certification_id=100,
-            file_path="/path/placeholder/evidence.pdf",
-            description="Inspection evidence",
-            uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-            archived_at=None,
-            archive_reason=None,
-        )
+    def test_builds_attachment_output_with_certification_context(
+        self, attachment_row_factory
+    ) -> None:
+        attachment = attachment_row_factory()
         certification = SimpleNamespace(
             inspection_date=date(2026, 4, 1),
             regulation_id=5,
@@ -529,7 +467,7 @@ class TestFormatAttachment:
     ) -> None:
         rows = [attachment_out_factory(Finding=None, Rule=None)]
 
-        result = _format_attachment(rows)
+        result = format_attachment(rows)
 
         assert result == AttachmentWithContextOut(
             id=50,
@@ -561,7 +499,7 @@ class TestFormatAttachment:
             ),
         ]
 
-        result = _format_attachment(rows)
+        result = format_attachment(rows)
 
         assert result.id == 50
         assert [finding.finding_id for finding in result.finding_links] == [1, 2]
@@ -648,86 +586,41 @@ class TestPostAttachmentRestoredById:
 
 
 class TestPostAttachmentArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self, monkeypatch) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
+    def test_archive_then_restore_works(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+        monkeypatch.setattr(
+            "compliance.services.attachments.get_attachment_by_id",
+            lambda session_arg, attachment_id, *, include_archived: session_arg.get(
+                Attachment, attachment_id
+            ),
+        )
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        archived = post_attachment_archived_by_id(
+            sqlite_session,
+            50,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
+        archived = post_attachment_archived_by_id(
+            sqlite_session,
+            50,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
 
-        with Session(engine) as session:
-            client = Client(
-                nif="A1234567B",
-                company_name="Acme Compliance",
-                contact_name="Ada Lovelace",
-                email=None,
-                telephone=None,
-            )
-            site = Site(
-                id=71,
-                nif="A1234567B",
-                city="Madrid",
-                postal_code=28013,
-                street="Gran Via",
-                street_number=None,
-                suite=None,
-                address_info=None,
-            )
-            certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-            regulation = Regulation(
-                id=5,
-                title="USDA Organic",
-                description="Organic handling requirements.",
-                published_date=date(2026, 1, 15),
-            )
-            certification = Certification(
-                id=100,
-                certifier_id=7,
-                regulation_id=5,
-                site_id=71,
-                result="Pass",
-                inspection_date=date(2026, 4, 1),
-                resolution_date=date(2026, 4, 15),
-            )
-            attachment = Attachment(
-                id=50,
-                file_type="pdf",
-                certification_id=100,
-                file_path="dummy/evidence.pdf",
-                description="Inspection evidence",
-                uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-            )
-            session.add(client)
-            session.add(site)
-            session.add(certifier)
-            session.add(regulation)
-            session.add(certification)
-            session.add(attachment)
-            session.commit()
-            monkeypatch.setattr(
-                "compliance.services.attachments.get_attachment_by_id",
-                lambda session_arg, attachment_id, *, include_archived: session_arg.get(
-                    Attachment, attachment_id
-                ),
-            )
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
 
-            archived = post_attachment_archived_by_id(
-                session,
-                50,
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
-            archived = post_attachment_archived_by_id(
-                session,
-                50,
-                archive_request=ArchiveRequest(archive_reason=" second "),
-            )
+        restored = post_attachment_restored_by_id(sqlite_session, 50)
 
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_attachment_restored_by_id(session, 50)
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None

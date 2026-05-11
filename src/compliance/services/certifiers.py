@@ -53,7 +53,7 @@ def get_certifiers(
 
 
 def get_certifier_by_id(
-    session: Session, certifier_id: int, *, include_archived: bool = False
+    session: Session, certifier_id: int, *, include_archived: bool = True
 ) -> Certifier | None:
     """Retrieve one certifier by ID.
 

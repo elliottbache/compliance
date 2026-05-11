@@ -22,8 +22,8 @@ from compliance.db.models import (
     Site,
 )
 from compliance.services._helpers import (
-    _format_attachment,
     archive_record_by_id,
+    format_attachment,
     record_is_visible,
     restore_record_by_id,
 )
@@ -158,7 +158,7 @@ def get_attachments(
 
 
 def get_attachment_by_id(
-    session: Session, attachment_id: int, *, include_archived: bool = False
+    session: Session, attachment_id: int, *, include_archived: bool = True
 ) -> AttachmentWithContextOut | None:
     """Retrieve one attachment with certification, regulation, and finding context.
 
@@ -211,7 +211,7 @@ def get_attachment_by_id(
         stmt = stmt.where(Regulation.archived_at.is_(None))
 
     rows = session.execute(stmt).mappings().all()
-    return None if not rows else _format_attachment(rows)
+    return None if not rows else format_attachment(rows)
 
 
 def post_new_attachment(

@@ -24,8 +24,8 @@ from compliance.db.models import (
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services._helpers import (
-    _format_attachment,
     archive_record_by_id,
+    format_attachment,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
@@ -82,7 +82,7 @@ def get_sites(
 
 
 def get_site_by_id(
-    session: Session, site_id: int, *, include_archived: bool = False
+    session: Session, site_id: int, *, include_archived: bool = True
 ) -> Site | None:
     """Return one site by primary key when it and its parent client are visible."""
     stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
@@ -502,7 +502,7 @@ def _format_site_attachments(
     # We maintain the order of appearance by iterating over the original list
     # or just use the grouped values.
     formatted_attachments = [
-        _format_attachment(rows) for rows in rows_by_attachment.values()
+        format_attachment(rows) for rows in rows_by_attachment.values()
     ]
 
     return SiteAttachmentsOut(

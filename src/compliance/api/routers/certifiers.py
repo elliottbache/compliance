@@ -49,7 +49,7 @@ def get_certifiers_route(
 def get_certifiers_by_id_route(
     session: SessionDep,
     certifier_id: Annotated[int, Path(ge=1)],
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> CertifierOut:
     """Return one certifier by ID.
 

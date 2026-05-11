@@ -87,7 +87,7 @@ def get_attachments_route(
 def get_attachment_by_id_route(
     session: SessionDep,
     attachment_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> AttachmentWithContextOut:
     """Return one attachment with certification, regulation, and finding context.
 

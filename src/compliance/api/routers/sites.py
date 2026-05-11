@@ -78,7 +78,7 @@ def get_sites_route(
 def get_site_by_id_route(
     session: SessionDep,
     site_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> SiteOut:
     """Return one site by ID.
 

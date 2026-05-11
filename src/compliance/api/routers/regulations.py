@@ -66,7 +66,7 @@ def get_regulations_route(
 def get_regulation_by_id_route(
     session: SessionDep,
     regulation_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> RegulationOut:
     """Return one regulation by ID.
 

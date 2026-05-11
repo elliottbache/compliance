@@ -72,7 +72,7 @@ def get_certifications_route(
 def get_certification_by_id_route(
     session: SessionDep,
     certification_id: int,
-    include_archived: Annotated[bool, Query()] = False,
+    include_archived: Annotated[bool, Query()] = True,
 ) -> CertificationOut:
     """Return one certification by ID.
 

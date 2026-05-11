@@ -13,7 +13,7 @@ from compliance.api.schemas import (
 from compliance.schemas import FindingHistory
 
 
-def _format_attachment(
+def format_attachment(
     rows: Sequence[Mapping],
 ) -> AttachmentWithContextOut:
     """Aggregate query rows for a single attachment into an attachment response.

@@ -86,7 +86,7 @@ def get_regulations(
 
 
 def get_regulation_by_id(
-    session: Session, regulation_id: int, *, include_archived: bool = False
+    session: Session, regulation_id: int, *, include_archived: bool = True
 ) -> Regulation | None:
     """Return one regulation by primary key when it is visible."""
     regulation = session.get(Regulation, regulation_id)

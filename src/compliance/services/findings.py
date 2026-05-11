@@ -164,7 +164,7 @@ def get_findings(
 
 
 def get_finding_by_id(
-    session: Session, finding_id: int, *, include_archived: bool = False
+    session: Session, finding_id: int, *, include_archived: bool = True
 ) -> FindingOut | None:
     """Return one finding with context by primary key.
 

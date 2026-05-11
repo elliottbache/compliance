@@ -8,7 +8,7 @@ from compliance.api.schemas import (
     ArchiveRequest,
     CertifierCreate,
 )
-from compliance.db.models import Base, Certifier
+from compliance.db.models import Certifier
 from compliance.services.certifiers import (
     CertifierConflictError,
     CertifierOrganizationNameConflictError,
@@ -52,30 +52,45 @@ class TestGetCertifiers:
         stmt = session.execute.call_args.args[0]
         assert "ORDER BY certifiers.organization_name, certifiers.id" in str(stmt)
 
-    def test_excludes_archived_certifiers_by_default(self, sqlite_session) -> None:
-        active = _certifier()
-        archived = _certifier(
-            id=11,
-            organization_name="Archived Certifier",
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+    def test_excludes_archived_certifiers_by_default(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            certifier_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        sqlite_session.add_all([active, archived])
-        sqlite_session.commit()
 
         certifiers = get_certifiers(sqlite_session, limit=None, offset=0)
 
-        assert [certifier.id for certifier in certifiers] == [10]
+        assert [certifier.id for certifier in certifiers] == []
 
-    def test_includes_archived_certifiers_when_requested(self, sqlite_session) -> None:
-        active = _certifier()
+    def test_includes_archived_certifiers_when_requested(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+
         archived = _certifier(
             id=11,
             organization_name="Archived Certifier",
             archived_at=datetime.now(UTC),
             archive_reason="merged",
         )
-        sqlite_session.add_all([active, archived])
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
         certifiers = get_certifiers(
@@ -83,7 +98,7 @@ class TestGetCertifiers:
         )
 
         returned_ids = {certifier.id for certifier in certifiers}
-        assert returned_ids == {10, 11}
+        assert returned_ids == {7, 11}
 
 
 class TestGetCertifierById:
@@ -106,23 +121,34 @@ class TestGetCertifierById:
         assert result is None
         session.get.assert_called_once_with(Certifier, 10)
 
-    def test_returns_none_when_certifier_is_archived_by_default(self) -> None:
+    def test_include_archived_certifier_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            certifier_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
+        )
+
+        result = get_certifier_by_id(sqlite_session, 7)
+
+        assert result is not None
+        assert result.archive_reason == "closed"
+
+    def test_returns_none_when_archived_certifier_excluded(self) -> None:
         session = MagicMock()
         certifier = _certifier(archived_at=datetime(2026, 5, 7))
         session.get.return_value = certifier
 
-        result = get_certifier_by_id(session, 10)
+        result = get_certifier_by_id(session, 10, include_archived=False)
 
         assert result is None
-
-    def test_returns_archived_certifier_when_requested(self) -> None:
-        session = MagicMock()
-        certifier = _certifier(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = certifier
-
-        result = get_certifier_by_id(session, 10, include_archived=True)
-
-        assert result is certifier
 
 
 class TestPostNewCertifier:
@@ -261,35 +287,35 @@ class TestPostCertifierRestoredById:
 
 
 class TestPostCertifierArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
+    def test_archive_then_restore_works(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        archived = post_certifier_archived_by_id(
+            sqlite_session,
+            7,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
+        archived = post_certifier_archived_by_id(
+            sqlite_session,
+            7,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
 
-        with Session(engine) as session:
-            certifier = Certifier(id=10, organization_name="SafeCheck Inc.")
-            session.add(certifier)
-            session.commit()
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
 
-            archived = post_certifier_archived_by_id(
-                session,
-                10,
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
-            archived = post_certifier_archived_by_id(
-                session,
-                10,
-                archive_request=ArchiveRequest(archive_reason=" second "),
-            )
+        restored = post_certifier_restored_by_id(sqlite_session, 7)
 
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_certifier_restored_by_id(session, 10)
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None

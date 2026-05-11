@@ -22,8 +22,8 @@ from compliance.db.models import (
     Site,
 )
 from compliance.services._helpers import (
-    _format_attachment,
     archive_record_by_id,
+    format_attachment,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
@@ -118,7 +118,7 @@ def get_certifications(
 
 
 def get_certification_by_id(
-    session: Session, certification_id: int, *, include_archived: bool = False
+    session: Session, certification_id: int, *, include_archived: bool = True
 ) -> Certification | None:
     """Return one certification when it and its required parents are visible."""
     stmt = (
@@ -340,7 +340,7 @@ def _format_certification_attachments(
     # We maintain the order of appearance by iterating over the original list
     # or just use the grouped values.
     formatted_attachments = [
-        _format_attachment(rows) for rows in rows_by_attachment.values()
+        format_attachment(rows) for rows in rows_by_attachment.values()
     ]
 
     return CertificationAttachmentsOut(

@@ -7,13 +7,9 @@ import pytest
 from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,
-    Base,
     Certification,
-    Certifier,
-    Client,
     Finding,
     FindingAttachment,
-    Regulation,
     Rule,
     Site,
 )
@@ -89,42 +85,20 @@ class TestGetFindings:
         assert "LEFT OUTER JOIN attachments" in str(stmt)
 
     def test_excludes_archived_findings_by_default(
-        self,
-        sqlite_session,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        client_row_factory,
+        self, sqlite_session, db_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(
-            id=5,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        rule = rule_row_factory(
-            id=5,
-            regulation_id=5,
-        )
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-        )
-        active = finding_row_factory()
-        archived = finding_row_factory(
-            id=2,
-            archived_at=datetime.now(UTC),
-            archive_reason="resolved",
-        )
-
-        sqlite_session.add_all(
-            [client, site, certifier, regulation, rule, certification, active, archived]
-        )
-        sqlite_session.commit()
 
         findings = get_findings(
             sqlite_session,
@@ -138,42 +112,30 @@ class TestGetFindings:
         assert [finding.finding_id for finding in findings] == [1]
 
     def test_includes_archived_findings_when_requested(
-        self,
-        sqlite_session,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        client_row_factory,
+        self, monkeypatch, sqlite_session, db_factory, finding_row_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(
-            id=5,
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        rule = rule_row_factory(
-            id=5,
-            regulation_id=5,
-        )
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-        )
-        active = finding_row_factory()
+
         archived = finding_row_factory(
             id=2,
+            certification_id=42,
             archived_at=datetime.now(UTC),
             archive_reason="resolved",
         )
-        sqlite_session.add_all(
-            [client, site, certifier, regulation, rule, certification, active, archived]
-        )
+        sqlite_session.add(archived)
         sqlite_session.commit()
 
+        monkeypatch.setattr(
+            "compliance.services.findings._format_findings",
+            lambda rows: [row["Finding"].id for row in rows],
+        )
         findings = get_findings(
             sqlite_session,
             site_id=None,
@@ -184,8 +146,7 @@ class TestGetFindings:
             include_archived=True,
         )
 
-        returned_ids = {finding.finding_id for finding in findings}
-        assert returned_ids == {1, 2}
+        assert findings == [1, 2]
 
     def test_filters_by_attachment_id_when_attachment_exists(self) -> None:
         session = MagicMock()
@@ -233,38 +194,19 @@ class TestGetFindings:
         ]
 
     def test_excludes_findings_when_certification_is_archived_by_default(
-        self,
-        sqlite_session,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
+        self, sqlite_session, db_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        rule = rule_row_factory(id=5, regulation_id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
-            archived_at=datetime.now(UTC),
-            archive_reason="superseded",
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            certification_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        finding = finding_row_factory(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-        )
-
-        sqlite_session.add_all(
-            [client, site, certifier, regulation, rule, certification, finding]
-        )
-        sqlite_session.commit()
 
         findings = get_findings(
             sqlite_session,
@@ -278,59 +220,19 @@ class TestGetFindings:
         assert findings == []
 
     def test_archived_attachment_hides_linked_attachment_context_by_default(
-        self,
-        sqlite_session,
-        monkeypatch,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        attachment_row_factory,
+        self, monkeypatch, sqlite_session, db_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        rule = rule_row_factory(id=5, regulation_id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            rule_overrides={"id": 5},
         )
-        finding = finding_row_factory(
-            id=1,
-            certification_id=100,
-            rule_id=5,
-        )
-        archived_attachment = attachment_row_factory(
-            id=50,
-            certification_id=100,
-            archived_at=datetime.now(UTC),
-            archive_reason="obsolete",
-        )
-        finding_attachment = FindingAttachment(
-            finding_id=1,
-            attachment_id=50,
-            certification_id=100,
-        )
-
-        sqlite_session.add_all(
-            [
-                client,
-                site,
-                certifier,
-                regulation,
-                rule,
-                certification,
-                finding,
-                archived_attachment,
-                finding_attachment,
-            ]
-        )
-        sqlite_session.commit()
 
         monkeypatch.setattr(
             "compliance.services.findings._format_findings",
@@ -360,59 +262,30 @@ class TestGetFindings:
         ]
 
     def test_archived_attachment_does_not_hide_finding_or_appear_in_context(
-        self,
-        sqlite_session,
-        monkeypatch,
-        client_row_factory,
-        site_row_factory,
-        certification_row_factory,
-        rule_row_factory,
-        regulation_row_factory,
-        finding_row_factory,
-        attachment_row_factory,
+        self, monkeypatch, sqlite_session, db_factory, attachment_row_factory
     ) -> None:
-        client = client_row_factory()
-        site = site_row_factory(id=71)
-        certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-        regulation = regulation_row_factory(id=5)
-        rule = rule_row_factory(id=5, regulation_id=5)
-        certification = certification_row_factory(
-            id=100,
-            certifier_id=7,
-            regulation_id=5,
-            site_id=71,
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
         )
-        finding = finding_row_factory(id=1, certification_id=100, rule_id=5)
-        active_attachment = attachment_row_factory(id=50, certification_id=100)
         archived_attachment = attachment_row_factory(
             id=51,
-            certification_id=100,
+            certification_id=42,
             archived_at=datetime.now(UTC),
             archive_reason="obsolete",
-        )
-        active_link = FindingAttachment(
-            finding_id=1,
-            attachment_id=50,
-            certification_id=100,
         )
         archived_link = FindingAttachment(
             finding_id=1,
             attachment_id=51,
-            certification_id=100,
+            certification_id=42,
         )
 
         sqlite_session.add_all(
             [
-                client,
-                site,
-                certifier,
-                regulation,
-                rule,
-                certification,
-                finding,
-                active_attachment,
                 archived_attachment,
-                active_link,
                 archived_link,
             ]
         )
@@ -453,17 +326,28 @@ class TestGetFindings:
 
 
 class TestGetFindingById:
-    def test_excludes_archived_finding_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.mappings.return_value.all.return_value = []
+    def test_includes_archived_finding_by_default(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={"id": 12},
+            finding_overrides={
+                "certification_id": 42,
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
 
-        get_finding_by_id(session, 1)
+        monkeypatch.setattr(
+            "compliance.services.findings._format_findings",
+            lambda rows: [row["Finding"].archive_reason for row in rows],
+        )
+        result = get_finding_by_id(sqlite_session, 1)
 
-        stmt = session.execute.call_args.args[0]
-        assert "findings.archived_at IS NULL" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
-        assert "attachments.archived_at IS NULL" in str(stmt)
-        assert "AND (attachments.id IS NULL" not in str(stmt)
+        assert result == "closed"
 
     def test_includes_archived_finding_when_requested(self) -> None:
         session = MagicMock()
@@ -724,86 +608,41 @@ class TestPostFindingRestoredById:
 
 
 class TestPostFindingArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self) -> None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
+    def test_archive_then_restore_works(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={},
+            site_overrides={"id": 12},
+            finding_overrides={"certification_id": 42},
+            finding_attachment_overrides={"certification_id": 42},
+            attachment_overrides={"certification_id": 42},
+            rule_overrides={"id": 5},
+        )
+        monkeypatch.setattr(
+            "compliance.services.findings.get_finding_by_id",
+            lambda session_arg, finding_id, *, include_archived: session_arg.get(
+                Finding, finding_id
+            ),
+        )
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        archived = post_finding_archived_by_id(
+            sqlite_session,
+            1,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
+        archived = post_finding_archived_by_id(
+            sqlite_session,
+            1,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
 
-        with Session(engine) as session:
-            client = Client(
-                nif="A1234567B",
-                company_name="Acme Compliance",
-                contact_name="Ada Lovelace",
-                email=None,
-                telephone=None,
-            )
-            site = Site(
-                id=71,
-                nif="A1234567B",
-                city="Madrid",
-                postal_code=28013,
-                street="Gran Via",
-                street_number=None,
-                suite=None,
-                address_info=None,
-            )
-            certifier = Certifier(id=7, organization_name="SafeCheck Inc.")
-            regulation = Regulation(
-                id=5,
-                title="USDA Organic",
-                description="Organic handling requirements.",
-                published_date=date(2026, 1, 15),
-            )
-            rule = Rule(
-                id=5,
-                regulation_id=5,
-                rule_index="7 CFR 205.201",
-                title="Organic plan",
-                description="Producer must maintain an organic system plan.",
-            )
-            certification = Certification(
-                id=100,
-                certifier_id=7,
-                regulation_id=5,
-                site_id=71,
-                result="Pass",
-                inspection_date=date(2026, 4, 1),
-                resolution_date=date(2026, 4, 15),
-            )
-            finding = Finding(
-                id=1,
-                certification_id=100,
-                rule_id=5,
-                finding="Missing document",
-            )
-            session.add(client)
-            session.add(site)
-            session.add(certifier)
-            session.add(regulation)
-            session.add(rule)
-            session.add(certification)
-            session.add(finding)
-            session.commit()
+        assert archived is not None
+        assert archived.archived_at is not None
+        assert archived.archive_reason == "duplicate"
 
-            archived = post_finding_archived_by_id(
-                session,
-                1,
-                archive_request=ArchiveRequest(archive_reason=" duplicate "),
-            )
-            archived = post_finding_archived_by_id(
-                session,
-                1,
-                archive_request=ArchiveRequest(archive_reason=" second "),
-            )
+        restored = post_finding_restored_by_id(sqlite_session, 1)
 
-            assert archived is not None
-            assert archived.archived_at is not None
-            assert archived.archive_reason == "duplicate"
-
-            restored = post_finding_restored_by_id(session, 1)
-
-            assert restored is not None
-            assert restored.archived_at is None
-            assert restored.archive_reason is None
+        assert restored is not None
+        assert restored.archived_at is None
+        assert restored.archive_reason is None
