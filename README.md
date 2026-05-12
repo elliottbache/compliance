@@ -20,11 +20,12 @@ comparison of past certifications while keeping factual retrieval and validation
 ## TODO
 - Add local model option to use for site analysis.
 - Add privacy for Anthropic and write guide in README.
-- Add function to return differences in regulation since last visit.
+- Add LLM function to return differences in regulation since last visit.
 - Add stop_reason: "refusal" and stop_reason: "max_tokens" and others to requerying on failure in anthropic_api.py
 - Add migration
 - Add LLM to parse regulation into database.
 - Add LLM to compare current regulation with last regulation
+- Add MCP and hosting?
 
 ## Database description
 ### Notes
@@ -41,3 +42,12 @@ comparison of past certifications while keeping factual retrieval and validation
 - Child rows are not archived when a parent row is archived.  Using ``include_archived = False``, only child rows with non-archived parents are shown.
 - Merge row factories in tests into higher-level conftest.py
 - Change default row factory values to be interrelated
+- Global list endpoints exclude archived records by default and support `include_archived=true`.
+- When `include_archived=true`, archived records are included. For filtered list endpoints, this also allows archived parent context where already implemented. Example: `GET /sites?nif=...&include_archived=true` may return sites for an archived client.
+- Exact detail endpoints may return archived records by ID, because archived records remain part of the audit trail and are not deleted. Responses expose `archived_at` and `archive_reason`.
+- Archive/restore endpoints are idempotent: archiving an already archived record returns `200` unchanged, and restoring an already active record returns `200` unchanged.
+- Archive/restore does not cascade. Archiving a client/site/certification/etc. does not automatically archive child records. Child visibility is handled by read queries where currently implemented.
+- Nested operational endpoints generally use active context by default, but detailed archive semantics for every nested route are parked for now. We will revisit after higher-value MVP features are done.
+- Site history and AI analysis should use active records by default, but deeper archive behavior for history/AI routes is also parked for now.
+- `FindingAttachment` link rows are not archived. Links may be removed without deleting findings or attachments.
+- Further archive edge cases are intentionally deferred until after the frontend, local AI model integration, and regulation comparison/versioning work are further along.
