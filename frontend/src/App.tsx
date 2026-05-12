@@ -1,3 +1,19 @@
+import { useState } from "react";
+import {
+  createSiteAnalysis,
+  createSiteAnalysisMarkdown,
+  getSiteAttachments,
+  getSiteHistory,
+} from "./api/complianceApi";
+import { SiteSearchPanel } from "./components/SiteSearchPanel";
+import type {
+  ApiErrorMessage,
+  LoadingState,
+  SiteAnalysis,
+  SiteAttachmentsOut,
+  SiteHistory,
+} from "./types";
+
 const workflowItems = [
   "Enter site ID",
   "Load inspection history",
@@ -17,7 +33,83 @@ const adminSections = [
   "Attachments",
 ];
 
+function parseSiteId(siteId: string): number {
+  const parsed = Number(siteId);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Enter a valid positive numeric site ID.");
+  }
+
+  return parsed;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 function App() {
+  const [siteId, setSiteId] = useState("1");
+  const [history, setHistory] = useState<SiteHistory | null>(null);
+  const [attachments, setAttachments] = useState<SiteAttachmentsOut | null>(
+    null,
+  );
+  const [analysis, setAnalysis] = useState<SiteAnalysis | null>(null);
+  const [markdown, setMarkdown] = useState("");
+  const [error, setError] = useState<ApiErrorMessage>(null);
+  const [loading, setLoading] = useState<LoadingState>(null);
+
+  async function runAction(
+    actionName: NonNullable<LoadingState>,
+    action: (parsedSiteId: number) => Promise<void>,
+  ): Promise<void> {
+    try {
+      setError(null);
+      setLoading(actionName);
+      await action(parseSiteId(siteId));
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  function handleLoadHistory(): void {
+    void runAction("history", async (parsedSiteId) => {
+      const loadedHistory = await getSiteHistory(parsedSiteId);
+      setHistory(loadedHistory);
+    });
+  }
+
+  function handleLoadAttachments(): void {
+    void runAction("attachments", async (parsedSiteId) => {
+      const loadedAttachments = await getSiteAttachments(parsedSiteId);
+      setAttachments(loadedAttachments);
+    });
+  }
+
+  function handleRunAnalysis(): void {
+    void runAction("analysis", async (parsedSiteId) => {
+      const loadedAnalysis = await createSiteAnalysis(parsedSiteId);
+      setAnalysis(loadedAnalysis);
+    });
+  }
+
+  function handleGenerateMarkdown(): void {
+    void runAction("markdown", async (parsedSiteId) => {
+      const loadedMarkdown = await createSiteAnalysisMarkdown(parsedSiteId);
+      setMarkdown(loadedMarkdown);
+    });
+  }
+
+  function handleClear(): void {
+    setHistory(null);
+    setAttachments(null);
+    setAnalysis(null);
+    setMarkdown("");
+    setError(null);
+    setLoading(null);
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -62,8 +154,49 @@ function App() {
             </div>
           </div>
 
-          <div className="placeholder-box">
-            Site workflow components will go here.
+          <div className="panel-body">
+            <SiteSearchPanel
+              loading={loading}
+              siteId={siteId}
+              onClear={handleClear}
+              onGenerateMarkdown={handleGenerateMarkdown}
+              onLoadAttachments={handleLoadAttachments}
+              onLoadHistory={handleLoadHistory}
+              onRunAnalysis={handleRunAnalysis}
+              onSiteIdChange={setSiteId}
+            />
+
+            {error ? <div className="error-box">{error}</div> : null}
+
+            <div className="result-summary">
+              <div className="summary-card">
+                <span>History</span>
+                <strong>
+                  {history
+                    ? `${history.inspection_count} inspections`
+                    : "Not loaded"}
+                </strong>
+              </div>
+
+              <div className="summary-card">
+                <span>Attachments</span>
+                <strong>
+                  {attachments
+                    ? `${attachments.attachments.length} files`
+                    : "Not loaded"}
+                </strong>
+              </div>
+
+              <div className="summary-card">
+                <span>AI preview</span>
+                <strong>{analysis ? "Loaded" : "Not run"}</strong>
+              </div>
+
+              <div className="summary-card">
+                <span>Markdown</span>
+                <strong>{markdown ? "Generated" : "Not generated"}</strong>
+              </div>
+            </div>
           </div>
         </section>
 

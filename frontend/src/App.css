@@ -322,6 +322,72 @@ p {
   line-height: 1.5;
 }
 
+.panel-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.workflow-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+  padding: 14px;
+}
+
+.site-control {
+  display: grid;
+  gap: 6px;
+  max-width: 220px;
+}
+
+.site-control label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.site-id-input {
+  max-width: 160px;
+}
+
+.helper-text,
+.loading-text {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.loading-text {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.result-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.summary-card span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.summary-card strong {
+  font-size: 0.92rem;
+}
+
 @media (max-width: 950px) {
   .hero-panel {
     grid-template-columns: 1fr;
@@ -333,6 +399,10 @@ p {
 
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .result-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -347,6 +417,10 @@ p {
   }
 
   .workflow-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .result-summary {
     grid-template-columns: 1fr;
   }
 }

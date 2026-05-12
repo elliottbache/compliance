@@ -1,6 +1,7 @@
 """FastAPI application entrypoint for compliance API routes."""
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from compliance.api.routers import (
     attachments,
@@ -25,3 +26,11 @@ app.include_router(clients.router)
 app.include_router(certifiers.router)
 app.include_router(rules.router)
 app.include_router(regulations.router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
