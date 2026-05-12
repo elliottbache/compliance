@@ -23,7 +23,9 @@ repos:
                 build/|
                 dist/|
                 \.venv/|
-                pyproject\.toml
+                pyproject\.toml|
+                frontend/package-lock.json|
+                frontend/node_modules/
             )
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
