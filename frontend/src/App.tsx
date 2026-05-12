@@ -6,6 +6,7 @@ import {
   getSiteHistory,
 } from "./api/complianceApi";
 import { SiteSearchPanel } from "./components/SiteSearchPanel";
+import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -177,6 +178,7 @@ function App() {
                     : "Not loaded"}
                 </strong>
               </div>
+              <SiteHistoryPanel history={history} />
 
               <div className="summary-card">
                 <span>Attachments</span>
