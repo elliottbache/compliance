@@ -1,3 +1,5 @@
+import type { SiteAnalysis, SiteAttachmentsOut, SiteHistory } from "../types";
+
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
 export const API_BASE_URL = (
@@ -127,4 +129,59 @@ export async function postText(
     body: body === undefined ? undefined : JSON.stringify(body),
     ...options,
   });
+}
+
+function getDownloadFilename(response: Response, fallback: string): string {
+  const disposition = response.headers.get("content-disposition");
+
+  if (!disposition) {
+    return fallback;
+  }
+
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return match?.[1] ?? fallback;
+}
+
+export async function getSiteHistory(siteId: number): Promise<SiteHistory> {
+  return fetchJson<SiteHistory>(`/sites/${siteId}/history`);
+}
+
+export async function getSiteAttachments(
+  siteId: number,
+): Promise<SiteAttachmentsOut> {
+  return fetchJson<SiteAttachmentsOut>(`/sites/${siteId}/attachments`);
+}
+
+export async function createSiteAnalysis(
+  siteId: number,
+): Promise<SiteAnalysis> {
+  return postJson<SiteAnalysis>(`/sites/${siteId}/analysis`);
+}
+
+export async function createSiteAnalysisMarkdown(
+  siteId: number,
+): Promise<string> {
+  return postText(`/sites/${siteId}/analysis/markdown`);
+}
+
+export async function downloadSiteAnalysisMarkdown(siteId: number): Promise<{
+  blob: Blob;
+  filename: string;
+}> {
+  const response = await fetch(
+    buildUrl(`/sites/${siteId}/analysis/markdown/download`),
+    {
+      method: "POST",
+      headers: {
+        Accept: "text/markdown, text/plain, */*",
+      },
+    },
+  );
+
+  await assertOk(response);
+
+  return {
+    blob: await response.blob(),
+    filename: getDownloadFilename(response, `site-${siteId}-analysis.md`),
+  };
 }
