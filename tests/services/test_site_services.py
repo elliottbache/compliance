@@ -452,6 +452,19 @@ class TestGetSiteCertifications:
         assert "certifications.archived_at IS NULL" in str(stmt)
         assert "sites.archived_at IS NULL" in str(stmt)
 
+    def test_raises_when_site_is_archived_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        with pytest.raises(SiteNotFoundError):
+            get_site_certifications(sqlite_session, 12, limit=None, offset=0)
+
     def test_includes_archived_certifications_when_requested(self) -> None:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []

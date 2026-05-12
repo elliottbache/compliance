@@ -514,6 +514,26 @@ class TestGetSiteCertificationsRoute:
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No site for this id found: 999."
 
+    def test_returns_404_when_site_is_archived_by_default(self, monkeypatch) -> None:
+        def fake_get_site_certifications(
+            session, site_id, *, limit, offset, include_archived=False
+        ):
+            assert site_id == 12
+            assert include_archived is False
+            raise sites_router.SiteNotFoundError()
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_certifications",
+            fake_get_site_certifications,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            sites_router.get_site_certifications_route(object(), 12)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No site for this id found: 12."
+
     def test_registers_certification_list_response_model(self, main_module) -> None:
         route = next(
             route

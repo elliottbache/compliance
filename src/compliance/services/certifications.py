@@ -23,6 +23,7 @@ from compliance.db.models import (
 )
 from compliance.services._helpers import (
     archive_record_by_id,
+    certification_parent_chain_is_visible,
     format_attachment,
     get_constraint_name,
     record_is_visible,
@@ -163,7 +164,12 @@ def get_certification_attachments_by_id(
     """
     # check if certification exists
     certification = session.get(Certification, certification_id)
-    if not record_is_visible(certification, include_archived):
+    if certification is None or not record_is_visible(certification, include_archived):
+        return None
+
+    if not include_archived and not certification_parent_chain_is_visible(
+        session, certification
+    ):
         return None
 
     # get attachments for certification

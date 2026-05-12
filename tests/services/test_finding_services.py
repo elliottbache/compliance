@@ -8,7 +8,10 @@ from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, Finding
 from compliance.db.models import (
     Attachment,
     Certification,
+    Certifier,
+    Client,
     Finding,
+    Regulation,
     Rule,
     Site,
 )
@@ -141,10 +144,19 @@ class TestGetFindings:
     def test_checks_filter_parent_records_before_querying(self) -> None:
         session = MagicMock()
         session.get.side_effect = [
-            MagicMock(spec=Site),
-            MagicMock(spec=Certification),
-            MagicMock(spec=Rule),
-            MagicMock(spec=Attachment),
+            SimpleNamespace(archived_at=None),  # Site for site_id=71
+            SimpleNamespace(  # Certification for certification_id=100
+                archived_at=None,
+                site_id=71,
+                certifier_id=7,
+                regulation_id=5,
+            ),
+            SimpleNamespace(archived_at=None, nif="A1234567B"),  # parent Site
+            SimpleNamespace(archived_at=None),  # parent Client
+            SimpleNamespace(archived_at=None),  # parent Certifier
+            SimpleNamespace(archived_at=None),  # parent Regulation
+            SimpleNamespace(archived_at=None),  # Rule
+            SimpleNamespace(archived_at=None),  # Attachment
         ]
         session.execute.return_value.mappings.return_value.all.return_value = []
 
@@ -160,6 +172,10 @@ class TestGetFindings:
         assert session.get.call_args_list == [
             ((Site, 71),),
             ((Certification, 100),),
+            ((Site, 71),),
+            ((Client, "A1234567B"),),
+            ((Certifier, 7),),
+            ((Regulation, 5),),
             ((Rule, 5),),
             ((Attachment, 50),),
         ]

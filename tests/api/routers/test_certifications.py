@@ -463,6 +463,30 @@ class TestGetCertificationAttachmentsByIdRoute:
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No certification for this id found: 999"
 
+    def test_returns_404_when_certification_is_archived_by_default(
+        self, main_module, monkeypatch
+    ) -> None:
+        def fake_get_certification_attachments_by_id(
+            session, certification_id, *, include_archived=False
+        ):
+            assert certification_id == 100
+            assert include_archived is False
+            return None
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_attachments_by_id",
+            fake_get_certification_attachments_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.get_certification_attachments_by_id_route(
+                object(), 100
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No certification for this id found: 100"
+
     def test_registers_certification_attachments_response_model(
         self, main_module
     ) -> None:
@@ -503,6 +527,7 @@ class TestGetCertificationFindingsRoute:
             assert rule_id is None
             assert attachment_id is None
             assert open_only is False
+            assert include_archived is False
             return [finding_factory()]
 
         monkeypatch.setattr(
@@ -622,6 +647,7 @@ class TestGetCertificationFindingsRoute:
             assert rule_id is None
             assert attachment_id is None
             assert open_only is False
+            assert include_archived is False
             return expected_findings
 
         monkeypatch.setattr(
@@ -685,6 +711,28 @@ class TestGetCertificationFindingsRoute:
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No certification for this id found: 999"
+
+    def test_returns_404_when_certification_is_archived_by_default(
+        self, monkeypatch
+    ) -> None:
+        def fake_get_certification_by_id(
+            session, certification_id, *, include_archived=False
+        ):
+            assert certification_id == 100
+            assert include_archived is False
+            return None
+
+        monkeypatch.setattr(
+            certifications_router,
+            "get_certification_by_id",
+            fake_get_certification_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.get_certification_findings_route(object(), 100)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No certification for this id found: 100"
 
     def test_registers_certification_findings_response_model(self, main_module) -> None:
         route = next(

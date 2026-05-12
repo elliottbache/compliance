@@ -392,6 +392,20 @@ class TestGetClientSitesRoute:
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client A1234567B not found."
 
+    def test_returns_404_when_client_is_archived_by_default(self, monkeypatch) -> None:
+        def fake_get_client_by_nif(session, nif, *, include_archived=False):
+            assert nif == "A1234567B"
+            assert include_archived is False
+            return None
+
+        monkeypatch.setattr(clients_router, "get_client_by_nif", fake_get_client_by_nif)
+
+        with pytest.raises(HTTPException) as exc_info:
+            clients_router.get_client_sites_route(object(), "A1234567B")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Client A1234567B not found."
+
     def test_registers_client_sites_response_model(self, main_module) -> None:
         route = next(
             route

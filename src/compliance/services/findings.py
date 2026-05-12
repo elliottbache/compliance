@@ -21,6 +21,7 @@ from compliance.db.models import (
 )
 from compliance.services._helpers import (
     archive_record_by_id,
+    certification_parent_chain_is_visible,
     record_is_visible,
     restore_record_by_id,
 )
@@ -36,6 +37,10 @@ class FindingMissingError(Exception):
 
 class FindingMissingSiteError(FindingMissingError):
     """Raised when a finding query references a missing site."""
+
+
+class FindingMissingCertificationChainError(FindingMissingError):
+    """Raised when a finding references a missing certification."""
 
 
 class FindingMissingCertificationError(FindingMissingError):
@@ -133,8 +138,16 @@ def get_findings(
 
     if certification_id is not None:
         certification = session.get(Certification, certification_id)
-        if not record_is_visible(certification, include_archived):
+        if certification is None or not record_is_visible(
+            certification, include_archived
+        ):
             raise FindingMissingCertificationError(certification_id)
+
+        if not include_archived and not certification_parent_chain_is_visible(
+            session, certification
+        ):
+            raise FindingMissingCertificationChainError(certification_id)
+
         stmt = stmt.where(Certification.id == certification_id)
 
     if rule_id is not None:

@@ -10,6 +10,13 @@ from compliance.api.schemas import (
     ArchiveRequest,
     AttachmentWithContextOut,
 )
+from compliance.db.models import (
+    Certification,
+    Certifier,
+    Client,
+    Regulation,
+    Site,
+)
 from compliance.schemas import FindingHistory
 
 
@@ -132,6 +139,26 @@ def restore_record_by_id(
         session.commit()
 
     return record
+
+
+def certification_parent_chain_is_visible(
+    session: Session,
+    certification: Certification,
+) -> bool:
+    site = session.get(Site, certification.site_id)
+    if site is None or not record_is_visible(site, include_archived=False):
+        return False
+
+    client = session.get(Client, site.nif)
+    if not record_is_visible(client, include_archived=False):
+        return False
+
+    certifier = session.get(Certifier, certification.certifier_id)
+    if not record_is_visible(certifier, include_archived=False):
+        return False
+
+    regulation = session.get(Regulation, certification.regulation_id)
+    return record_is_visible(regulation, include_archived=False)
 
 
 def _build_finding_history_from_site_attachments(row: Mapping) -> FindingHistory:

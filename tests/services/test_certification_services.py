@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +13,9 @@ from compliance.api.schemas import (
 )
 from compliance.db.models import (
     Certification,
+    Certifier,
+    Client,
+    Regulation,
     Site,
 )
 from compliance.services.certifications import (
@@ -228,20 +231,74 @@ class TestGetCertificationAttachmentsById:
         session.execute.assert_not_called()
         assert result is None
 
+    def test_returns_none_when_certification_is_archived_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            certification_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "superseded",
+            },
+        )
+
+        result = get_certification_attachments_by_id(sqlite_session, 42)
+
+        assert result is None
+
     def test_returns_empty_attachment_list_when_certification_has_no_attachments(
         self,
     ) -> None:
         session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
+
+        certification = SimpleNamespace(
+            archived_at=None,
+            site_id=12,
+            certifier_id=7,
+            regulation_id=3,
+        )
+        site = SimpleNamespace(archived_at=None, nif="A1234567B")
+        client = SimpleNamespace(archived_at=None)
+        certifier = SimpleNamespace(archived_at=None)
+        regulation = SimpleNamespace(archived_at=None)
+
+        session.get.side_effect = [
+            certification,
+            site,
+            client,
+            certifier,
+            regulation,
+        ]
         session.execute.return_value.mappings.return_value.all.return_value = []
 
         result = get_certification_attachments_by_id(session, 100)
 
-        session.get.assert_called_once_with(Certification, 100)
         session.execute.assert_called_once()
+        assert session.get.call_args_list == [
+            call(Certification, 100),
+            call(Site, 12),
+            call(Client, "A1234567B"),
+            call(Certifier, 7),
+            call(Regulation, 3),
+        ]
         assert result == CertificationAttachmentsOut(
             certification_id=100,
             attachments=[],
+        )
+
+    def test_omits_archived_attachments_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            attachment_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "duplicate",
+            },
+        )
+
+        result = get_certification_attachments_by_id(sqlite_session, 42)
+
+        assert result == CertificationAttachmentsOut(
+            certification_id=42, attachments=[]
         )
 
     def test_formats_certification_attachments_when_query_returns_rows(
@@ -249,18 +306,53 @@ class TestGetCertificationAttachmentsById:
     ) -> None:
         rows = [attachment_out_factory()]
         session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
+
+        certification = SimpleNamespace(
+            archived_at=None,
+            site_id=12,
+            certifier_id=7,
+            regulation_id=3,
+        )
+        site = SimpleNamespace(archived_at=None, nif="A1234567B")
+        client = SimpleNamespace(archived_at=None)
+        certifier = SimpleNamespace(archived_at=None)
+        regulation = SimpleNamespace(archived_at=None)
+
+        session.get.side_effect = [
+            certification,
+            site,
+            client,
+            certifier,
+            regulation,
+        ]
         session.execute.return_value.mappings.return_value.all.return_value = rows
 
         result = get_certification_attachments_by_id(session, 100)
 
-        session.get.assert_called_once_with(Certification, 100)
         session.execute.assert_called_once()
         assert result == _format_certification_attachments(rows)
 
     def test_orders_attachments_by_attachment_id_then_finding_id(self) -> None:
         session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
+
+        certification = SimpleNamespace(
+            archived_at=None,
+            site_id=12,
+            certifier_id=7,
+            regulation_id=3,
+        )
+        site = SimpleNamespace(archived_at=None, nif="A1234567B")
+        client = SimpleNamespace(archived_at=None)
+        certifier = SimpleNamespace(archived_at=None)
+        regulation = SimpleNamespace(archived_at=None)
+
+        session.get.side_effect = [
+            certification,
+            site,
+            client,
+            certifier,
+            regulation,
+        ]
         session.execute.return_value.mappings.return_value.all.return_value = []
 
         get_certification_attachments_by_id(session, 100)
@@ -270,7 +362,25 @@ class TestGetCertificationAttachmentsById:
 
     def test_excludes_archived_attachments_by_default(self) -> None:
         session = MagicMock()
-        session.get.return_value = MagicMock(spec=Certification)
+
+        certification = SimpleNamespace(
+            archived_at=None,
+            site_id=12,
+            certifier_id=7,
+            regulation_id=3,
+        )
+        site = SimpleNamespace(archived_at=None, nif="A1234567B")
+        client = SimpleNamespace(archived_at=None)
+        certifier = SimpleNamespace(archived_at=None)
+        regulation = SimpleNamespace(archived_at=None)
+
+        session.get.side_effect = [
+            certification,
+            site,
+            client,
+            certifier,
+            regulation,
+        ]
         session.execute.return_value.mappings.return_value.all.return_value = []
 
         get_certification_attachments_by_id(session, 100)
