@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from compliance.api.schemas import ArchiveRequest, SiteCertificationsOut, SiteCreate
+from compliance.api.schemas import (
+    ArchiveRequest,
+    SiteAttachmentsOut,
+    SiteCertificationsOut,
+    SiteCreate,
+)
 from compliance.db.models import (
     Certification,
     Client,
@@ -21,6 +26,7 @@ from compliance.services.certifications import (
 from compliance.services.sites import (
     SiteClientNotFoundError,
     SiteConflictError,
+    SiteNotFoundError,
     _build_finding_history_from_site_history,
     _format_site_attachments,
     _format_site_history,
@@ -293,26 +299,18 @@ class TestGetSites:
 
 
 class TestGetSiteById:
-    def test_gets_site_by_id_from_session(self, site_row_factory) -> None:
-        session = MagicMock()
-        expected_site = site_row_factory()
-        session.execute.return_value.scalar_one_or_none.return_value = expected_site
+    def test_gets_site_by_id_from_session(self, sqlite_session, db_factory) -> None:
+        db_factory()
 
-        result = get_site_by_id(session, 12)
+        result = get_site_by_id(sqlite_session, 12)
 
-        stmt = session.execute.call_args.args[0]
-        assert "JOIN clients" in str(stmt)
-        assert "sites.id = :id_1" in str(stmt)
-        assert result is expected_site
+        assert result.id == 12
 
-    def test_returns_none_when_site_is_not_found(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalar_one_or_none.return_value = None
+    def test_raises_when_site_is_not_found(self, sqlite_session, db_factory) -> None:
+        db_factory()
 
-        result = get_site_by_id(session, 999)
-
-        session.execute.assert_called_once()
-        assert result is None
+        with pytest.raises(SiteNotFoundError):
+            get_site_by_id(sqlite_session, 999)
 
     def test_includes_archived_site_by_default(
         self, sqlite_session, db_factory
@@ -329,17 +327,20 @@ class TestGetSiteById:
         assert result is not None
         assert result.archive_reason == "closed"
 
-    def test_returns_archived_site_when_requested(self, site_row_factory) -> None:
-        session = MagicMock()
-        site = site_row_factory(archived_at=datetime(2026, 5, 7))
-        session.execute.return_value.scalar_one_or_none.return_value = site
+    def test_returns_archived_site_when_requested(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
 
-        result = get_site_by_id(session, 12, include_archived=True)
+        result = get_site_by_id(sqlite_session, 12, include_archived=True)
 
-        stmt = session.execute.call_args.args[0]
-        assert "sites.archived_at IS NULL" not in str(stmt)
-        assert "clients.archived_at IS NULL" not in str(stmt)
-        assert result is site
+        assert result.id == 12
+        assert result.archive_reason == "closed"
 
 
 class TestPostNewSite:
@@ -536,7 +537,7 @@ class TestGetSiteAttachments:
         result = get_site_attachments(session, 71)
 
         session.execute.assert_called_once()
-        assert result is None
+        assert result == SiteAttachmentsOut(site_id=71, attachments=[])
 
     def test_formats_site_attachments_when_query_returns_rows(
         self, attachment_out_factory
@@ -573,6 +574,32 @@ class TestGetSiteAttachments:
         assert "attachments.archived_at IS NULL" not in str(stmt)
         assert "findings.archived_at IS NULL" not in str(stmt)
         assert "rules.archived_at IS NULL" not in str(stmt)
+
+    def test_excludes_attachments_from_archived_sites_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        with pytest.raises(SiteNotFoundError):
+            get_site_attachments(sqlite_session, 12)
+
+    def test_excludes_attachments_from_archived_clients_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        with pytest.raises(SiteClientNotFoundError):
+            get_site_attachments(sqlite_session, 12)
 
 
 class TestFormatSiteHistory:

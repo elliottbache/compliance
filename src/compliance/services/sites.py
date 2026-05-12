@@ -40,6 +40,10 @@ class SiteClientNotFoundError(SiteConflictError):
     """Raised when a site references a missing client."""
 
 
+class SiteNotFoundError(SiteConflictError):
+    """Raised when a site references a missing ID."""
+
+
 def get_sites(
     session: Session,
     *,
@@ -83,14 +87,22 @@ def get_sites(
 
 def get_site_by_id(
     session: Session, site_id: int, *, include_archived: bool = True
-) -> Site | None:
+) -> Site:
     """Return one site by primary key when it and its parent client are visible."""
+    site = session.get(Site, site_id)
+    if site is None or not record_is_visible(site, include_archived):
+        raise SiteNotFoundError(site)
+
+    client = session.get(Client, site.nif)
+    if not record_is_visible(client, include_archived):
+        raise SiteClientNotFoundError(client)
+
     stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
     if not include_archived:
         stmt = stmt.where(Site.archived_at.is_(None))
         stmt = stmt.where(Client.archived_at.is_(None))
 
-    return session.execute(stmt).scalar_one_or_none()
+    return session.execute(stmt).scalar_one()
 
 
 def get_site_history_legacy(site_id: int) -> SiteHistory | None:
@@ -178,7 +190,7 @@ def get_site_history(
 
     # perform query
     site = session.get(Site, site_id)
-    if not record_is_visible(site, include_archived):
+    if site is None or not record_is_visible(site, include_archived):
         return None
 
     finding_join_condition = Finding.certification_id == Certification.id
@@ -223,7 +235,7 @@ def get_site_history(
 
 def get_site_attachments(
     session: Session, site_id: int, *, include_archived: bool = False
-) -> SiteAttachmentsOut | None:
+) -> SiteAttachmentsOut:
     """Retrieve attachment records for a site with certification and finding context.
 
     Args:
@@ -236,12 +248,19 @@ def get_site_attachments(
             context without hiding otherwise visible attachments.
 
     Returns:
-        A formatted attachment collection for the visible site, or ``None`` if
-        the site is not visible or no matching visible attachment records exist.
+        A formatted attachment collection for the visible site.
+
+    Raises:
+        SiteNotFoundError if the site id doesn't correspond to any visible ID.
+        SiteClientNotFoundError if the site NIF doesn't correspond to any visible NIF.
     """
     site = session.get(Site, site_id)
-    if not record_is_visible(site, include_archived):
-        return None
+    if site is None or not record_is_visible(site, include_archived):
+        raise SiteNotFoundError(site_id)
+
+    client = session.get(Client, site.nif)
+    if not record_is_visible(client, include_archived):
+        raise SiteClientNotFoundError(site.nif)
 
     finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
         Finding.certification_id == FindingAttachment.certification_id
@@ -276,9 +295,12 @@ def get_site_attachments(
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
 
+    stmt = stmt.order_by(Attachment.id, Finding.id)
+
     results = session.execute(stmt).mappings().all()
     if not results:
-        return None
+        return SiteAttachmentsOut(site_id=site_id, attachments=[])
+
     return _format_site_attachments(results)
 
 
@@ -300,13 +322,25 @@ def get_site_certifications(
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
             results.
-        include_archived: When true, include archived site and certification
-            records in the results.
+        include_archived: When true, include archived site, parent client,
+            and certification records.
 
     Returns:
         A list of visible certification ORM objects ordered by resolution date
         descending and then ID, or [] if no matching certifications exist.
+
+    Raises:
+        SiteNotFoundError if the site id doesn't correspond to any visible ID.
+        SiteClientNotFoundError if the site NIF doesn't correspond to any visible NIF.
     """
+    site = session.get(Site, site_id)
+    if site is None or not record_is_visible(site, include_archived):
+        raise SiteNotFoundError(site_id)
+
+    client = session.get(Client, site.nif)
+    if not record_is_visible(client, include_archived):
+        raise SiteClientNotFoundError(site.nif)
+
     stmt = (
         select(Certification)
         .where(Certification.site_id == site_id)

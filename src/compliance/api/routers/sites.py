@@ -26,6 +26,7 @@ from compliance.services.site_analysis import (
 from compliance.services.sites import (
     SiteClientNotFoundError,
     SiteConflictError,
+    SiteNotFoundError,
     format_site_certifications,
     get_site_attachments,
     get_site_by_id,
@@ -94,11 +95,16 @@ def get_site_by_id_route(
     Raises:
         HTTPException: If no visible site exists for the requested ID.
     """
-    site = get_site_by_id(session, site_id, include_archived=include_archived)
-    if site is None:
+    try:
+        site = get_site_by_id(session, site_id, include_archived=include_archived)
+    except SiteNotFoundError as err:
         raise HTTPException(
-            status_code=404, detail=f"No site for this id found: {site_id}"
-        )
+            status_code=404, detail=f"No site for this id found: {site_id}."
+        ) from err
+    except SiteClientNotFoundError as err:
+        raise HTTPException(
+            status_code=404, detail=f"No client for this NIF found {site_id}."
+        ) from err
 
     return SiteOut.model_validate(site)
 
@@ -106,7 +112,7 @@ def get_site_by_id_route(
 @router.get("/{site_id}/attachments")
 def get_site_attachments_route(
     session: SessionDep,
-    site_id: int,
+    site_id: Annotated[int, Path(ge=1)],
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteAttachmentsOut:
     """Return attachment details for one site.
@@ -126,19 +132,27 @@ def get_site_attachments_route(
         attachments.
 
     Raises:
-        HTTPException: If no visible site exists for the requested ID.
+        HTTPException: If no visible site exists for the requested ID or NIF.
     """
-    site = get_site_by_id(session, site_id, include_archived=include_archived)
-    if site is None:
-        raise HTTPException(
-            status_code=404, detail=f"No site for this id found: {site_id}"
+    try:
+        site_attachments = get_site_attachments(
+            session,
+            site_id,
+            include_archived=include_archived,
         )
+    except SiteNotFoundError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No site for this id found: {site_id}.",
+        ) from err
+    except SiteClientNotFoundError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No client for this site found: {site_id}.",
+        ) from err
 
-    site_attachments = get_site_attachments(
-        session, site_id, include_archived=include_archived
-    )
     if site_attachments is None:
-        return SiteAttachmentsOut(site_id=site_id, attachments=[])
+        return SiteAttachmentsOut(site_id=site_id, attachments=list())
 
     return SiteAttachmentsOut.model_validate(site_attachments)
 
@@ -161,29 +175,34 @@ def get_site_certifications_route(
             matching certifications are returned.
         offset: Number of matching certifications to skip before returning
             results.
-        include_archived: When true, include archived site and certification
-            records.
+        include_archived: When true, include archived site, parent client, and
+            certification records.
 
     Returns:
         Site certifications serialized with the public API response schema, or
         an empty certification list when the site exists without certifications.
 
     Raises:
-        HTTPException: If no visible site exists for the requested ID.
+        HTTPException: If no visible site exists for the requested ID, or if
+            the site's parent client is not visible.
     """
-    site = get_site_by_id(session, site_id, include_archived=include_archived)
-    if site is None:
-        raise HTTPException(
-            status_code=404, detail=f"No site for this id found: {site_id}"
-        )
 
-    results = get_site_certifications(
-        session,
-        site_id,
-        limit=limit,
-        offset=offset,
-        include_archived=include_archived,
-    )
+    try:
+        results = get_site_certifications(
+            session,
+            site_id,
+            limit=limit,
+            offset=offset,
+            include_archived=include_archived,
+        )
+    except SiteNotFoundError as err:
+        raise HTTPException(
+            status_code=404, detail=f"No site for this id found: {site_id}."
+        ) from err
+    except SiteClientNotFoundError as err:
+        raise HTTPException(
+            status_code=404, detail=f"No client for this site found: {site_id}."
+        ) from err
 
     return format_site_certifications(site_id, results)
 
