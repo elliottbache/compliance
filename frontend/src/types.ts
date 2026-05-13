@@ -137,6 +137,7 @@ export type RegulationRecord = ArchivedFields & {
   id: number;
   title: string;
   description: string;
+  published_date: string;
 };
 
 export type RuleRecord = ArchivedFields & {

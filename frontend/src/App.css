@@ -782,6 +782,10 @@ p {
   max-width: 220px;
 }
 
+.admin-textarea {
+  min-height: 90px;
+}
+
 @media (max-width: 950px) {
   .hero-panel {
     grid-template-columns: 1fr;
@@ -838,7 +842,7 @@ p {
   .badge-row {
     justify-content: flex-start;
   }
-  
+
   .admin-record-header {
     flex-direction: column;
   }
