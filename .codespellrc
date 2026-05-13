@@ -1,3 +1,0 @@
-[codespell]
-skip = ./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,./backend/pyproject.toml,./build*,./backend/htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist,./frontend/dist/*
-ignore-words-list = teh,nd,seh,atleast,atmost,deques,ser,requeried
