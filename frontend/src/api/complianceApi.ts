@@ -1,4 +1,9 @@
-import type { SiteAnalysis, SiteAttachmentsOut, SiteHistory } from "../types";
+import type {
+  ArchiveRequest,
+  SiteAnalysis,
+  SiteAttachmentsOut,
+  SiteHistory,
+} from "../types";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
@@ -18,9 +23,62 @@ export class ApiError extends Error {
   }
 }
 
+type RecordId = number | string;
+
+type QueryValue = string | number | boolean | null | undefined;
+
+type QueryParams = Record<string, QueryValue>;
+
+export const ADMIN_RESOURCE_PATHS = {
+  sites: "/sites",
+  clients: "/clients",
+  certifiers: "/certifiers",
+  regulations: "/regulations",
+  rules: "/rules",
+  certifications: "/certifications",
+  findings: "/findings",
+  attachments: "/attachments",
+} as const;
+
+export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PATHS;
+
 function buildUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
+}
+
+function encodeRecordId(recordId: RecordId): string {
+  return encodeURIComponent(String(recordId));
+}
+
+function mergeHeaders(
+  defaultHeaders: HeadersInit,
+  customHeaders?: HeadersInit,
+): Headers {
+  const headers = new Headers(defaultHeaders);
+
+  if (customHeaders) {
+    new Headers(customHeaders).forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  return headers;
+}
+
+function buildQueryString(params: QueryParams = {}): string {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined) {
+      continue;
+    }
+
+    searchParams.set(key, String(value));
+  }
+
+  const queryString = searchParams.toString();
+  return queryString ? `?${queryString}` : "";
 }
 
 function stringifyDetail(detail: unknown): string {
@@ -71,12 +129,16 @@ export async function fetchJson<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const { headers, ...restOptions } = options;
+
   const response = await fetch(buildUrl(path), {
-    headers: {
-      Accept: "application/json",
-      ...(options.headers ?? {}),
-    },
-    ...options,
+    ...restOptions,
+    headers: mergeHeaders(
+      {
+        Accept: "application/json",
+      },
+      headers,
+    ),
   });
 
   await assertOk(response);
@@ -87,12 +149,16 @@ export async function fetchText(
   path: string,
   options: RequestInit = {},
 ): Promise<string> {
+  const { headers, ...restOptions } = options;
+
   const response = await fetch(buildUrl(path), {
-    headers: {
-      Accept: "text/plain, text/markdown, */*",
-      ...(options.headers ?? {}),
-    },
-    ...options,
+    ...restOptions,
+    headers: mergeHeaders(
+      {
+        Accept: "text/plain, text/markdown, */*",
+      },
+      headers,
+    ),
   });
 
   await assertOk(response);
@@ -104,14 +170,18 @@ export async function postJson<T>(
   body?: unknown,
   options: RequestInit = {},
 ): Promise<T> {
+  const { headers, ...restOptions } = options;
+
   return fetchJson<T>(path, {
+    ...restOptions,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
+    headers: mergeHeaders(
+      {
+        "Content-Type": "application/json",
+      },
+      headers,
+    ),
     body: body === undefined ? undefined : JSON.stringify(body),
-    ...options,
   });
 }
 
@@ -120,26 +190,19 @@ export async function postText(
   body?: unknown,
   options: RequestInit = {},
 ): Promise<string> {
+  const { headers, ...restOptions } = options;
+
   return fetchText(path, {
+    ...restOptions,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
+    headers: mergeHeaders(
+      {
+        "Content-Type": "application/json",
+      },
+      headers,
+    ),
     body: body === undefined ? undefined : JSON.stringify(body),
-    ...options,
   });
-}
-
-function getDownloadFilename(response: Response, fallback: string): string {
-  const disposition = response.headers.get("content-disposition");
-
-  if (!disposition) {
-    return fallback;
-  }
-
-  const match = disposition.match(/filename="?([^"]+)"?/i);
-  return match?.[1] ?? fallback;
 }
 
 export async function getSiteHistory(siteId: number): Promise<SiteHistory> {
@@ -158,30 +221,46 @@ export async function createSiteAnalysis(
   return postJson<SiteAnalysis>(`/sites/${siteId}/analysis`);
 }
 
-export async function createSiteAnalysisMarkdown(
-  siteId: number,
-): Promise<string> {
-  return postText(`/sites/${siteId}/analysis/markdown`);
+export async function listAdminRecords<T>(
+  resourcePath: string,
+  options: { includeArchived?: boolean } = {},
+): Promise<T[]> {
+  const queryString = buildQueryString({
+    include_archived: options.includeArchived ? true : undefined,
+  });
+
+  return fetchJson<T[]>(`${resourcePath}${queryString}`);
 }
 
-export async function downloadSiteAnalysisMarkdown(siteId: number): Promise<{
-  blob: Blob;
-  filename: string;
-}> {
-  const response = await fetch(
-    buildUrl(`/sites/${siteId}/analysis/markdown/download`),
-    {
-      method: "POST",
-      headers: {
-        Accept: "text/markdown, text/plain, */*",
-      },
-    },
-  );
+export async function createAdminRecord<TPayload, TResponse>(
+  resourcePath: string,
+  payload: TPayload,
+): Promise<TResponse> {
+  return postJson<TResponse>(resourcePath, payload);
+}
 
-  await assertOk(response);
+export async function archiveAdminRecord<TResponse>(
+  resourcePath: string,
+  recordId: RecordId,
+  archiveReason?: string,
+): Promise<TResponse> {
+  const reason = archiveReason?.trim();
 
-  return {
-    blob: await response.blob(),
-    filename: getDownloadFilename(response, `site-${siteId}-analysis.md`),
+  const payload: ArchiveRequest = {
+    archive_reason: reason || null,
   };
+
+  return postJson<TResponse>(
+    `${resourcePath}/${encodeRecordId(recordId)}/archive`,
+    payload,
+  );
+}
+
+export async function restoreAdminRecord<TResponse>(
+  resourcePath: string,
+  recordId: RecordId,
+): Promise<TResponse> {
+  return postJson<TResponse>(
+    `${resourcePath}/${encodeRecordId(recordId)}/restore`,
+  );
 }
