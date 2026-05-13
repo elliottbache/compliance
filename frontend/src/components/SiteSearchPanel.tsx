@@ -100,7 +100,7 @@ export function SiteSearchPanel({
       ) : null}
 
       <p className="helper-text">
-        AI calls only run when you click the analysis or Markdown buttons.
+        AI calls only run when you click the "Run AI Analysis" buttons.
       </p>
     </section>
   );
