@@ -145,25 +145,6 @@ export async function fetchJson<T>(
   return response.json() as Promise<T>;
 }
 
-export async function fetchText(
-  path: string,
-  options: RequestInit = {},
-): Promise<string> {
-  const { headers, ...restOptions } = options;
-
-  const response = await fetch(buildUrl(path), {
-    ...restOptions,
-    headers: mergeHeaders(
-      {
-        Accept: "text/plain, text/markdown, */*",
-      },
-      headers,
-    ),
-  });
-
-  await assertOk(response);
-  return response.text();
-}
 
 export async function postJson<T>(
   path: string,
@@ -173,26 +154,6 @@ export async function postJson<T>(
   const { headers, ...restOptions } = options;
 
   return fetchJson<T>(path, {
-    ...restOptions,
-    method: "POST",
-    headers: mergeHeaders(
-      {
-        "Content-Type": "application/json",
-      },
-      headers,
-    ),
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-}
-
-export async function postText(
-  path: string,
-  body?: unknown,
-  options: RequestInit = {},
-): Promise<string> {
-  const { headers, ...restOptions } = options;
-
-  return fetchText(path, {
     ...restOptions,
     method: "POST",
     headers: mergeHeaders(

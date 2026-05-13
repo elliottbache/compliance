@@ -25,6 +25,10 @@ build/
 *.sql
 *.log
 
+# attachment storage
+backend/storage/attachments/*
+!backend/storage/attachments/.gitkeep
+
 ### SQLAlchemy & Environment ###
 # Sensitive configuration (credentials, DB URLs)
 .env

@@ -16,6 +16,60 @@ consistent report generation without replacing human technical judgment. Over ti
 intended to add tightly controlled AI assistance for tasks like summarization, drafting, and 
 comparison of past certifications while keeping factual retrieval and validation in code.
 
+## Frontend
+
+The frontend is a thin React/Vite/TypeScript dashboard for the compliance MVP. It expects the FastAPI backend to be running separately.
+
+### Requirements
+
+- Node.js / npm
+- Running FastAPI backend at `http://localhost:8000`
+
+### Setup
+
+From the repository root:
+
+    cd frontend
+    npm install
+    cp .env.example .env
+
+On Windows PowerShell:
+
+    cd frontend
+    npm install
+    Copy-Item .env.example .env
+
+### Environment variables
+
+`frontend/.env` should contain:
+
+    VITE_API_BASE_URL=http://localhost:8000
+
+Change this value if the backend runs on another host or port.
+
+### Run locally
+
+Start the backend first, for example:
+
+    uvicorn compliance.api.main:app --reload
+
+Then start the frontend:
+
+    cd frontend
+    npm run dev
+
+Open:
+
+    http://localhost:5173
+
+### Build check
+
+    cd frontend
+    npm run build
+
+### Notes
+
+The frontend does not run AI automatically. AI analysis is only requested when the user clicks **Run AI Analysis**. Generated Markdown is created from the currently loaded AI analysis in browser state and is not persisted after page refresh.
 
 ## TODO
 - Add local model option to use for site analysis.

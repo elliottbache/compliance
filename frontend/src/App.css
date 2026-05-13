@@ -57,8 +57,7 @@ button:disabled {
   opacity: 0.6;
 }
 
-.button:disabled,
-.section-button:disabled {
+.button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -225,16 +224,6 @@ p {
 .panel-header p {
   margin-bottom: 0;
   font-size: 0.9rem;
-}
-
-.placeholder-box {
-  margin: 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--panel-muted);
-  padding: 48px 16px;
-  color: var(--text-soft);
-  text-align: center;
 }
 
 .button-row {
@@ -809,10 +798,6 @@ p {
 
   .workflow-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
   }
 
   .result-summary {
