@@ -2,7 +2,6 @@ import contextlib
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-
 from compliance.db.db_access import (
     _build_db_url,
     get_db,

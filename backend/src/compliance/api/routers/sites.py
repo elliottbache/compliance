@@ -2,10 +2,6 @@ from json import JSONDecodeError
 from typing import Annotated
 
 from anthropic import APIError
-from fastapi import APIRouter, HTTPException, Path, Query, Response
-from pydantic import ValidationError
-from sqlalchemy.orm import Session
-
 from compliance._helpers import validate_llm_references
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
@@ -37,6 +33,9 @@ from compliance.services.sites import (
     post_site_archived_by_id,
     post_site_restored_by_id,
 )
+from fastapi import APIRouter, HTTPException, Path, Query, Response
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 

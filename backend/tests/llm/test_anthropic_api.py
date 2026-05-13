@@ -2,11 +2,9 @@ import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import compliance.llm.anthropic_api as anthropic_api
 import pytest
 from anthropic.types import TextBlock
-from pydantic import BaseModel, ValidationError
-
-import compliance.llm.anthropic_api as anthropic_api
 from compliance.llm.anthropic_api import (
     _call_model,
     _convert_base_model_to_json_schema,
@@ -17,6 +15,7 @@ from compliance.llm.anthropic_api import (
     _parse_message_to_string,
     call_structured_model,
 )
+from pydantic import BaseModel, ValidationError
 
 
 @pytest.fixture

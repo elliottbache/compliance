@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
-
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ArchiveRequest,
@@ -22,6 +20,7 @@ from compliance.services.attachments import (
     post_attachment_restored_by_id,
     post_new_attachment,
 )
+from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 

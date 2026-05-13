@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from compliance.api.schemas import (
     ArchiveRequest,
     CertificationAttachmentsOut,
@@ -31,6 +29,7 @@ from compliance.services.certifications import (
     post_certification_restored_by_id,
     post_new_certification,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 def _certification_create(**overrides) -> CertificationCreate:

@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
-
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ArchiveRequest,
@@ -18,6 +16,7 @@ from compliance.services.rules import (
     post_rule_archived_by_id,
     post_rule_restored_by_id,
 )
+from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 

@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from compliance.api.schemas import ArchiveRequest, AttachmentWithContextOut
 from compliance.schemas import FindingHistory
 from compliance.services._helpers import (
@@ -15,6 +13,7 @@ from compliance.services._helpers import (
     record_is_visible,
     restore_record_by_id,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 class TestFormatAttachment:

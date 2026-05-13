@@ -1,9 +1,8 @@
 from datetime import UTC, date, datetime
 
 import pytest
-from fastapi import HTTPException
-
 from compliance.api.routers import attachments as attachments_router
+from fastapi import HTTPException
 
 
 def attachment_out_factory(**overrides):

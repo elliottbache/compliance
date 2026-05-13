@@ -2,9 +2,8 @@ from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from compliance.api.routers import certifications as certifications_router
+from fastapi import HTTPException
 
 
 class TestGetCertificationsRoute:

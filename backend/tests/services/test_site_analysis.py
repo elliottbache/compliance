@@ -2,9 +2,8 @@ import json
 from datetime import date
 from unittest.mock import patch
 
-import pytest
-
 import compliance.llm.anthropic_api as anthropic_api
+import pytest
 from compliance.llm.schemas import (
     SiteAnalysis,
 )

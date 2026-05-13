@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from compliance.api.schemas import (
     ArchiveRequest,
     SiteAttachmentsOut,
@@ -41,6 +39,7 @@ from compliance.services.sites import (
     post_site_archived_by_id,
     post_site_restored_by_id,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 @pytest.fixture

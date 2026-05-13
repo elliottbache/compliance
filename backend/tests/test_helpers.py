@@ -2,7 +2,6 @@ from datetime import date
 from unittest.mock import call, patch
 
 import pytest
-
 from compliance._helpers import _validate_evidence_ref, validate_llm_references
 from compliance.llm.schemas import (
     EvidenceRef,

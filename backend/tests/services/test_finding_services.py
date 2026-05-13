@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,

@@ -2,8 +2,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from compliance.api.schemas import (
     ArchiveRequest,
     CertifierCreate,
@@ -18,6 +16,7 @@ from compliance.services.certifiers import (
     post_certifier_restored_by_id,
     post_new_certifier,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 def _certifier(**overrides) -> Certifier:

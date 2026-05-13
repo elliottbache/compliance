@@ -1,8 +1,7 @@
 import pytest
+from compliance.db.models import Base
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
-
-from compliance.db.models import Base
 
 
 @pytest.fixture

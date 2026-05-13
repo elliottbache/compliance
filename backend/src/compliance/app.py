@@ -1,5 +1,5 @@
-from compliance.services.query_history import get_site_history_legacy
 from compliance.services.site_analysis import summarize_previous_visits
+from compliance.services.sites import get_site_history_legacy
 
 
 def run_pipeline() -> None:

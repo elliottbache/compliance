@@ -3,9 +3,6 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
 
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
 from compliance.api.schemas import (
     ArchiveRequest,
     AttachmentWithContextOut,
@@ -18,6 +15,8 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import FindingHistory
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 
 def format_attachment(

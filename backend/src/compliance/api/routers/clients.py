@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
-
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ArchiveRequest,
@@ -20,6 +18,7 @@ from compliance.services.clients import (
     post_new_client,
 )
 from compliance.services.sites import get_sites
+from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 

@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from compliance.api.schemas import FindingOut
 from compliance.db.db_access import get_db
 from compliance.llm.schemas import (
@@ -16,6 +14,7 @@ from compliance.llm.schemas import (
     SuggestionItem,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

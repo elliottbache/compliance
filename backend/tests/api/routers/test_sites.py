@@ -2,10 +2,9 @@ from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
+from compliance.api.routers import sites as sites_router
 from fastapi import HTTPException
 from httpx import Request
-
-from compliance.api.routers import sites as sites_router
 
 
 class TestGetSitesRoute:

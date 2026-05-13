@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 
 import pytest
-from fastapi import HTTPException
-
 from compliance.api.routers import rules as rules_router
+from fastapi import HTTPException
 
 
 class TestGetRulesRoute:

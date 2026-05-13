@@ -1,7 +1,3 @@
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
 from compliance.api.schemas import (
     ArchiveRequest,
     RegulationCreate,
@@ -18,6 +14,9 @@ from compliance.services._helpers import (
     record_is_visible,
     restore_record_by_id,
 )
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 
 class RegulationConflictError(Exception):

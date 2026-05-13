@@ -73,7 +73,7 @@ ignore = ["E203", "E501"]  # let the formatter handle wrapping
 fixable = ["I", "E","UP","SIM","PERF","RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"backend/tests/**" = ["S101"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -99,12 +99,12 @@ module = "tests.*"
 ignore_errors = true
 
 [tool.codespell]
-skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,pyproject.toml,./build*,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist"
+skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,pyproject.toml,./build*,./backend/htmlcov,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist"
 ignore-words-list = "teh,nd,seh,atleast,atmost,deques,ser,requeried"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
+testpaths = ["backend/tests"]
+pythonpath = ["backend/src"]
 addopts = [
   "-q",
   "--cov=backend/src",

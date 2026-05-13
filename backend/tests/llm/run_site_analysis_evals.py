@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import spacy
-from pydantic import BaseModel, ValidationError
-
 from compliance._helpers import validate_llm_references
 from compliance.llm.schemas import (
     ExpectedResults,
@@ -15,6 +13,7 @@ from compliance.llm.schemas import (
 )
 from compliance.schemas import Site
 from compliance.services.site_analysis import summarize_previous_visits
+from pydantic import BaseModel, ValidationError
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")

@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from compliance.api.schemas import (
     ArchiveRequest,
     RuleCreate,
@@ -21,6 +19,7 @@ from compliance.services.rules import (
     post_rule_archived_by_id,
     post_rule_restored_by_id,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 def _rule_create(**overrides) -> RuleCreate:

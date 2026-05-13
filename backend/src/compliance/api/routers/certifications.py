@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
-
 from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ArchiveRequest,
@@ -23,6 +21,7 @@ from compliance.services.certifications import (
     post_new_certification,
 )
 from compliance.services.findings import get_findings
+from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(prefix="/certifications", tags=["certifications"])
 

@@ -3,7 +3,6 @@ from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from compliance.logging_utils import (
     _default_log_dir,
     _set_formatter,
