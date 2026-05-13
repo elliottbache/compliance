@@ -14,7 +14,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell      # no --write-changes => no rewrite
-        args: ["--toml", "pyproject.toml"]
+        args: ["--toml", "backend/pyproject.toml"]
         exclude: |
             (?x)^(
                 docs/_static/|
@@ -32,7 +32,7 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        args: ["--config-file=pyproject.toml"]
+        args: ["--config-file=backend/pyproject.toml"]
         pass_filenames: false
         language_version: python3.12
         additional_dependencies: [

@@ -48,11 +48,11 @@ dev = [
 compliance = "compliance.app:main"
 
 [tool.setuptools]
-# Tell setuptools that packages live under `src/`
-package-dir = { "" = "src" }
+# Tell setuptools that packages live under `backend/src/`
+package-dir = { "" = "backend/src" }
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["backend/src"]
 
 [tool.setuptools.package-data]
 compliance = []
@@ -90,17 +90,17 @@ strict = false
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
-files = ["src"]
+files = ["backend/src"]
 explicit_package_bases = true
 namespace_packages = true
-mypy_path = ["src"]
+mypy_path = ["backend/src"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
 
 [tool.codespell]
-skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./src/include,./docs/_static,pyproject.toml,./build*,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist"
+skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,pyproject.toml,./build*,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist"
 ignore-words-list = "teh,nd,seh,atleast,atmost,deques,ser,requeried"
 
 [tool.pytest.ini_options]
@@ -108,7 +108,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = [
   "-q",
-  "--cov=src",
+  "--cov=backend/src",
   "--cov-report=term-missing",
   "--cov-report=xml:coverage.xml",
   "--cov-report=html:htmlcov",
