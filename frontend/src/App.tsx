@@ -8,6 +8,7 @@ import {
 import { SiteSearchPanel } from "./components/SiteSearchPanel";
 import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
 import { AttachmentsPanel } from "./components/AttachmentsPanel";
+import { AnalysisPanel } from "./components/AnalysisPanel";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -179,8 +180,11 @@ function App() {
                     : "Not loaded"}
                 </strong>
               </div>
+
               <SiteHistoryPanel history={history} />
               <AttachmentsPanel attachments={attachments} />
+              <AnalysisPanel analysis={analysis} />
+
               <div className="summary-card">
                 <span>Attachments</span>
                 <strong>
