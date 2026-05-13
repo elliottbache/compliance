@@ -626,6 +626,50 @@ p {
   line-height: 1.5;
 }
 
+.admin-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.admin-tabs {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-tab {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 9px 10px;
+  color: var(--text);
+  text-align: left;
+}
+
+.admin-tab:hover {
+  border-color: var(--border);
+  background: var(--panel-muted);
+}
+
+.admin-tab-active {
+  border-color: var(--border-strong);
+  background: var(--panel-muted);
+  font-weight: 700;
+}
+
+.admin-section-placeholder {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.admin-section-placeholder h3,
+.admin-section-placeholder p {
+  margin-bottom: 0;
+}
+
 @media (max-width: 950px) {
   .hero-panel {
     grid-template-columns: 1fr;

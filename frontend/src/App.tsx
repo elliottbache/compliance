@@ -11,6 +11,7 @@ import { AnalysisPanel } from "./components/AnalysisPanel";
 import { MarkdownPanel } from "./components/MarkdownPanel";
 import { buildSiteAnalysisMarkdown } from "./utils/formatSiteAnalysisMarkdown";
 import { getErrorMessage } from "./utils/apiErrors";
+import { AdminPanel } from "./components/admin/AdminPanel";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -25,17 +26,6 @@ const workflowItems = [
   "Load attachments",
   "Run AI analysis",
   "Generate Markdown report",
-];
-
-const adminSections = [
-  "Sites",
-  "Clients",
-  "Certifiers",
-  "Regulations",
-  "Rules",
-  "Certifications",
-  "Findings",
-  "Attachments",
 ];
 
 function parseSiteId(siteId: string): number {
@@ -254,13 +244,7 @@ function App() {
             </div>
           </div>
 
-          <div className="section-list">
-            {adminSections.map((section) => (
-              <button className="section-button" key={section} type="button">
-                {section}
-              </button>
-            ))}
-          </div>
+          <AdminPanel />
         </aside>
       </section>
     </main>
