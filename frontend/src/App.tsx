@@ -7,6 +7,7 @@ import {
 } from "./api/complianceApi";
 import { SiteSearchPanel } from "./components/SiteSearchPanel";
 import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
+import { AttachmentsPanel } from "./components/AttachmentsPanel";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -179,7 +180,7 @@ function App() {
                 </strong>
               </div>
               <SiteHistoryPanel history={history} />
-
+              <AttachmentsPanel attachments={attachments} />
               <div className="summary-card">
                 <span>Attachments</span>
                 <strong>
