@@ -10,6 +10,7 @@ import { AttachmentsPanel } from "./components/AttachmentsPanel";
 import { AnalysisPanel } from "./components/AnalysisPanel";
 import { MarkdownPanel } from "./components/MarkdownPanel";
 import { buildSiteAnalysisMarkdown } from "./utils/formatSiteAnalysisMarkdown";
+import { getErrorMessage } from "./utils/apiErrors";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -45,10 +46,6 @@ function parseSiteId(siteId: string): number {
   }
 
   return parsed;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error";
 }
 
 function downloadTextFile(text: string, filename: string): void {
