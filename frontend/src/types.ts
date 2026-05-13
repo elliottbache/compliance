@@ -67,7 +67,33 @@ export type SiteAttachmentsOut = {
   attachments: AttachmentWithContextOut[];
 };
 
-export type SiteAnalysis = Record<string, unknown>;
+export type EvidenceRef = {
+  cert_id: number;
+  reg_title: string;
+  inspection_date?: string | null;
+  finding_id?: number | null;
+  rule_index?: string | null;
+  support_text: string;
+};
+
+export type SiteAnalysisListItem = {
+  item: string;
+  evidence: EvidenceRef[];
+  confidence_note?: string | null;
+  why_missing_matters?: string | null;
+  basis?: string | null;
+  [key: string]: unknown;
+};
+
+export type SiteAnalysis = {
+  site_id?: number;
+  executive_summary?: string | null;
+  recurring_issues?: SiteAnalysisListItem[] | null;
+  missing_information?: SiteAnalysisListItem[] | null;
+  needs_human_review?: SiteAnalysisListItem[] | null;
+  suggestions?: SiteAnalysisListItem[] | null;
+  [key: string]: unknown;
+};
 
 export type AdminSection =
   | "sites"

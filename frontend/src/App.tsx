@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   createSiteAnalysis,
-  createSiteAnalysisMarkdown,
-  downloadSiteAnalysisMarkdown,
   getSiteAttachments,
   getSiteHistory,
 } from "./api/complianceApi";
@@ -11,6 +9,7 @@ import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
 import { AttachmentsPanel } from "./components/AttachmentsPanel";
 import { AnalysisPanel } from "./components/AnalysisPanel";
 import { MarkdownPanel } from "./components/MarkdownPanel";
+import { buildSiteAnalysisMarkdown } from "./utils/formatSiteAnalysisMarkdown";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -52,7 +51,11 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
+function downloadTextFile(text: string, filename: string): void {
+  const blob = new Blob([text], {
+    type: "text/markdown;charset=utf-8",
+  });
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
@@ -109,21 +112,33 @@ function App() {
     void runAction("analysis", async (parsedSiteId) => {
       const loadedAnalysis = await createSiteAnalysis(parsedSiteId);
       setAnalysis(loadedAnalysis);
+      setMarkdown("");
     });
   }
 
   function handleGenerateMarkdown(): void {
-    void runAction("markdown", async (parsedSiteId) => {
-      const loadedMarkdown = await createSiteAnalysisMarkdown(parsedSiteId);
-      setMarkdown(loadedMarkdown);
-    });
+    if (!analysis) {
+      setError("Run AI Analysis before generating Markdown.");
+      return;
+    }
+
+    setError(null);
+    setMarkdown(buildSiteAnalysisMarkdown(analysis));
   }
 
   function handleDownloadMarkdown(): void {
-    void runAction("markdown-download", async (parsedSiteId) => {
-      const { blob, filename } = await downloadSiteAnalysisMarkdown(parsedSiteId);
-      downloadBlob(blob, filename);
-    });
+    if (!markdown) {
+      setError("Generate Markdown before downloading it.");
+      return;
+    }
+
+    try {
+      const parsedSiteId = parseSiteId(siteId);
+      downloadTextFile(markdown, `site-${parsedSiteId}-analysis.md`);
+      setError(null);
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    }
   }
 
   function handleClear(): void {
