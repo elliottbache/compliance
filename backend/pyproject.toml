@@ -14,34 +14,33 @@ authors = [
 ]
 keywords = ["database", "compliance", "AI", "LLM"]
 
-# Runtime deps
 dependencies = [
-  "pydantic",
-  "anthropic",
-  "sqlalchemy",
-  "psycopg2-binary",
-  "python-dotenv",
-  "fastapi",
-  "python-multipart",
+  "pydantic==2.10.6",
+  "anthropic==0.45.2",
+  "sqlalchemy==2.0.38",
+  "psycopg2-binary==2.9.10",
+  "python-dotenv==1.0.1",
+  "fastapi==0.115.8",
+  "python-multipart==0.0.20",
 ]
 
 # Optional extras for dev tools
 [project.optional-dependencies]
 dev = [
-  "pytest>=9.0",
-  "sphinx>=8.0",
-  "sphinx-autodoc-typehints",
-  "sphinx_rtd_theme",
-  "myst-parser>=3.0",
-  "pre-commit",
-  "ruff==0.14.10",
-  "black==24.10.0",  # same as pre-commit
-  "isort",
-  "mypy==1.13.0",
+  "pytest==8.3.4",
+  "sphinx==7.4.7",
+  "sphinx-autodoc-typehints==2.5.0",
+  "sphinx_rtd_theme==3.0.2",
+  "myst-parser==4.0.0",
+  "pre-commit==4.1.0",
+  "ruff==0.14.14",
+  "black==24.10.0",  # Pinned to stay in sync with your pre-commit
+  "isort==6.0.0",
+  "mypy==1.14.1",
   "codespell==2.4.1",
-  "pytest-cov",
-  "spacy",
-  "httpx",
+  "pytest-cov==6.0.0",
+  "spacy==3.8.3",
+  "httpx==0.28.1",
 ]
 
 [project.scripts]
