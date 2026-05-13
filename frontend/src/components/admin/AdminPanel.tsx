@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { AdminSection } from "../../types";
+import { SitesSection } from "./SitesSection";
 
 type AdminSectionConfig = {
   key: AdminSection;
@@ -77,17 +78,21 @@ export function AdminPanel() {
         ))}
       </div>
 
+      {selectedSection === "sites" ? (
+      <SitesSection />
+      ) : (
       <div className="admin-section-placeholder">
-        <div>
+          <div>
           <p className="eyebrow">Admin section</p>
           <h3>{activeSection.label}</h3>
           <p>{activeSection.description}</p>
-        </div>
+          </div>
 
-        <div className="empty-state">
+          <div className="empty-state">
           {activeSection.label} list/create/archive/restore UI will go here.
-        </div>
+          </div>
       </div>
+      )}
     </section>
   );
 }
