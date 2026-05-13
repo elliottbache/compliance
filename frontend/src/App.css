@@ -610,6 +610,14 @@ p {
   line-height: 1.45;
 }
 
+.markdown-textarea {
+  min-height: 360px;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 950px) {
   .hero-panel {
     grid-template-columns: 1fr;

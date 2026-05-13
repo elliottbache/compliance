@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   createSiteAnalysis,
   createSiteAnalysisMarkdown,
+  downloadSiteAnalysisMarkdown,
   getSiteAttachments,
   getSiteHistory,
 } from "./api/complianceApi";
@@ -9,6 +10,7 @@ import { SiteSearchPanel } from "./components/SiteSearchPanel";
 import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
 import { AttachmentsPanel } from "./components/AttachmentsPanel";
 import { AnalysisPanel } from "./components/AnalysisPanel";
+import { MarkdownPanel } from "./components/MarkdownPanel";
 import type {
   ApiErrorMessage,
   LoadingState,
@@ -48,6 +50,19 @@ function parseSiteId(siteId: string): number {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
 }
 
 function App() {
@@ -101,6 +116,13 @@ function App() {
     void runAction("markdown", async (parsedSiteId) => {
       const loadedMarkdown = await createSiteAnalysisMarkdown(parsedSiteId);
       setMarkdown(loadedMarkdown);
+    });
+  }
+
+  function handleDownloadMarkdown(): void {
+    void runAction("markdown-download", async (parsedSiteId) => {
+      const { blob, filename } = await downloadSiteAnalysisMarkdown(parsedSiteId);
+      downloadBlob(blob, filename);
     });
   }
 
@@ -184,6 +206,11 @@ function App() {
               <SiteHistoryPanel history={history} />
               <AttachmentsPanel attachments={attachments} />
               <AnalysisPanel analysis={analysis} />
+              <MarkdownPanel
+                loading={loading}
+                markdown={markdown}
+                onDownload={handleDownloadMarkdown}
+              />
 
               <div className="summary-card">
                 <span>Attachments</span>
