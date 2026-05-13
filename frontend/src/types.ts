@@ -130,10 +130,7 @@ export type SiteRecord = ArchivedFields & {
 
 export type CertifierRecord = ArchivedFields & {
   id: number;
-  org_name: string;
-  contact_name: string | null;
-  email: string | null;
-  telephone: string | null;
+  organization_name: string;
 };
 
 export type RegulationRecord = ArchivedFields & {
