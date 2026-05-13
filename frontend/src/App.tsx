@@ -172,7 +172,7 @@ function App() {
         </div>
       </section>
 
-      <section className="dashboard-grid">
+      <section className="dashboard-stack">
         <section className="panel panel-large">
           <div className="panel-header">
             <div>
@@ -199,27 +199,14 @@ function App() {
               <div className="summary-card">
                 <span>History</span>
                 <strong>
-                  {history
-                    ? `${history.inspection_count} inspections`
-                    : "Not loaded"}
+                  {history ? `${history.inspection_count} inspections` : "Not loaded"}
                 </strong>
               </div>
-
-              <SiteHistoryPanel history={history} />
-              <AttachmentsPanel attachments={attachments} />
-              <AnalysisPanel analysis={analysis} />
-              <MarkdownPanel
-                loading={loading}
-                markdown={markdown}
-                onDownload={handleDownloadMarkdown}
-              />
 
               <div className="summary-card">
                 <span>Attachments</span>
                 <strong>
-                  {attachments
-                    ? `${attachments.attachments.length} files`
-                    : "Not loaded"}
+                  {attachments ? `${attachments.attachments.length} files` : "Not loaded"}
                 </strong>
               </div>
 
@@ -233,10 +220,19 @@ function App() {
                 <strong>{markdown ? "Generated" : "Not generated"}</strong>
               </div>
             </div>
+
+            <SiteHistoryPanel history={history} />
+            <AttachmentsPanel attachments={attachments} />
+            <AnalysisPanel analysis={analysis} />
+            <MarkdownPanel
+              loading={loading}
+              markdown={markdown}
+              onDownload={handleDownloadMarkdown}
+            />
           </div>
         </section>
 
-        <aside className="panel">
+        <section className="panel">
           <div className="panel-header">
             <div>
               <h2>Admin data</h2>
@@ -245,7 +241,7 @@ function App() {
           </div>
 
           <AdminPanel />
-        </aside>
+        </section>
       </section>
     </main>
   );
