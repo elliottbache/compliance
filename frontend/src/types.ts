@@ -159,7 +159,7 @@ export type CertificationRecord = ArchivedFields & {
 };
 
 export type FindingRecord = ArchivedFields & {
-  id: number;
+  finding_id: number;
   certification_id: number;
   rule_id: number;
   finding: string;

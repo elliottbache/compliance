@@ -6,6 +6,7 @@ import { CertifiersSection } from "./CertifiersSection";
 import { RegulationsSection } from "./RegulationsSection";
 import { RulesSection } from "./RulesSection";
 import { CertificationsSection } from "./CertificationsSection";
+import { FindingsSection } from "./FindingsSection";
 
 type AdminSectionConfig = {
   key: AdminSection;
@@ -95,6 +96,8 @@ export function AdminPanel() {
         <RulesSection />
       ) : selectedSection === "certifications" ? (
         <CertificationsSection />
+      ) : selectedSection === "findings" ? (
+        <FindingsSection />
       ) : (
       <div className="admin-section-placeholder">
           <div>
