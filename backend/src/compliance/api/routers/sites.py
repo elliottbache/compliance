@@ -13,9 +13,6 @@ from compliance.api.schemas import (
 )
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
-from compliance.services.reports import (
-    build_site_analysis_markdown,
-)
 from compliance.services.site_analysis import (
     summarize_previous_visits,
 )
@@ -33,7 +30,7 @@ from compliance.services.sites import (
     post_site_archived_by_id,
     post_site_restored_by_id,
 )
-from fastapi import APIRouter, HTTPException, Path, Query, Response
+from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -318,63 +315,6 @@ def create_site_analysis_route(session: SessionDep, site_id: int) -> SiteAnalysi
             references evidence that is not present in the source site history.
     """
     return _create_site_analysis(session, site_id)
-
-
-@router.post("/{site_id}/analysis/markdown")
-def create_site_analysis_markdown_route(session: SessionDep, site_id: int) -> Response:
-    """Generate a Markdown AI analysis for one site's history.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        site_id: Unique identifier for the site whose history should be
-            analyzed.
-
-    Returns:
-        A text/markdown response containing the validated site analysis.
-
-    Raises:
-        HTTPException: If no site history exists for the requested site, if the
-            LLM call or response parsing fails, or if the generated analysis
-            references evidence that is not present in the source site history.
-    """
-    site_analysis = _create_site_analysis(session, site_id)
-
-    return Response(
-        content=build_site_analysis_markdown(site_analysis),
-        media_type="text/markdown",
-    )
-
-
-@router.post("/{site_id}/analysis/markdown/download")
-def create_site_analysis_markdown_download_route(
-    session: SessionDep, site_id: int
-) -> Response:
-    """Generate a downloadable Markdown AI analysis for one site's history.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        site_id: Unique identifier for the site whose history should be
-            analyzed.
-
-    Returns:
-        A text/markdown attachment response containing the validated site
-        analysis.
-
-    Raises:
-        HTTPException: If no site history exists for the requested site, if the
-            LLM call or response parsing fails, or if the generated analysis
-            references evidence that is not present in the source site history.
-    """
-    site_analysis = _create_site_analysis(session, site_id)
-
-    headers = {
-        "Content-Disposition": f'attachment; filename="site-{site_id}-analysis.md"'
-    }
-    return Response(
-        content=build_site_analysis_markdown(site_analysis),
-        media_type="text/markdown",
-        headers=headers,
-    )
 
 
 def _create_site_analysis(session: Session, site_id: int) -> SiteAnalysis:
