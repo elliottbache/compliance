@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AdminSection } from "../../types";
 import { SitesSection } from "./SitesSection";
+import { ClientsSection } from "./ClientsSection";
 
 type AdminSectionConfig = {
   key: AdminSection;
@@ -80,6 +81,8 @@ export function AdminPanel() {
 
       {selectedSection === "sites" ? (
       <SitesSection />
+      ) : selectedSection === "clients" ? (
+        <ClientsSection />
       ) : (
       <div className="admin-section-placeholder">
           <div>
