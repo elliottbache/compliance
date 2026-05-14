@@ -1,4 +1,6 @@
 from datetime import UTC, date, datetime
+from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -19,14 +21,19 @@ from compliance.db.models import (
 from compliance.services._helpers import format_attachment
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
+    AttachmentConflictError,
+    AttachmentCreateError,
+    AttachmentFileError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     _format_attachments,
     _format_new_attachment_with_context,
+    _validate_file_size_type_and_ext,
     get_attachment_by_id,
     get_attachments,
     post_attachment_archived_by_id,
     post_attachment_restored_by_id,
+    post_attachment_upload,
     post_new_attachment,
 )
 
@@ -477,22 +484,151 @@ class TestFormatAttachment:
 
 
 class TestPostAttachmentUpload:
-    # stores generated path under backend/storage/attachments
-    # creates attachment row with generated file path
-    # deletes saved file if DB creation fails
-    # rejects missing certification before keeping file
-    # finding mismatch still returns existing 422 behavior
-    pass
+    def test_stores_uploaded_file_and_updates_attachment_row(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory()
+        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+
+        result = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=11,
+            file_type="application/pdf",
+            file_name="evidence.pdf",
+            file_stream=BytesIO(b"hello world"),
+        )
+
+        stored_path = tmp_path / Path(result.file_path).name
+        assert result.id == 50
+        assert result.file_path == str(stored_path)
+        assert result.uploaded_at is not None
+        assert stored_path.read_bytes() == b"hello world"
+
+    def test_uses_uploaded_file_extension_for_stored_path(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory()
+        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+
+        result = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=11,
+            file_type="application/pdf",
+            file_name="uploaded-name.pdf",
+            file_stream=BytesIO(b"hello world"),
+        )
+
+        assert Path(result.file_path).suffix == ".pdf"
+
+    def test_preserves_attachment_display_file_name(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory(attachment_overrides={"file_name": "evidence"})
+        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+
+        result = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=11,
+            file_type="application/pdf",
+            file_name="uploaded-name.pdf",
+            file_stream=BytesIO(b"hello world"),
+        )
+
+        assert result.file_name == "evidence"
+
+    def test_raises_file_error_before_fetching_attachment_when_file_is_invalid(
+        self,
+    ) -> None:
+        session = MagicMock()
+
+        with pytest.raises(AttachmentFileError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=10,
+                file_type="application/x-msdownload",
+                file_name="evidence.exe",
+                file_stream=BytesIO(b"data"),
+            )
+
+        session.get.assert_not_called()
+
+    def test_raises_create_error_when_attachment_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+
+        with pytest.raises(AttachmentCreateError):
+            post_attachment_upload(
+                session,
+                attachment_id=999,
+                file_size=10,
+                file_type="application/pdf",
+                file_name="evidence.pdf",
+                file_stream=BytesIO(b"data"),
+            )
+
+        session.get.assert_called_once_with(Attachment, 999)
+
+    def test_deletes_written_file_when_database_commit_fails(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(id=50)
+        session.commit.side_effect = RuntimeError("commit failed")
+        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+
+        with pytest.raises(AttachmentConflictError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=4,
+                file_type="text/plain",
+                file_name="evidence.txt",
+                file_stream=BytesIO(b"data"),
+            )
+
+        assert list(tmp_path.iterdir()) == []
+        session.rollback.assert_called_once_with()
 
 
 class TestValidateFileSizeTypeAndExt:
-    # check 0 size
-    # check large size
-    # check no type
-    # check bad type
-    # check no ext
-    # check bad ext
-    pass
+    def test_returns_true_for_allowed_size_type_and_extension(self) -> None:
+        assert _validate_file_size_type_and_ext(10, "application/pdf", "evidence.pdf")
+
+    def test_returns_false_for_zero_size(self) -> None:
+        assert not _validate_file_size_type_and_ext(
+            0, "application/pdf", "evidence.pdf"
+        )
+
+    def test_returns_false_for_large_size(self) -> None:
+        assert not _validate_file_size_type_and_ext(
+            11,
+            "application/pdf",
+            "evidence.pdf",
+            allowed_size=10,
+        )
+
+    def test_returns_false_for_missing_type(self) -> None:
+        assert not _validate_file_size_type_and_ext(10, None, "evidence.pdf")
+
+    def test_returns_false_for_bad_type(self) -> None:
+        assert not _validate_file_size_type_and_ext(
+            10, "application/x-msdownload", "evidence.pdf"
+        )
+
+    def test_returns_false_for_missing_extension(self) -> None:
+        assert not _validate_file_size_type_and_ext(10, "application/pdf", "evidence")
+
+    def test_returns_false_for_bad_extension(self) -> None:
+        assert not _validate_file_size_type_and_ext(
+            10, "application/pdf", "evidence.exe"
+        )
+
+    def test_returns_true_for_missing_file_name(self) -> None:
+        assert _validate_file_size_type_and_ext(10, "application/pdf", None)
 
 
 class TestPostAttachmentArchivedById:

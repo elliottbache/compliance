@@ -1,4 +1,6 @@
 from datetime import UTC, date, datetime
+from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from compliance.api.routers import attachments as attachments_router
@@ -668,10 +670,198 @@ class TestPostNewAttachmentRoute:
 
 
 class TestPostAttachmentUploadRoute:
-    # route calls service
-    # maps attachment errors to 404/422/409
-    # validates missing file
-    pass
+    def test_route_uploads_attachment_file(self, client, mock_db, monkeypatch):
+        def fake_post_attachment_upload(
+            session,
+            *,
+            attachment_id,
+            file_size,
+            file_type,
+            file_name,
+            file_stream,
+        ):
+            assert session is mock_db
+            assert attachment_id == 50
+            assert file_size == 11
+            assert file_type == "application/pdf"
+            assert file_name == "evidence.pdf"
+            assert file_stream.read() == b"hello world"
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        response = client.post(
+            "/attachments/upload",
+            data={"id": "50"},
+            files={"file": ("evidence.pdf", b"hello world", "application/pdf")},
+        )
+
+        assert response.status_code == 201
+
+    def test_route_returns_422_when_file_is_missing(self, client):
+        response = client.post("/attachments/upload", data={"id": "50"})
+
+        assert response.status_code == 422
+
+    def test_route_returns_400_when_upload_file_is_invalid(self, client, monkeypatch):
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentFileError()
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        response = client.post(
+            "/attachments/upload",
+            data={"id": "50"},
+            files={"file": ("evidence.exe", b"data", "application/x-msdownload")},
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {
+            "detail": (
+                "Attachment could not be uploaded: evidence.exe with type "
+                "application/x-msdownload and size 4."
+            )
+        }
+
+    def test_route_returns_404_when_upload_attachment_id_does_not_exist(
+        self, client, monkeypatch
+    ):
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentCreateError()
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        response = client.post(
+            "/attachments/upload",
+            data={"id": "999"},
+            files={"file": ("evidence.pdf", b"data", "application/pdf")},
+        )
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Attachment with ID 999 not found."}
+
+    def test_returns_none_when_upload_succeeds(self, monkeypatch) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(
+            session,
+            *,
+            attachment_id,
+            file_size,
+            file_type,
+            file_name,
+            file_stream,
+        ):
+            assert attachment_id == 50
+            assert file_size == 4
+            assert file_type == "application/pdf"
+            assert file_name == "evidence.pdf"
+            assert file_stream.read() == b"data"
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        result = attachments_router.post_attachment_upload_route(
+            object(), fake_file, 50
+        )
+
+        assert result is None
+        assert fake_file.file.closed
+
+    def test_returns_400_when_file_is_invalid(self, monkeypatch) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.exe",
+            content_type="application/x-msdownload",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentFileError()
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(object(), fake_file, 50)
+
+        assert exc_info.value.status_code == 400
+        assert (
+            exc_info.value.detail
+            == "Attachment could not be uploaded: evidence.exe with type "
+            "application/x-msdownload and size 4."
+        )
+        assert fake_file.file.closed
+
+    def test_returns_404_when_attachment_is_not_found(self, monkeypatch) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentCreateError()
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(object(), fake_file, 50)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Attachment with ID 50 not found."
+        assert fake_file.file.closed
+
+    def test_returns_500_when_file_persistence_fails(self, monkeypatch) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentConflictError()
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(object(), fake_file, 50)
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "File persistence error for file: evidence.pdf."
+        assert fake_file.file.closed
 
 
 class TestPostAttachmentArchivedByIdRoute:
