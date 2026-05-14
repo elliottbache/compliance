@@ -6,6 +6,7 @@ import {
   createAdminRecord,
   listAdminRecords,
   restoreAdminRecord,
+  uploadAttachmentFile,
 } from "../../api/complianceApi";
 import type { AttachmentRecord } from "../../types";
 import { getErrorMessage } from "../../utils/apiErrors";
@@ -71,7 +72,10 @@ export function AttachmentsSection() {
   const [attachments, setAttachments] = useState<AttachmentRecord[]>([]);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
   const [form, setForm] = useState<AttachmentFormState>(EMPTY_FORM);
+  const [uploadAttachmentId, setUploadAttachmentId] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [archiveReasons, setArchiveReasons] = useState<Record<number, string>>(
     {},
   );
@@ -135,6 +139,28 @@ export function AttachmentsSection() {
     }
   }
 
+  async function handleUploadAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!uploadAttachmentId || !uploadFile) {
+      return;
+    }
+
+    try {
+      setLoading(`Uploading attachment ${uploadAttachmentId}...`);
+      setError(null);
+      await uploadAttachmentFile(Number(uploadAttachmentId), uploadFile);
+      setUploadAttachmentId("");
+      setUploadFile(null);
+      setShowUploadForm(false);
+      await loadAttachments();
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setLoading(null);
+    }
+  }
+
   async function handleArchiveAttachment(attachmentId: number) {
     try {
       setLoading(`Archiving attachment ${attachmentId}...`);
@@ -170,6 +196,9 @@ export function AttachmentsSection() {
   }
 
   const isBusy = loading !== null;
+  const pendingUploadAttachments = attachments.filter(
+    (attachment) => attachment.uploaded_at === null,
+  );
 
   return (
     <section className="admin-record-section">
@@ -202,9 +231,24 @@ export function AttachmentsSection() {
             className="button button-primary"
             disabled={isBusy}
             type="button"
-            onClick={() => setShowCreateForm((current) => !current)}
+            onClick={() => {
+              setShowUploadForm(false);
+              setShowCreateForm((current) => !current);
+            }}
           >
             {showCreateForm ? "Cancel" : "Add Attachment"}
+          </button>
+
+          <button
+            className="button button-primary"
+            disabled={isBusy || pendingUploadAttachments.length === 0}
+            type="button"
+            onClick={() => {
+              setShowCreateForm(false);
+              setShowUploadForm((current) => !current);
+            }}
+          >
+            {showUploadForm ? "Cancel" : "Upload File"}
           </button>
         </div>
       </div>
@@ -282,6 +326,66 @@ export function AttachmentsSection() {
               onClick={() => {
                 setForm(EMPTY_FORM);
                 setShowCreateForm(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {showUploadForm ? (
+        <form className="admin-form" onSubmit={handleUploadAttachment}>
+          <div className="form-grid">
+            <label>
+              Attachment
+              <select
+                required
+                className="select"
+                value={uploadAttachmentId}
+                onChange={(event) =>
+                  setUploadAttachmentId(event.target.value)
+                }
+              >
+                <option value="">Select attachment</option>
+                {pendingUploadAttachments.map((attachment) => (
+                  <option key={attachment.id} value={attachment.id}>
+                    {attachment.id} - {getAttachmentFileLabel(attachment)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              File
+              <input
+                required
+                className="input"
+                type="file"
+                onChange={(event) =>
+                  setUploadFile(event.target.files?.[0] ?? null)
+                }
+              />
+            </label>
+          </div>
+
+          <div className="button-row">
+            <button
+              className="button button-primary"
+              disabled={isBusy || pendingUploadAttachments.length === 0}
+              type="submit"
+            >
+              Upload
+            </button>
+
+            <button
+              className="button"
+              disabled={isBusy}
+              type="button"
+              onClick={() => {
+                setUploadAttachmentId("");
+                setUploadFile(null);
+                setShowUploadForm(false);
               }}
             >
               Cancel

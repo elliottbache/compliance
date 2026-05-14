@@ -200,6 +200,25 @@ export async function createAdminRecord<TPayload, TResponse>(
   return postJson<TResponse>(resourcePath, payload);
 }
 
+export async function uploadAttachmentFile(
+  attachmentId: number,
+  file: File,
+): Promise<void> {
+  const formData = new FormData();
+  formData.set("id", String(attachmentId));
+  formData.set("file", file);
+
+  const response = await fetch(buildUrl("/attachments/upload"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  await assertOk(response);
+}
+
 export async function archiveAdminRecord<TResponse>(
   resourcePath: string,
   recordId: RecordId,
