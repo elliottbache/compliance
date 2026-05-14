@@ -366,6 +366,7 @@ def post_attachment_upload(
 
     except Exception as e:
         session.rollback()
+        file_path.unlink(missing_ok=True)
         raise AttachmentConflictError(file_path) from e
 
     return attachment
