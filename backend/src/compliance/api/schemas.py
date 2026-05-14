@@ -102,7 +102,7 @@ class AttachmentWithContextOut(BaseModel):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    file_type: str
+    file_name: str | None
     file_path: str
     description: str | None
     uploaded_at: AwareDatetime
@@ -122,8 +122,7 @@ class AttachmentCreate(BaseModel):
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
-    file_type: str
-    file_name: str
+    file_name: str | None = None
     certification_id: int
     description: str | None = None
     finding_ids: list[int] = Field(default_factory=list)
@@ -135,6 +134,7 @@ class AttachmentOut(AttachmentCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
+    file_path: str
     uploaded_at: AwareDatetime
     inspection_date: date | None
     regulation_id: int
@@ -225,7 +225,7 @@ class FindingAttachmentOut(BaseModel):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     attachment_id: int
-    file_type: str
+    file_name: str | None
     file_path: str
     description: str | None
     uploaded_at: AwareDatetime

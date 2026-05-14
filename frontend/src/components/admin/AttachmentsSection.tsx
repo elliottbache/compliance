@@ -12,15 +12,13 @@ import { getErrorMessage } from "../../utils/apiErrors";
 
 type AttachmentCreatePayload = {
   certification_id: number;
-  file_type: string;
-  file_name: string;
+  file_name: string | null;
   description: string | null;
   finding_ids?: number[];
 };
 
 type AttachmentFormState = {
   certification_id: string;
-  file_type: string;
   file_name: string;
   description: string;
   finding_ids: string;
@@ -28,7 +26,6 @@ type AttachmentFormState = {
 
 const EMPTY_FORM: AttachmentFormState = {
   certification_id: "",
-  file_type: "",
   file_name: "",
   description: "",
   finding_ids: "",
@@ -45,7 +42,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function getAttachmentFileLabel(attachment: AttachmentRecord): string {
-  return attachment.file_name ?? attachment.file_path ?? "—";
+  return attachment.file_name ?? "—";
 }
 
 function parseIdList(value: string): number[] {
@@ -64,8 +61,7 @@ function buildCreatePayload(
 
   return {
     certification_id: Number(form.certification_id),
-    file_type: form.file_type.trim(),
-    file_name: form.file_name.trim(),
+    file_name: form.file_name.trim() || null,
     description: form.description.trim() || null,
     ...(findingIds.length > 0 ? { finding_ids: findingIds } : {}),
   };
@@ -233,30 +229,17 @@ export function AttachmentsSection() {
               />
             </label>
 
-            <label>
-              File type
-              <input
-                required
-                className="input"
-                placeholder="pdf, png, txt..."
-                value={form.file_type}
-                onChange={(event) =>
-                  updateFormField("file_type", event.target.value)
-                }
-              />
-            </label>
-
             <label className="form-grid-wide">
-            File name
-            <input
+              File name
+              <input
                 required
                 className="input"
                 placeholder="inspection_report"
                 value={form.file_name}
                 onChange={(event) =>
-                updateFormField("file_name", event.target.value)
+                  updateFormField("file_name", event.target.value)
                 }
-            />
+              />
             </label>
 
             <label className="form-grid-wide">
@@ -338,7 +321,11 @@ export function AttachmentsSection() {
                 >
                   <td>{attachment.id}</td>
                   <td>{attachment.certification_id}</td>
-                  <td>{attachment.file_type}</td>
+                  <td>
+                    {attachment.file_path?.includes(".")
+                      ? attachment.file_path.split(".").pop()
+                      : "—"}
+                  </td>
                   <td>{getAttachmentFileLabel(attachment)}</td>
                   <td>{attachment.description ?? "—"}</td>
                   <td>{formatDate(attachment.uploaded_at)}</td>

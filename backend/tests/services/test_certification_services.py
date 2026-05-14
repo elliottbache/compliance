@@ -511,7 +511,7 @@ class TestFormatCertificationAttachmentsOut:
     ) -> None:
         second_attachment = SimpleNamespace(
             id=60,
-            file_type="pdf",
+            file_name="second.pdf",
             file_path="dummy/second.pdf",
             description="Second attachment",
             uploaded_at=datetime(2026, 4, 4, 9, 30, tzinfo=UTC),

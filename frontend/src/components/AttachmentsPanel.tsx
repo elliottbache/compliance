@@ -54,12 +54,16 @@ export function AttachmentsPanel({ attachments }: AttachmentsPanelProps) {
             >
               <div className="attachment-card-header">
                 <div>
-                  <h4>{getFileLabel(attachment.file_path)}</h4>
+                  <h4>{attachment.file_name ?? getFileLabel(attachment.file_path)}</h4>
                   <p>{attachment.description ?? "No description"}</p>
                 </div>
 
                 <div className="badge-row">
-                  <span className="badge">{attachment.file_type}</span>
+                  <span className="badge">
+                    {attachment.file_path.includes(".")
+                      ? attachment.file_path.split(".").pop()
+                      : null}
+                  </span>
                   {attachment.archived_at ? (
                     <span className="badge badge-archived">Archived</span>
                   ) : null}

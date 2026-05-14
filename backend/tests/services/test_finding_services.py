@@ -409,7 +409,9 @@ class TestFormatFindings:
     ) -> None:
         rows = [
             finding_row(Attachment=attachment_row_factory()),
-            finding_row(Attachment=attachment_row_factory(id=51, file_type="jpg")),
+            finding_row(
+                Attachment=attachment_row_factory(id=51, file_name="evidence.jpg")
+            ),
         ]
 
         result = _format_findings(rows)
@@ -419,7 +421,7 @@ class TestFormatFindings:
         assert result[0].attachments == [
             FindingAttachmentOut(
                 attachment_id=50,
-                file_type="pdf",
+                file_name="evidence.pdf",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -428,7 +430,7 @@ class TestFormatFindings:
             ),
             FindingAttachmentOut(
                 attachment_id=51,
-                file_type="jpg",
+                file_name="evidence.jpg",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),

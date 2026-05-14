@@ -442,7 +442,7 @@ def _build_finding_attachments(rows: Sequence[Mapping]) -> list[FindingAttachmen
             FindingAttachmentOut.model_validate(
                 {
                     "attachment_id": attachment.id,
-                    "file_type": attachment.file_type,
+                    "file_name": attachment.file_name,
                     "file_path": attachment.file_path,
                     "description": attachment.description,
                     "uploaded_at": attachment.uploaded_at,

@@ -38,7 +38,7 @@ class TestFormatAttachment:
 
         assert result == AttachmentWithContextOut(
             id=50,
-            file_type="pdf",
+            file_name="evidence.pdf",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),

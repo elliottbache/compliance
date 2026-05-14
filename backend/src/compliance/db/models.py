@@ -174,7 +174,7 @@ class Attachment(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    file_type: Mapped[str] = mapped_column(String(80))
+    file_name: Mapped[str | None] = mapped_column(String(300))
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"))
     file_path: Mapped[str] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(String(80))

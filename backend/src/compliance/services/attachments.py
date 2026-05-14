@@ -289,15 +289,11 @@ def post_new_attachment(
         AttachmentConflictError: If the attachment or link rows conflict with
             existing stored data.
     """
-    attachment_dict = attachment.model_dump()
     orm_data = {
-        "file_type": attachment.file_type,
+        "file_name": attachment.file_name,
         "certification_id": attachment.certification_id,
         "description": attachment.description,
-        "file_path": "/path/placeholder/"
-        + attachment_dict["file_name"]
-        + "."
-        + attachment_dict["file_type"],
+        "file_path": f"/path/placeholder/{attachment.file_name}",
         "uploaded_at": datetime.now(UTC),
     }
     new_attachment = Attachment(**orm_data)
@@ -412,14 +408,13 @@ def _format_new_attachment_with_context(
     Returns:
         Attachment metadata enriched with certification and regulation context.
     """
-    file_name = Path(attachment.file_path).stem
     return AttachmentOut(
         id=attachment.id,
-        file_type=attachment.file_type,
+        file_name=attachment.file_name,
+        file_path=attachment.file_path,
         certification_id=attachment.certification_id,
         description=attachment.description,
         uploaded_at=attachment.uploaded_at,
-        file_name=file_name,
         finding_ids=list(finding_ids),
         inspection_date=certification.inspection_date,
         regulation_id=certification.regulation_id,
@@ -456,8 +451,8 @@ def _build_attachment_out(rows: Sequence[Mapping]) -> AttachmentOut:
 
     return AttachmentOut(
         id=attachment.id,
-        file_type=attachment.file_type,
-        file_name=Path(attachment.file_path).stem,
+        file_name=attachment.file_name,
+        file_path=attachment.file_path,
         certification_id=attachment.certification_id,
         description=attachment.description,
         finding_ids=finding_ids,

@@ -236,7 +236,6 @@ class TestFormatAttachments:
         assert result == [
             AttachmentOut(
                 id=50,
-                file_type="pdf",
                 file_name="evidence",
                 certification_id=100,
                 description="Inspection evidence",
@@ -348,8 +347,7 @@ class TestGetAttachmentById:
 class TestPostNewAttachment:
     def test_raises_when_certification_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
-            file_type="pdf",
-            file_name="evidence",
+            file_name="evidence.pdf",
             certification_id=100,
         )
         session = MagicMock()
@@ -365,8 +363,7 @@ class TestPostNewAttachment:
 
     def test_raises_when_finding_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
-            file_type="pdf",
-            file_name="evidence",
+            file_name="evidence.pdf",
             certification_id=100,
             finding_ids=[7],
         )
@@ -386,8 +383,7 @@ class TestPostNewAttachment:
 
     def test_raises_when_finding_belongs_to_another_certification(self) -> None:
         attachment = AttachmentCreate(
-            file_type="pdf",
-            file_name="evidence",
+            file_name="evidence.pdf",
             certification_id=100,
             finding_ids=[7],
         )
@@ -441,7 +437,7 @@ class TestFormatAttachment:
 
         assert result == AttachmentWithContextOut(
             id=50,
-            file_type="pdf",
+            file_name="evidence.pdf",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -477,6 +473,15 @@ class TestFormatAttachment:
             "7 CFR 205.201",
             "7 CFR 205.202",
         ]
+
+
+class TestPostAttachmentUpload:
+    # stores generated path under storage/attachments
+    # creates attachment row with generated file path
+    # deletes saved file if DB creation fails
+    # rejects missing certification before keeping file
+    # finding mismatch still returns existing 422 behavior
+    pass
 
 
 class TestPostAttachmentArchivedById:

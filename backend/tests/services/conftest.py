@@ -121,7 +121,7 @@ def attachment_out_factory():
         row = {
             "Attachment": SimpleNamespace(
                 id=50,
-                file_type="pdf",
+                file_name="evidence.pdf",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -278,7 +278,7 @@ def attachment_row_factory():
     def _attachment(**overrides) -> Attachment:
         attachment = Attachment(
             id=50,
-            file_type="pdf",
+            file_name="evidence.pdf",
             certification_id=42,
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",

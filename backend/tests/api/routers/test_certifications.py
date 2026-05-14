@@ -341,7 +341,7 @@ class TestGetCertificationAttachmentsByIdRoute:
             "attachments": [
                 {
                     "id": 50,
-                    "file_type": "pdf",
+                    "file_name": "evidence.pdf",
                     "file_path": "dummy/evidence.pdf",
                     "description": "Inspection evidence",
                     "uploaded_at": "2026-04-03T09:30:00Z",

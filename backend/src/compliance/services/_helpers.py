@@ -38,7 +38,7 @@ def format_attachment(
         if not attachment_dict:
             attachment_dict = {
                 "id": attachment_id,
-                "file_type": row["Attachment"].file_type,
+                "file_name": row["Attachment"].file_name,
                 "file_path": row["Attachment"].file_path,
                 "description": row["Attachment"].description,
                 "uploaded_at": row["Attachment"].uploaded_at,

@@ -49,7 +49,7 @@ export type FindingLink = {
 
 export type AttachmentWithContextOut = ArchivedFields & {
   id: number;
-  file_type: string;
+  file_name: string | null;
   file_path: string;
   description: string | null;
   uploaded_at: string;
@@ -168,9 +168,8 @@ export type FindingRecord = ArchivedFields & {
 export type AttachmentRecord = ArchivedFields & {
   id: number;
   certification_id: number;
-  file_type: string;
   file_path?: string;
-  file_name?: string;
+  file_name?: string | null;
   description: string | null;
   uploaded_at: string | null;
 };

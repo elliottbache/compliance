@@ -8,8 +8,7 @@ from fastapi import HTTPException
 def attachment_out_factory(**overrides):
     """Build an attachment list response payload for route tests."""
     data = {
-        "file_type": "pdf",
-        "file_name": "evidence",
+        "file_name": "evidence.pdf",
         "certification_id": 100,
         "description": "Inspection evidence",
         "finding_ids": [1],
@@ -53,8 +52,7 @@ class TestGetAttachmentsRoute:
         assert response.status_code == 200
         assert response.json() == [
             {
-                "file_type": "pdf",
-                "file_name": "evidence",
+                "file_name": "evidence.pdf",
                 "certification_id": 100,
                 "description": "Inspection evidence",
                 "finding_ids": [1],
@@ -331,7 +329,7 @@ class TestGetAttachmentByIdRoute:
         assert response.status_code == 200
         assert response.json() == {
             "id": 50,
-            "file_type": "pdf",
+            "file_name": "evidence.pdf",
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
             "uploaded_at": "2026-04-03T09:30:00Z",
@@ -467,8 +465,7 @@ class TestPostNewAttachmentRoute:
         )
 
         def fake_post_new_attachment(session, attachment):
-            assert attachment.file_type == "pdf"
-            assert attachment.file_name == "evidence"
+            assert attachment.file_name == "evidence.pdf"
             assert attachment.certification_id == 100
             assert session is mock_db
             return new_attachment
@@ -483,8 +480,7 @@ class TestPostNewAttachmentRoute:
 
         assert response.status_code == 201
         assert response.json() == {
-            "file_type": "pdf",
-            "file_name": "evidence",
+            "file_name": "evidence.pdf",
             "certification_id": 100,
             "description": "Inspection evidence",
             "finding_ids": [],
@@ -564,7 +560,7 @@ class TestPostNewAttachmentRoute:
         assert response.json() == {"detail": "Attachment could not be created."}
 
     def test_route_returns_422_when_attachment_is_invalid(self, client):
-        response = client.post("/attachments", json={"file_type": "pdf"})
+        response = client.post("/attachments", json={"file_name": "test.pdf"})
 
         assert response.status_code == 422
 
@@ -667,6 +663,13 @@ class TestPostNewAttachmentRoute:
         assert exc_info.value.detail == "Attachment could not be created."
 
 
+class TestPostAttachmentUploadRoute:
+    # route calls service
+    # maps attachment errors to 404/422/409
+    # validates missing file
+    pass
+
+
 class TestPostAttachmentArchivedByIdRoute:
     # TestClient
     def test_route_archives_active_attachment(
@@ -755,7 +758,7 @@ class TestPostAttachmentArchivedByIdRoute:
         fake_session = object()
         expected = attachments_router.AttachmentWithContextOut(
             id=50,
-            file_type="pdf",
+            file_name="evidence.pdf",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -877,7 +880,7 @@ class TestPostAttachmentRestoredByIdRoute:
         fake_session = object()
         expected = attachments_router.AttachmentWithContextOut(
             id=50,
-            file_type="pdf",
+            file_name="evidence.pdf",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
