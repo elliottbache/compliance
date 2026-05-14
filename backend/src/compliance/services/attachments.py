@@ -221,46 +221,6 @@ def get_attachment_by_id(
     return None if not rows else format_attachment(rows)
 
 
-def post_attachment_upload(
-    session: Session,
-    *,
-    attachment_id: int,
-    file_name: str | None,
-    file_stream: BinaryIO,
-) -> Attachment:
-    # fetch metadata
-    attachment = session.get(Attachment, attachment_id)
-    if attachment is None:
-        raise AttachmentCreateError(attachment_id)
-
-    # extract extension
-    ext = Path(file_name).suffix if file_name is not None else ""
-
-    # create file name
-    unique_filename = f"{uuid4()}{ext}"
-
-    # set file path
-    file_path = _UPLOAD_DIR / unique_filename
-
-    try:
-        # stream to path
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file_stream, buffer)
-
-        attachment.file_path = str(file_path)
-        attachment.uploaded_at = datetime.now(UTC)
-
-        session.add(attachment)
-        session.commit()
-        session.refresh(attachment)
-
-    except Exception as e:
-        session.rollback()
-        raise AttachmentConflictError(file_path) from e
-
-    return attachment
-
-
 def post_new_attachment(
     session: Session, attachment: AttachmentCreate
 ) -> AttachmentOut:
@@ -294,7 +254,7 @@ def post_new_attachment(
         "certification_id": attachment.certification_id,
         "description": attachment.description,
         "file_path": f"/path/placeholder/{attachment.file_name}",
-        "uploaded_at": datetime.now(UTC),
+        "uploaded_at": None,
     }
     new_attachment = Attachment(**orm_data)
 
@@ -343,6 +303,7 @@ def post_new_attachment(
 
     except IntegrityError as e:
         session.rollback()
+        print(f"e: {e}")
         raise AttachmentConflictError("Attachment could not be created.") from e
 
     except Exception:
@@ -350,6 +311,46 @@ def post_new_attachment(
         raise
 
     return AttachmentOut.model_validate(new_attachment_with_context)
+
+
+def post_attachment_upload(
+    session: Session,
+    *,
+    attachment_id: int,
+    file_name: str | None,
+    file_stream: BinaryIO,
+) -> Attachment:
+    # fetch metadata
+    attachment = session.get(Attachment, attachment_id)
+    if attachment is None:
+        raise AttachmentCreateError(attachment_id)
+
+    # extract extension
+    ext = Path(file_name).suffix if file_name is not None else ""
+
+    # create file name
+    unique_filename = f"{uuid4()}{ext}"
+
+    # set file path
+    file_path = _UPLOAD_DIR / unique_filename
+
+    try:
+        # stream to path
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file_stream, buffer)
+
+        attachment.file_path = str(file_path)
+        attachment.uploaded_at = datetime.now(UTC)
+
+        session.add(attachment)
+        session.commit()
+        session.refresh(attachment)
+
+    except Exception as e:
+        session.rollback()
+        raise AttachmentConflictError(file_path) from e
+
+    return attachment
 
 
 def post_attachment_archived_by_id(
@@ -414,7 +415,7 @@ def _format_new_attachment_with_context(
         file_path=attachment.file_path,
         certification_id=attachment.certification_id,
         description=attachment.description,
-        uploaded_at=attachment.uploaded_at,
+        uploaded_at=None,
         finding_ids=list(finding_ids),
         inspection_date=certification.inspection_date,
         regulation_id=certification.regulation_id,

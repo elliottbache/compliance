@@ -52,7 +52,7 @@ export type AttachmentWithContextOut = ArchivedFields & {
   file_name: string | null;
   file_path: string;
   description: string | null;
-  uploaded_at: string;
+  uploaded_at: string | null;
 
   certification_id: number;
   inspection_date: string | null;

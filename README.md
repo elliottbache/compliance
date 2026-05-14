@@ -81,6 +81,7 @@ The frontend does not run AI automatically. AI analysis is only requested when t
 - Add LLM to compare current regulation with last regulation
 - Add MCP and hosting?
 - Add sanitizer for files and delete those that are not linked to an attachment in the db
+- Add check to db so that if uploaded_at is not null then there must be a file_path for attachments
 
 ## Database description
 ### Notes

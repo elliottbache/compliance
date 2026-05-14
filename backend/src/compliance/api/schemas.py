@@ -105,7 +105,7 @@ class AttachmentWithContextOut(BaseModel):
     file_name: str | None
     file_path: str
     description: str | None
-    uploaded_at: AwareDatetime
+    uploaded_at: AwareDatetime | None
     archived_at: datetime | None
     archive_reason: str | None
 
@@ -135,7 +135,7 @@ class AttachmentOut(AttachmentCreate):
 
     id: int
     file_path: str
-    uploaded_at: AwareDatetime
+    uploaded_at: AwareDatetime | None
     inspection_date: date | None
     regulation_id: int
     regulation_title: str
@@ -228,7 +228,7 @@ class FindingAttachmentOut(BaseModel):
     file_name: str | None
     file_path: str
     description: str | None
-    uploaded_at: AwareDatetime
+    uploaded_at: AwareDatetime | None
     archived_at: datetime | None
     archive_reason: str | None
 
