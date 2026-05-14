@@ -161,6 +161,7 @@ def post_attachment_upload_route(
         post_attachment_upload(
             session,
             attachment_id=id,
+            file_size=file.size,
             file_type=file.content_type,
             file_name=file.filename,
             file_stream=file.file,
@@ -168,7 +169,7 @@ def post_attachment_upload_route(
     except AttachmentFileError as exc:
         raise HTTPException(
             status_code=400,
-            detail=f"Attachment could not be uploaded: {file.filename} with type {file.content_type}.",
+            detail=f"Attachment could not be uploaded: {file.filename} with type {file.content_type} and size {file.size}.",
         ) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(

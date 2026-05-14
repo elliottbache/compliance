@@ -485,6 +485,16 @@ class TestPostAttachmentUpload:
     pass
 
 
+class TestValidateFileSizeTypeAndExt:
+    # check 0 size
+    # check large size
+    # check no type
+    # check bad type
+    # check no ext
+    # check bad ext
+    pass
+
+
 class TestPostAttachmentArchivedById:
     def test_archives_attachment_and_returns_context(self, monkeypatch) -> None:
         session = MagicMock()

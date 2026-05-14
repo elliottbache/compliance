@@ -41,6 +41,7 @@ _ALLOWED_MIME_TYPES = {
     "image/jpeg",
     "text/plain",
 }
+_ALLOWED_SIZE = int(5e7)
 
 
 class AttachmentCreateError(Exception):
@@ -328,13 +329,14 @@ def post_attachment_upload(
     session: Session,
     *,
     attachment_id: int,
+    file_size: int | None,
     file_type: str | None,
     file_name: str | None,
     file_stream: BinaryIO,
 ) -> Attachment:
     # check that content type and extension is acceptable
-    if not _validate_file_type_and_ext(file_type, file_name):
-        raise AttachmentFileError(file_type, file_name)
+    if not _validate_file_size_type_and_ext(file_size, file_type, file_name):
+        raise AttachmentFileError(file_size, file_type, file_name)
 
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
@@ -441,13 +443,19 @@ def _format_new_attachment_with_context(
     )
 
 
-def _validate_file_type_and_ext(
+def _validate_file_size_type_and_ext(
+    file_size: int | None,
     file_type: str | None,
     file_name: str | None,
     *,
+    allowed_size: int = _ALLOWED_SIZE,
     allowed_types: set[str] = _ALLOWED_MIME_TYPES,
     allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
 ) -> bool:
+
+    if not file_size or file_size > allowed_size:
+        return False
+
     if file_type is None or file_type not in allowed_types:
         return False
 
