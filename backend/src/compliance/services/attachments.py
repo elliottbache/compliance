@@ -34,12 +34,13 @@ _UPLOAD_DIR = Path(
     "backend/storage/attachments"
 )  # we should already be in backend folder of repo
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-_ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt"}
+_ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"}
 _ALLOWED_MIME_TYPES = {
     "application/pdf",
     "image/png",
     "image/jpeg",
     "text/plain",
+    "text/csv",
 }
 _ALLOWED_SIZE = int(5e7)
 
