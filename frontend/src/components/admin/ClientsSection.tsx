@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { ClientRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type ClientCreatePayload = {
@@ -278,7 +282,8 @@ export function ClientsSection() {
               <th>Contact</th>
               <th>Email</th>
               <th>Telephone</th>
-              <th>Status</th>
+              <th>Archived at</th>
+              <th>Archive reason</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -286,7 +291,7 @@ export function ClientsSection() {
           <tbody>
             {clients.length === 0 ? (
               <tr>
-                <td className="empty-table-cell" colSpan={7}>
+                <td className="empty-table-cell" colSpan={8}>
                   No clients found.
                 </td>
               </tr>
@@ -303,11 +308,14 @@ export function ClientsSection() {
                   <td>{client.telephone ?? "—"}</td>
                   <td>
                     {isArchived(client) ? (
-                      <span className="badge badge-archived">Archived</span>
+                      <span className="badge badge-archived">
+                        {formatArchivedAt(client.archived_at)}
+                      </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
+                  <td>{formatArchiveReason(client.archive_reason)}</td>
                   <td>
                     {isArchived(client) ? (
                       <button

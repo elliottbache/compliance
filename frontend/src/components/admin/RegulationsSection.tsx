@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { RegulationRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type RegulationCreatePayload = {
@@ -40,10 +44,6 @@ function buildCreatePayload(form: RegulationFormState): RegulationCreatePayload 
     description: form.description.trim(),
     published_date: form.published_date,
   };
-}
-
-function formatDate(value: string | null): string {
-  return value ?? "—";
 }
 
 export function RegulationsSection() {
@@ -288,13 +288,13 @@ export function RegulationsSection() {
                   <td>
                     {isArchived(regulation) ? (
                       <span className="badge badge-archived">
-                        {formatDate(regulation.archived_at)}
+                        {formatArchivedAt(regulation.archived_at)}
                       </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
-                  <td>{regulation.archive_reason ?? "—"}</td>
+                  <td>{formatArchiveReason(regulation.archive_reason)}</td>
                   <td>
                     {isArchived(regulation) ? (
                       <button

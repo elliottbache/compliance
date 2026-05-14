@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { SiteRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type SiteCreatePayload = {
@@ -307,7 +311,8 @@ export function SitesSection() {
               <th>Client NIF</th>
               <th>City</th>
               <th>Address</th>
-              <th>Status</th>
+              <th>Archived at</th>
+              <th>Archive reason</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -315,7 +320,7 @@ export function SitesSection() {
           <tbody>
             {sites.length === 0 ? (
               <tr>
-                <td className="empty-table-cell" colSpan={6}>
+                <td className="empty-table-cell" colSpan={7}>
                   No sites found.
                 </td>
               </tr>
@@ -323,7 +328,7 @@ export function SitesSection() {
               sites.map((site) => (
                 <tr className={isArchived(site) ? "archived-row" : ""} key={site.id}>
                   <td>{site.id}</td>
-                  <td>{site.client_nif}</td>
+                  <td>{site.nif}</td>
                   <td>{site.city}</td>
                   <td>
                     <div>{formatAddress(site)}</div>
@@ -333,11 +338,14 @@ export function SitesSection() {
                   </td>
                   <td>
                     {isArchived(site) ? (
-                      <span className="badge badge-archived">Archived</span>
+                      <span className="badge badge-archived">
+                        {formatArchivedAt(site.archived_at)}
+                      </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
+                  <td>{formatArchiveReason(site.archive_reason)}</td>
                   <td>
                     {isArchived(site) ? (
                       <button

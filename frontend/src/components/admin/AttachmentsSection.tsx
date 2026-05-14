@@ -9,6 +9,11 @@ import {
   uploadAttachmentFile,
 } from "../../api/complianceApi";
 import type { AttachmentRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+  formatDateTime,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type AttachmentCreatePayload = {
@@ -36,10 +41,6 @@ const ATTACHMENTS_PATH = ADMIN_RESOURCE_PATHS.attachments;
 
 function isArchived(attachment: AttachmentRecord): boolean {
   return attachment.archived_at !== null;
-}
-
-function formatDate(value: string | null | undefined): string {
-  return value ?? "—";
 }
 
 function getAttachmentFileLabel(attachment: AttachmentRecord): string {
@@ -432,17 +433,17 @@ export function AttachmentsSection() {
                   </td>
                   <td>{getAttachmentFileLabel(attachment)}</td>
                   <td>{attachment.description ?? "—"}</td>
-                  <td>{formatDate(attachment.uploaded_at)}</td>
+                  <td>{formatDateTime(attachment.uploaded_at)}</td>
                   <td>
                     {isArchived(attachment) ? (
                       <span className="badge badge-archived">
-                        {formatDate(attachment.archived_at)}
+                        {formatArchivedAt(attachment.archived_at)}
                       </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
-                  <td>{attachment.archive_reason ?? "—"}</td>
+                  <td>{formatArchiveReason(attachment.archive_reason)}</td>
                   <td>
                     {isArchived(attachment) ? (
                       <button

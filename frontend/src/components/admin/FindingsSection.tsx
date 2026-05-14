@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { FindingRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type FindingCreatePayload = {
@@ -39,10 +43,6 @@ function isArchived(finding: FindingRecord): boolean {
 
 function getFindingId(finding: FindingRecord): number {
   return finding.finding_id;
-}
-
-function formatDate(value: string | null): string {
-  return value ?? "—";
 }
 
 function parseIdList(value: string): number[] {
@@ -318,13 +318,13 @@ export function FindingsSection() {
                   <td>
                     {isArchived(finding) ? (
                       <span className="badge badge-archived">
-                        {formatDate(finding.archived_at)}
+                        {formatArchivedAt(finding.archived_at)}
                       </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
-                  <td>{finding.archive_reason ?? "—"}</td>
+                  <td>{formatArchiveReason(finding.archive_reason)}</td>
                   <td>
                     {isArchived(finding) ? (
                       <button

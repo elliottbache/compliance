@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { CertifierRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type CertifierCreatePayload = {
@@ -32,10 +36,6 @@ function buildCreatePayload(form: CertifierFormState): CertifierCreatePayload {
   return {
     organization_name: form.organization_name.trim(),
   };
-}
-
-function formatDate(value: string | null): string {
-  return value ?? "—";
 }
 
 export function CertifiersSection() {
@@ -248,13 +248,13 @@ export function CertifiersSection() {
                   <td>
                     {isArchived(certifier) ? (
                       <span className="badge badge-archived">
-                        {formatDate(certifier.archived_at)}
+                        {formatArchivedAt(certifier.archived_at)}
                       </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
-                  <td>{certifier.archive_reason ?? "—"}</td>
+                  <td>{formatArchiveReason(certifier.archive_reason)}</td>
                   <td>
                     {isArchived(certifier) ? (
                       <button

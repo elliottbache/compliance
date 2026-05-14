@@ -119,7 +119,7 @@ export type ClientRecord = ArchivedFields & {
 
 export type SiteRecord = ArchivedFields & {
   id: number;
-  client_nif: string;
+  nif: string;
   city: string;
   postal_code: string;
   street: string;

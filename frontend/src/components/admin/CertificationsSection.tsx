@@ -8,6 +8,10 @@ import {
   restoreAdminRecord,
 } from "../../api/complianceApi";
 import type { CertificationRecord } from "../../types";
+import {
+  formatArchivedAt,
+  formatArchiveReason,
+} from "../../utils/adminFormatters";
 import { getErrorMessage } from "../../utils/apiErrors";
 
 type CertificationCreatePayload = {
@@ -356,13 +360,13 @@ export function CertificationsSection() {
                   <td>
                     {isArchived(certification) ? (
                       <span className="badge badge-archived">
-                        {formatDate(certification.archived_at)}
+                        {formatArchivedAt(certification.archived_at)}
                       </span>
                     ) : (
                       <span className="badge badge-active">Active</span>
                     )}
                   </td>
-                  <td>{certification.archive_reason ?? "—"}</td>
+                  <td>{formatArchiveReason(certification.archive_reason)}</td>
                   <td>
                     {isArchived(certification) ? (
                       <button
