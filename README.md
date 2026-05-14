@@ -80,6 +80,7 @@ The frontend does not run AI automatically. AI analysis is only requested when t
 - Add LLM to parse regulation into database.
 - Add LLM to compare current regulation with last regulation
 - Add MCP and hosting?
+- Add sanitizer for files and delete those that are not linked to an attachment in the db
 
 ## Database description
 ### Notes
