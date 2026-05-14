@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -451,6 +452,70 @@ class TestGetAttachmentByIdRoute:
         )
 
         assert route.response_model is attachments_router.AttachmentWithContextOut
+
+
+class TestGetAttachmentDownloadRoute:
+    def test_returns_file_response_when_attachment_file_exists(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        fake_session = object()
+        stored_file = tmp_path / "stored-file.pdf"
+        stored_file.write_bytes(b"evidence")
+
+        def fake_get_attachment_download(session, attachment_id):
+            assert session is fake_session
+            assert attachment_id == 50
+            return "inspection_report.pdf", stored_file
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachment_download",
+            fake_get_attachment_download,
+        )
+
+        response = attachments_router.get_attachment_download_route(fake_session, 50)
+
+        assert response.path == stored_file
+        assert response.media_type == "application/octet-stream"
+        assert (
+            response.headers["content-disposition"]
+            == 'attachment; filename="inspection_report.pdf"'
+        )
+
+    def test_returns_404_when_attachment_id_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_attachment_download(session, attachment_id):
+            assert attachment_id == 999
+            raise attachments_router.AttachmentNotFoundError(attachment_id)
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachment_download",
+            fake_get_attachment_download,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachment_download_route(object(), 999)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Attachment with ID 999 not found."
+
+    def test_returns_404_when_attachment_file_does_not_exist(self, monkeypatch) -> None:
+        def fake_get_attachment_download(session, attachment_id):
+            raise attachments_router.AttachmentFileError(
+                attachment_id, Path("missing.pdf")
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "get_attachment_download",
+            fake_get_attachment_download,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.get_attachment_download_route(object(), 50)
+
+        assert exc_info.value.status_code == 404
+        assert "Attachment file does not exist not found:" in exc_info.value.detail
 
 
 class TestPostNewAttachmentRoute:

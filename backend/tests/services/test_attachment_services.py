@@ -26,10 +26,12 @@ from compliance.services.attachments import (
     AttachmentFileError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
+    AttachmentNotFoundError,
     _format_attachments,
     _format_new_attachment_with_context,
     _validate_file_size_type_and_ext,
     get_attachment_by_id,
+    get_attachment_download,
     get_attachments,
     post_attachment_archived_by_id,
     post_attachment_restored_by_id,
@@ -481,6 +483,90 @@ class TestFormatAttachment:
             "7 CFR 205.201",
             "7 CFR 205.202",
         ]
+
+
+class TestGetAttachmentDownload:
+    def test_returns_download_name_and_file_path(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        stored_file = tmp_path / "stored-file.pdf"
+        stored_file.write_bytes(b"evidence")
+        db_factory(
+            attachment_overrides={
+                "file_name": "inspection_report",
+                "file_path": str(stored_file),
+            },
+        )
+
+        file_name, file_path = get_attachment_download(sqlite_session, 50)
+
+        assert file_name == "inspection_report.pdf"
+        assert file_path == stored_file
+
+    def test_returns_extension_only_when_file_name_is_empty(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        stored_file = tmp_path / "stored-file.pdf"
+        stored_file.write_bytes(b"evidence")
+        db_factory(
+            attachment_overrides={
+                "file_name": "",
+                "file_path": str(stored_file),
+            },
+        )
+
+        file_name, file_path = get_attachment_download(sqlite_session, 50)
+
+        assert file_name == ".pdf"
+        assert file_path == stored_file
+
+    def test_returns_extension_only_when_file_name_is_none(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        stored_file = tmp_path / "stored-file.pdf"
+        stored_file.write_bytes(b"evidence")
+        db_factory(
+            attachment_overrides={
+                "file_name": None,
+                "file_path": str(stored_file),
+            },
+        )
+
+        file_name, file_path = get_attachment_download(sqlite_session, 50)
+
+        assert file_name == ".pdf"
+        assert file_path == stored_file
+
+    def test_raises_file_error_when_file_path_is_none(
+        self,
+    ) -> None:
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(file_path=None)
+
+        with pytest.raises(AttachmentFileError):
+            get_attachment_download(session, 50)
+
+    def test_raises_file_error_when_file_path_is_empty(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(attachment_overrides={"file_path": ""})
+
+        with pytest.raises(AttachmentFileError):
+            get_attachment_download(sqlite_session, 50)
+
+    def test_raises_file_error_when_file_path_does_not_exist(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory(attachment_overrides={"file_path": str(tmp_path / "missing.pdf")})
+
+        with pytest.raises(AttachmentFileError):
+            get_attachment_download(sqlite_session, 50)
+
+    def test_raises_not_found_error_when_attachment_does_not_exist(
+        self, sqlite_session
+    ) -> None:
+        with pytest.raises(AttachmentNotFoundError):
+            get_attachment_download(sqlite_session, 999)
 
 
 class TestPostAttachmentUpload:

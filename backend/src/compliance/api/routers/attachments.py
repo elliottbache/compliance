@@ -10,13 +10,14 @@ from compliance.api.schemas import (
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
-    AttachmentCreateError,
     AttachmentFileError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
+    AttachmentNotFoundError,
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
     get_attachment_by_id,
+    get_attachment_download,
     get_attachments,
     post_attachment_archived_by_id,
     post_attachment_restored_by_id,
@@ -24,6 +25,7 @@ from compliance.services.attachments import (
     post_new_attachment,
 )
 from fastapi import APIRouter, Form, HTTPException, Path, Query, UploadFile
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
@@ -117,6 +119,30 @@ def get_attachment_by_id_route(
     return AttachmentWithContextOut.model_validate(result)
 
 
+@router.get("/{attachment_id}/download")
+def get_attachment_download_route(
+    session: SessionDep, attachment_id: Annotated[int, Path(ge=1)]
+) -> FileResponse:
+
+    try:
+        file_name, file_path = get_attachment_download(session, attachment_id)
+
+    except AttachmentNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment with ID {attachment_id} not found."
+        ) from exc
+
+    except AttachmentFileError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Attachment file does not exist not found: {exc}.",
+        ) from exc
+
+    return FileResponse(
+        path=file_path, filename=file_name, media_type="application/octet-stream"
+    )
+
+
 @router.post("", status_code=201)
 def post_new_attachment_route(
     session: SessionDep, attachment: AttachmentCreate
@@ -175,37 +201,12 @@ def post_attachment_upload_route(
         raise HTTPException(
             status_code=500, detail=f"File persistence error for file: {file.filename}."
         ) from exc
-    except AttachmentCreateError as exc:
+    except AttachmentNotFoundError as exc:
         raise HTTPException(
             status_code=404, detail=f"Attachment with ID {id} not found."
         ) from exc
     finally:
         file.file.close()
-
-
-"""@router.post("/upload", status_code=201)
-def post_attachment_upload_route(session: SessionDep, file: UploadFile, attachment: Annotated[AttachmentCreate, Depends(as_form_model)]) -> None:
-
-    # call attachment upload service
-    # format output schema
-    file_name = file.filename
-    print(f"file_name: {file_name}")"""
-
-
-"""@router.post("/upload", status_code=201)
-def post_attachment_upload_route(
-    session: SessionDep, 
-    file: UploadFile, 
-    certification_id: Annotated[int, Form()], 
-    description: Annotated[str, Form()] | None = None, 
-    finding_ids: Annotated[list[int], Form()] = []
-) -> None:
-    # call attachment upload service
-    # format output schema
-
-
-    file_name = file.filename
-    print(f"file_name: {file_name}")"""
 
 
 @router.post("/{attachment_id}/archive", status_code=200)

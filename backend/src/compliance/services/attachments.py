@@ -49,6 +49,10 @@ class AttachmentCreateError(Exception):
     """Base error for attachment creation failures."""
 
 
+class AttachmentNotFoundError(AttachmentCreateError):
+    """Raised when an attachment ID doesn't exist."""
+
+
 class AttachmentSiteNotFoundError(AttachmentCreateError):
     """Raised when an attachment filter references a missing site."""
 
@@ -234,6 +238,24 @@ def get_attachment_by_id(
     return None if not rows else format_attachment(rows)
 
 
+def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
+    attachment = session.get(Attachment, attachment_id)
+    if not attachment:
+        raise AttachmentNotFoundError(attachment_id)
+
+    if not attachment.file_path:
+        raise AttachmentFileError(attachment_id, attachment.file_path)
+
+    file_path = Path(attachment.file_path)
+    if not file_path.is_file():
+        raise AttachmentFileError(attachment_id, attachment.file_path)
+
+    file_name = attachment.file_name or ""
+    file_name += str(file_path.suffix)
+
+    return file_name, file_path
+
+
 def post_new_attachment(
     session: Session, attachment: AttachmentCreate
 ) -> AttachmentOut:
@@ -342,7 +364,7 @@ def post_attachment_upload(
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
-        raise AttachmentCreateError(attachment_id)
+        raise AttachmentNotFoundError(attachment_id)
 
     # extract extension
     ext = Path(file_name).suffix if file_name is not None else ""
