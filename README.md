@@ -82,6 +82,7 @@ The frontend does not run AI automatically. AI analysis is only requested when t
 - Add MCP and hosting?
 - Add sanitizer for files and delete those that are not linked to an attachment in the db
 - Add check to db so that if uploaded_at is not null then there must be a file_path for attachments
+- Add a better drop-down list for attachment downloads (and uploads).  Perhaps using search bar or using checkboxes.
 
 ## Database description
 ### Notes
