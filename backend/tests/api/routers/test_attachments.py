@@ -8,7 +8,8 @@ from fastapi import HTTPException
 def attachment_out_factory(**overrides):
     """Build an attachment list response payload for route tests."""
     data = {
-        "file_name": "evidence.pdf",
+        "file_name": "evidence",
+        "file_path": "dummy/evidence.pdf",
         "certification_id": 100,
         "description": "Inspection evidence",
         "finding_ids": [1],
@@ -52,7 +53,8 @@ class TestGetAttachmentsRoute:
         assert response.status_code == 200
         assert response.json() == [
             {
-                "file_name": "evidence.pdf",
+                "file_name": "evidence",
+                "file_path": "dummy/evidence.pdf",
                 "certification_id": 100,
                 "description": "Inspection evidence",
                 "finding_ids": [1],
@@ -329,7 +331,7 @@ class TestGetAttachmentByIdRoute:
         assert response.status_code == 200
         assert response.json() == {
             "id": 50,
-            "file_name": "evidence.pdf",
+            "file_name": "evidence",
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
             "uploaded_at": "2026-04-03T09:30:00Z",
@@ -451,12 +453,13 @@ class TestGetAttachmentByIdRoute:
 
 class TestPostNewAttachmentRoute:
     def test_route_returns_attachment_json_when_created(
-        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+        self, client, mock_db, monkeypatch, attachment_create_factory
     ):
         new_attachment = attachments_router.AttachmentOut.model_validate(
             {
                 **attachment_create_factory(),
                 "id": 50,
+                "file_path": "dummy/evidence.pdf",
                 "uploaded_at": datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
                 "inspection_date": date(2026, 4, 1),
                 "regulation_id": 5,
@@ -465,7 +468,7 @@ class TestPostNewAttachmentRoute:
         )
 
         def fake_post_new_attachment(session, attachment):
-            assert attachment.file_name == "evidence.pdf"
+            assert attachment.file_name == "evidence"
             assert attachment.certification_id == 100
             assert session is mock_db
             return new_attachment
@@ -480,7 +483,8 @@ class TestPostNewAttachmentRoute:
 
         assert response.status_code == 201
         assert response.json() == {
-            "file_name": "evidence.pdf",
+            "file_name": "evidence",
+            "file_path": "dummy/evidence.pdf",
             "certification_id": 100,
             "description": "Inspection evidence",
             "finding_ids": [],
@@ -758,7 +762,7 @@ class TestPostAttachmentArchivedByIdRoute:
         fake_session = object()
         expected = attachments_router.AttachmentWithContextOut(
             id=50,
-            file_name="evidence.pdf",
+            file_name="evidence",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -880,7 +884,7 @@ class TestPostAttachmentRestoredByIdRoute:
         fake_session = object()
         expected = attachments_router.AttachmentWithContextOut(
             id=50,
-            file_name="evidence.pdf",
+            file_name="evidence",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),

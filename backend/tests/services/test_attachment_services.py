@@ -237,6 +237,7 @@ class TestFormatAttachments:
             AttachmentOut(
                 id=50,
                 file_name="evidence",
+                file_path="dummy/evidence.pdf",
                 certification_id=100,
                 description="Inspection evidence",
                 finding_ids=[],
@@ -347,7 +348,7 @@ class TestGetAttachmentById:
 class TestPostNewAttachment:
     def test_raises_when_certification_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
-            file_name="evidence.pdf",
+            file_name="evidence",
             certification_id=100,
         )
         session = MagicMock()
@@ -363,7 +364,7 @@ class TestPostNewAttachment:
 
     def test_raises_when_finding_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
-            file_name="evidence.pdf",
+            file_name="evidence",
             certification_id=100,
             finding_ids=[7],
         )
@@ -383,7 +384,7 @@ class TestPostNewAttachment:
 
     def test_raises_when_finding_belongs_to_another_certification(self) -> None:
         attachment = AttachmentCreate(
-            file_name="evidence.pdf",
+            file_name="evidence",
             certification_id=100,
             finding_ids=[7],
         )
@@ -437,7 +438,7 @@ class TestFormatAttachment:
 
         assert result == AttachmentWithContextOut(
             id=50,
-            file_name="evidence.pdf",
+            file_name="evidence",
             file_path="dummy/evidence.pdf",
             description="Inspection evidence",
             uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),

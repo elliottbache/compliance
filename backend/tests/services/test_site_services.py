@@ -107,7 +107,7 @@ def attachment_out_factory():
         row = {
             "Attachment": SimpleNamespace(
                 id=50,
-                file_name="evidence.pdf",
+                file_name="evidence",
                 file_path="dummy/evidence.pdf",
                 description="Inspection evidence",
                 uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),

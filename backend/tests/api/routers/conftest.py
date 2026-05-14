@@ -243,7 +243,7 @@ def attachment_factory():
     def _attachment(**overrides):
         attachment = {
             "id": 50,
-            "file_name": "evidence.pdf",
+            "file_name": "evidence",
             "file_path": "dummy/evidence.pdf",
             "description": "Inspection evidence",
             "uploaded_at": datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
@@ -301,7 +301,7 @@ def finding_factory():
 def attachment_create_factory():
     def _attachment_create(**overrides):
         attachment = {
-            "file_name": "evidence.pdf",
+            "file_name": "evidence",
             "certification_id": 100,
             "description": "Inspection evidence",
             "archived_at": None,
