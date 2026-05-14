@@ -11,6 +11,7 @@ from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentCreateError,
+    AttachmentFileError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     AttachmentRuleNotFoundError,
@@ -158,15 +159,24 @@ def post_attachment_upload_route(
     # call attachment upload service
     try:
         post_attachment_upload(
-            session, attachment_id=id, file_name=file.filename, file_stream=file.file
+            session,
+            attachment_id=id,
+            file_type=file.content_type,
+            file_name=file.filename,
+            file_stream=file.file,
         )
-    except AttachmentCreateError as exc:
+    except AttachmentFileError as exc:
         raise HTTPException(
-            status_code=404, detail=f"Attachment with ID {id} not found."
+            status_code=400,
+            detail=f"Attachment could not be uploaded: {file.filename} with type {file.content_type}.",
         ) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(
             status_code=500, detail=f"File persistence error for file: {file.filename}."
+        ) from exc
+    except AttachmentCreateError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment with ID {id} not found."
         ) from exc
     finally:
         file.file.close()

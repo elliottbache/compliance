@@ -31,9 +31,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 _UPLOAD_DIR = Path(
-    "storage/attachments"
+    "backend/storage/attachments"
 )  # we should already be in backend folder of repo
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+_ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt"}
+_ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "text/plain",
+}
 
 
 class AttachmentCreateError(Exception):
@@ -62,6 +69,10 @@ class AttachmentFindingCertificationMismatchError(AttachmentCreateError):
 
 class AttachmentConflictError(AttachmentCreateError):
     """Raised when attachment creation conflicts with stored data."""
+
+
+class AttachmentFileError(AttachmentCreateError):
+    """Raised when attachment file upload is invalid."""
 
 
 def get_attachments(
@@ -317,9 +328,14 @@ def post_attachment_upload(
     session: Session,
     *,
     attachment_id: int,
+    file_type: str | None,
     file_name: str | None,
     file_stream: BinaryIO,
 ) -> Attachment:
+    # check that content type and extension is acceptable
+    if not _validate_file_type_and_ext(file_type, file_name):
+        raise AttachmentFileError(file_type, file_name)
+
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
@@ -423,6 +439,19 @@ def _format_new_attachment_with_context(
         archived_at=attachment.archived_at,
         archive_reason=attachment.archive_reason,
     )
+
+
+def _validate_file_type_and_ext(
+    file_type: str | None,
+    file_name: str | None,
+    *,
+    allowed_types: set[str] = _ALLOWED_MIME_TYPES,
+    allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
+) -> bool:
+    if file_type is None or file_type not in allowed_types:
+        return False
+
+    return file_name is None or Path(file_name).suffix in allowed_extensions
 
 
 def _format_attachments(attachment_list: Sequence[Mapping]) -> list[AttachmentOut]:

@@ -477,7 +477,7 @@ class TestFormatAttachment:
 
 
 class TestPostAttachmentUpload:
-    # stores generated path under storage/attachments
+    # stores generated path under backend/storage/attachments
     # creates attachment row with generated file path
     # deletes saved file if DB creation fails
     # rejects missing certification before keeping file
