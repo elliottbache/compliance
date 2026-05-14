@@ -1,6 +1,9 @@
+import shutil
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import BinaryIO
+from uuid import uuid4
 
 from compliance.api.schemas import (
     ArchiveRequest,
@@ -26,6 +29,11 @@ from compliance.services._helpers import (
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+_UPLOAD_DIR = Path(
+    "storage/attachments"
+)  # we should already be in backend folder of repo
+_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class AttachmentCreateError(Exception):
@@ -211,6 +219,46 @@ def get_attachment_by_id(
 
     rows = session.execute(stmt).mappings().all()
     return None if not rows else format_attachment(rows)
+
+
+def post_attachment_upload(
+    session: Session,
+    *,
+    attachment_id: int,
+    file_name: str | None,
+    file_stream: BinaryIO,
+) -> Attachment:
+    # fetch metadata
+    attachment = session.get(Attachment, attachment_id)
+    if attachment is None:
+        raise AttachmentCreateError(attachment_id)
+
+    # extract extension
+    ext = Path(file_name).suffix if file_name is not None else ""
+
+    # create file name
+    unique_filename = f"{uuid4()}{ext}"
+
+    # set file path
+    file_path = _UPLOAD_DIR / unique_filename
+
+    try:
+        # stream to path
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file_stream, buffer)
+
+        attachment.file_path = str(file_path)
+        attachment.uploaded_at = datetime.now(UTC)
+
+        session.add(attachment)
+        session.commit()
+        session.refresh(attachment)
+
+    except Exception as e:
+        session.rollback()
+        raise AttachmentConflictError(file_path) from e
+
+    return attachment
 
 
 def post_new_attachment(

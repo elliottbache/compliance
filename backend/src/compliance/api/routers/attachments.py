@@ -10,6 +10,7 @@ from compliance.api.schemas import (
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
+    AttachmentCreateError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     AttachmentRuleNotFoundError,
@@ -18,9 +19,10 @@ from compliance.services.attachments import (
     get_attachments,
     post_attachment_archived_by_id,
     post_attachment_restored_by_id,
+    post_attachment_upload,
     post_new_attachment,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Form, HTTPException, Path, Query, UploadFile
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
@@ -145,6 +147,54 @@ def post_new_attachment_route(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return AttachmentOut.model_validate(new_attachment)
+
+
+@router.post("/upload", status_code=201)
+def post_attachment_upload_route(
+    session: SessionDep,
+    file: UploadFile,
+    id: Annotated[int, Form()],
+) -> None:
+    # call attachment upload service
+    try:
+        post_attachment_upload(
+            session, attachment_id=id, file_name=file.filename, file_stream=file.file
+        )
+    except AttachmentCreateError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Attachment with ID {id} not found."
+        ) from exc
+    except AttachmentConflictError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"File persistence error for file: {file.filename}."
+        ) from exc
+    finally:
+        file.file.close()
+
+
+"""@router.post("/upload", status_code=201)
+def post_attachment_upload_route(session: SessionDep, file: UploadFile, attachment: Annotated[AttachmentCreate, Depends(as_form_model)]) -> None:
+
+    # call attachment upload service
+    # format output schema
+    file_name = file.filename
+    print(f"file_name: {file_name}")"""
+
+
+"""@router.post("/upload", status_code=201)
+def post_attachment_upload_route(
+    session: SessionDep, 
+    file: UploadFile, 
+    certification_id: Annotated[int, Form()], 
+    description: Annotated[str, Form()] | None = None, 
+    finding_ids: Annotated[list[int], Form()] = []
+) -> None:
+    # call attachment upload service
+    # format output schema
+
+
+    file_name = file.filename
+    print(f"file_name: {file_name}")"""
 
 
 @router.post("/{attachment_id}/archive", status_code=200)
