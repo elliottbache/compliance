@@ -14,6 +14,7 @@ from compliance.db.models import (
 )
 from compliance.services._helpers import format_attachment
 from compliance.services.attachments import (
+    _UPLOAD_DIR,
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentCreateError,
@@ -570,6 +571,18 @@ class TestGetAttachmentDownload:
 
 
 class TestPostAttachmentUpload:
+    def test_default_upload_dir_is_independent_of_cwd(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        expected_path = (
+            Path(__file__).resolve().parents[3] / "backend" / "storage" / "attachments"
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        assert expected_path == _UPLOAD_DIR
+        assert _UPLOAD_DIR.is_absolute()
+
     def test_stores_uploaded_file_and_updates_attachment_row(
         self, monkeypatch, tmp_path, sqlite_session, db_factory
     ) -> None:

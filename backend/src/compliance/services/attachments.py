@@ -30,9 +30,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-_UPLOAD_DIR = Path(
-    "backend/storage/attachments"
-)  # we should already be in backend folder of repo
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_UPLOAD_DIR = _PROJECT_ROOT / "backend" / "storage" / "attachments"
 _ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"}
 _ALLOWED_MIME_TYPES = {
     "application/pdf",
