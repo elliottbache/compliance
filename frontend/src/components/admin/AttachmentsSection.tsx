@@ -4,6 +4,7 @@ import {
   ADMIN_RESOURCE_PATHS,
   archiveAdminRecord,
   createAdminRecord,
+  getAttachmentDownloadUrl,
   listAdminRecords,
   restoreAdminRecord,
   uploadAttachmentFile,
@@ -74,9 +75,11 @@ export function AttachmentsSection() {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [showDownloadForm, setShowDownloadForm] = useState(false);
   const [form, setForm] = useState<AttachmentFormState>(EMPTY_FORM);
   const [uploadAttachmentId, setUploadAttachmentId] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [downloadAttachmentId, setDownloadAttachmentId] = useState("");
   const [archiveReasons, setArchiveReasons] = useState<Record<number, string>>(
     {},
   );
@@ -162,6 +165,30 @@ export function AttachmentsSection() {
     }
   }
 
+  async function handleDownloadAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!downloadAttachmentId) {
+      return;
+    }
+
+    try {
+      setLoading(`Downloading attachment ${downloadAttachmentId}...`);
+      setError(null);
+      const link = document.createElement("a");
+      link.href = getAttachmentDownloadUrl(Number(downloadAttachmentId));
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setDownloadAttachmentId("");
+      setShowDownloadForm(false);
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setLoading(null);
+    }
+  }
+
   async function handleArchiveAttachment(attachmentId: number) {
     try {
       setLoading(`Archiving attachment ${attachmentId}...`);
@@ -200,6 +227,9 @@ export function AttachmentsSection() {
   const pendingUploadAttachments = attachments.filter(
     (attachment) => attachment.uploaded_at === null,
   );
+  const downloadableAttachments = attachments.filter(
+    (attachment) => attachment.uploaded_at !== null,
+  );
 
   return (
     <section className="admin-record-section">
@@ -234,6 +264,7 @@ export function AttachmentsSection() {
             type="button"
             onClick={() => {
               setShowUploadForm(false);
+              setShowDownloadForm(false);
               setShowCreateForm((current) => !current);
             }}
           >
@@ -246,10 +277,24 @@ export function AttachmentsSection() {
             type="button"
             onClick={() => {
               setShowCreateForm(false);
+              setShowDownloadForm(false);
               setShowUploadForm((current) => !current);
             }}
           >
             {showUploadForm ? "Cancel" : "Upload File"}
+          </button>
+
+          <button
+            className="button button-primary"
+            disabled={isBusy || downloadableAttachments.length === 0}
+            type="button"
+            onClick={() => {
+              setShowCreateForm(false);
+              setShowUploadForm(false);
+              setShowDownloadForm((current) => !current);
+            }}
+          >
+            {showDownloadForm ? "Cancel" : "Download File"}
           </button>
         </div>
       </div>
@@ -387,6 +432,53 @@ export function AttachmentsSection() {
                 setUploadAttachmentId("");
                 setUploadFile(null);
                 setShowUploadForm(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {showDownloadForm ? (
+        <form className="admin-form" onSubmit={handleDownloadAttachment}>
+          <div className="form-grid">
+            <label>
+              Attachment
+              <select
+                required
+                className="select"
+                value={downloadAttachmentId}
+                onChange={(event) =>
+                  setDownloadAttachmentId(event.target.value)
+                }
+              >
+                <option value="">Select attachment</option>
+                {downloadableAttachments.map((attachment) => (
+                  <option key={attachment.id} value={attachment.id}>
+                    {attachment.id} - {getAttachmentFileLabel(attachment)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="button-row">
+            <button
+              className="button button-primary"
+              disabled={isBusy || downloadableAttachments.length === 0}
+              type="submit"
+            >
+              Download
+            </button>
+
+            <button
+              className="button"
+              disabled={isBusy}
+              type="button"
+              onClick={() => {
+                setDownloadAttachmentId("");
+                setShowDownloadForm(false);
               }}
             >
               Cancel

@@ -135,7 +135,7 @@ def get_attachment_download_route(
     except AttachmentFileError as exc:
         raise HTTPException(
             status_code=404,
-            detail=f"Attachment file does not exist not found: {exc}.",
+            detail=f"Attachment file does not exist or not found: {exc}.",
         ) from exc
 
     return FileResponse(

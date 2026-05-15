@@ -219,6 +219,10 @@ export async function uploadAttachmentFile(
   await assertOk(response);
 }
 
+export function getAttachmentDownloadUrl(attachmentId: number): string {
+  return buildUrl(`/attachments/${attachmentId}/download`);
+}
+
 export async function archiveAdminRecord<TResponse>(
   resourcePath: string,
   recordId: RecordId,

@@ -515,7 +515,7 @@ class TestGetAttachmentDownloadRoute:
             attachments_router.get_attachment_download_route(object(), 50)
 
         assert exc_info.value.status_code == 404
-        assert "Attachment file does not exist not found:" in exc_info.value.detail
+        assert "Attachment file does not exist or not found:" in exc_info.value.detail
 
 
 class TestPostNewAttachmentRoute:
