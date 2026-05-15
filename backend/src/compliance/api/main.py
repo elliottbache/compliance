@@ -1,5 +1,8 @@
 """FastAPI application entrypoint for compliance API routes."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,9 +18,15 @@ from compliance.api.routers import (
 )
 from compliance.logging_utils import configure_logging
 
-configure_logging(level="DEBUG")
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Configure app-level resources when FastAPI starts."""
+    configure_logging(level="DEBUG")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(sites.router)
 app.include_router(certifications.router)
 app.include_router(findings.router)

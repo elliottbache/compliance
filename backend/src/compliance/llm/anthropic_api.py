@@ -13,10 +13,7 @@ MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v0.1"
 _DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 
 def call_structured_model[
@@ -61,6 +58,7 @@ def call_structured_model[
     logger.debug(f"system_context: {system_context}")
     logger.debug(f"user_message: {user_message}")
 
+    load_dotenv()
     client = anthropic.Anthropic()
     try:
         is_retry = False

@@ -24,6 +24,7 @@ class TestBuildDbUrl:
         )
 
     def test_raises_when_required_environment_is_missing(self, monkeypatch) -> None:
+        monkeypatch.setattr("compliance.db.db_access.load_dotenv", lambda: None)
         monkeypatch.delenv("POSTGRES_DB", raising=False)
         monkeypatch.delenv("POSTGRES_USER", raising=False)
         monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)

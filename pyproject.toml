@@ -43,9 +43,6 @@ dev = [
   "httpx==0.28.1",
 ]
 
-[project.scripts]
-compliance = "compliance.app:main"
-
 [tool.setuptools]
 # Tell setuptools that packages live under `backend/src/`
 package-dir = { "" = "backend/src" }

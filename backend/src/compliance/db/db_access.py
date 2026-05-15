@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 from sqlalchemy import Engine, MetaData, Table, create_engine
 from sqlalchemy.orm import Session
 
-load_dotenv()
-
 convention = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -25,6 +23,8 @@ def _build_db_url() -> str:
     Raises:
         ValueError: If any required database environment variable is missing.
     """
+    load_dotenv()
+
     db_name = getenv("POSTGRES_DB")
     user = getenv("POSTGRES_USER")
     password = getenv("POSTGRES_PASSWORD")

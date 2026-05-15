@@ -33,7 +33,6 @@ from sqlalchemy.orm import Session
 _UPLOAD_DIR = Path(
     "backend/storage/attachments"
 )  # we should already be in backend folder of repo
-_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 _ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"}
 _ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -338,7 +337,6 @@ def post_new_attachment(
 
     except IntegrityError as e:
         session.rollback()
-        print(f"e: {e}")
         raise AttachmentConflictError("Attachment could not be created.") from e
 
     except Exception:
@@ -377,6 +375,7 @@ def post_attachment_upload(
 
     try:
         # stream to path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file_stream, buffer)
 
