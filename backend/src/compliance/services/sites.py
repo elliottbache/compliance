@@ -1,11 +1,5 @@
 from collections.abc import Mapping, Sequence
 
-from compliance.api.schemas import (
-    ArchiveRequest,
-    SiteAttachmentsOut,
-    SiteCertificationsOut,
-    SiteCreate,
-)
 from compliance.db.db_access import get_engine_metadata, get_tables
 from compliance.db.models import (
     Attachment,
@@ -25,6 +19,12 @@ from compliance.services._helpers import (
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    SiteAttachmentsOut,
+    SiteCertificationsOut,
+    SiteCreate,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

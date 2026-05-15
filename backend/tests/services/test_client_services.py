@@ -2,10 +2,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    ClientCreate,
-)
 from compliance.db.models import Client
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
@@ -16,6 +12,10 @@ from compliance.services.clients import (
     post_client_archived_by_nif,
     post_client_restored_by_nif,
     post_new_client,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    ClientCreate,
 )
 from sqlalchemy.exc import IntegrityError
 

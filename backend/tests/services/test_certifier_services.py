@@ -2,10 +2,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    CertifierCreate,
-)
 from compliance.db.models import Certifier
 from compliance.services.certifiers import (
     CertifierConflictError,
@@ -15,6 +11,10 @@ from compliance.services.certifiers import (
     post_certifier_archived_by_id,
     post_certifier_restored_by_id,
     post_new_certifier,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    CertifierCreate,
 )
 from sqlalchemy.exc import IntegrityError
 

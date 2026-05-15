@@ -3,11 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    RuleCreate,
-    RuleOut,
-)
 from compliance.db.models import Regulation, Rule
 from compliance.services.rules import (
     RuleConflictError,
@@ -18,6 +13,11 @@ from compliance.services.rules import (
     post_new_rule,
     post_rule_archived_by_id,
     post_rule_restored_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    RuleCreate,
+    RuleOut,
 )
 from sqlalchemy.exc import IntegrityError
 

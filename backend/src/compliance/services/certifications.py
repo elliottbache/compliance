@@ -1,12 +1,6 @@
 import logging
 from collections.abc import Mapping, Sequence
 
-from compliance.api.schemas import (
-    ArchiveRequest,
-    CertificationAttachmentsOut,
-    CertificationCreate,
-    CertificationOut,
-)
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -24,6 +18,12 @@ from compliance.services._helpers import (
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    CertificationAttachmentsOut,
+    CertificationCreate,
+    CertificationOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

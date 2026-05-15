@@ -3,10 +3,6 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
 
-from compliance.api.schemas import (
-    ArchiveRequest,
-    AttachmentWithContextOut,
-)
 from compliance.db.models import (
     Certification,
     Certifier,
@@ -15,6 +11,10 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import FindingHistory
+from compliance.services.schemas import (
+    ArchiveRequest,
+    AttachmentWithContextOut,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 

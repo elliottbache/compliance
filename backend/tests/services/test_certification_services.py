@@ -3,12 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    CertificationAttachmentsOut,
-    CertificationCreate,
-    CertificationOut,
-)
 from compliance.db.models import (
     Certification,
     Certifier,
@@ -28,6 +22,12 @@ from compliance.services.certifications import (
     post_certification_archived_by_id,
     post_certification_restored_by_id,
     post_new_certification,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    CertificationAttachmentsOut,
+    CertificationCreate,
+    CertificationOut,
 )
 from sqlalchemy.exc import IntegrityError
 

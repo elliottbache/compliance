@@ -1,7 +1,3 @@
-from compliance.api.schemas import (
-    ArchiveRequest,
-    ClientCreate,
-)
 from compliance.db.models import (
     Client,
 )
@@ -10,6 +6,10 @@ from compliance.services._helpers import (
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    ClientCreate,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

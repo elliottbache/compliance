@@ -1,11 +1,5 @@
 from collections.abc import Mapping, Sequence
 
-from compliance.api.schemas import (
-    ArchiveRequest,
-    FindingAttachmentOut,
-    FindingCreate,
-    FindingOut,
-)
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -20,6 +14,12 @@ from compliance.services._helpers import (
     certification_parent_chain_is_visible,
     record_is_visible,
     restore_record_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    FindingAttachmentOut,
+    FindingCreate,
+    FindingOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

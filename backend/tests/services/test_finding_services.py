@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.api.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -22,6 +21,7 @@ from compliance.services.findings import (
     post_finding_archived_by_id,
     post_finding_restored_by_id,
 )
+from compliance.services.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
 
 
 def finding_row(**overrides):

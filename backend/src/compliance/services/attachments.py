@@ -5,12 +5,6 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
-from compliance.api.schemas import (
-    ArchiveRequest,
-    AttachmentCreate,
-    AttachmentOut,
-    AttachmentWithContextOut,
-)
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -25,6 +19,12 @@ from compliance.services._helpers import (
     format_attachment,
     record_is_visible,
     restore_record_by_id,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    AttachmentCreate,
+    AttachmentOut,
+    AttachmentWithContextOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

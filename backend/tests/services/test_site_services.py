@@ -3,12 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    SiteAttachmentsOut,
-    SiteCertificationsOut,
-    SiteCreate,
-)
 from compliance.db.models import (
     Certification,
     Client,
@@ -20,6 +14,12 @@ from compliance.services._helpers import (
 )
 from compliance.services.certifications import (
     get_certifications,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    SiteAttachmentsOut,
+    SiteCertificationsOut,
+    SiteCreate,
 )
 from compliance.services.sites import (
     SiteClientNotFoundError,

@@ -5,12 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.api.schemas import (
-    ArchiveRequest,
-    AttachmentCreate,
-    AttachmentOut,
-    AttachmentWithContextOut,
-)
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -37,6 +31,12 @@ from compliance.services.attachments import (
     post_attachment_restored_by_id,
     post_attachment_upload,
     post_new_attachment,
+)
+from compliance.services.schemas import (
+    ArchiveRequest,
+    AttachmentCreate,
+    AttachmentOut,
+    AttachmentWithContextOut,
 )
 
 
