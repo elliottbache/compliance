@@ -1,6 +1,6 @@
 """Service-layer schemas shared by business logic and API adapters."""
 
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from compliance.schemas import FindingHistory
@@ -29,7 +29,7 @@ class SiteOut(SiteCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -52,7 +52,7 @@ class CertificationOut(CertificationCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -72,7 +72,7 @@ class RegulationOut(RegulationCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -93,7 +93,7 @@ class RuleOut(RuleCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -107,7 +107,7 @@ class AttachmentWithContextOut(BaseModel):
     file_path: str
     description: str | None
     uploaded_at: AwareDatetime | None
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
     certification_id: int
@@ -140,7 +140,7 @@ class AttachmentOut(AttachmentCreate):
     inspection_date: date | None
     regulation_id: int
     regulation_title: str
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -187,7 +187,7 @@ class ClientOut(ClientCreate):
     """Output shape for a client record."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -205,7 +205,7 @@ class CertifierOut(CertifierCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -230,7 +230,7 @@ class FindingAttachmentOut(BaseModel):
     file_path: str
     description: str | None
     uploaded_at: AwareDatetime | None
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
@@ -250,7 +250,7 @@ class FindingOut(BaseModel):
     rule_title: str | None
     rule_description: str
     attachments: list[FindingAttachmentOut] = Field(default_factory=list)
-    archived_at: datetime | None
+    archived_at: AwareDatetime | None
     archive_reason: str | None
 
 
