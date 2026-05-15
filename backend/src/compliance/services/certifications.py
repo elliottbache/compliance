@@ -246,17 +246,17 @@ def post_new_certification(
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "certifications_certifier_id_fkey":
+        if constraint_name == "fk_certifications_certifier_id_certifiers":
             raise CertificationCertifierNotFoundError(
                 certification.certifier_id
             ) from exc
 
-        if constraint_name == "certifications_regulation_id_fkey":
+        if constraint_name == "fk_certifications_regulation_id_regulations":
             raise CertificationRegulationNotFoundError(
                 certification.regulation_id
             ) from exc
 
-        if constraint_name == "certifications_site_id_fkey":
+        if constraint_name == "fk_certifications_site_id_sites":
             raise CertificationSiteNotFoundError(certification.site_id) from exc
 
         raise CertificationConflictError() from exc

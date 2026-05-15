@@ -94,10 +94,10 @@ def post_new_client(session: Session, client: ClientCreate) -> Client:
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "clients_pkey":
+        if constraint_name == "pk_clients":
             raise ClientNifConflictError(client.nif) from exc
 
-        if constraint_name == "uq_company_name":
+        if constraint_name == "uq_clients_company_name":
             raise ClientCompanyNameConflictError(client.company_name) from exc
 
         raise ClientConflictError() from exc

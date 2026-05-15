@@ -379,7 +379,7 @@ def post_new_site(session: Session, site: SiteCreate) -> Site:
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "sites_nif_fkey":
+        if constraint_name == "fk_sites_nif_clients":
             raise SiteClientNotFoundError(site.nif) from exc
 
         raise SiteConflictError() from exc

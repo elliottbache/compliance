@@ -205,18 +205,13 @@ class TestPostNewRule:
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
 
-    @pytest.mark.parametrize(
-        "constraint_name",
-        [
-            "uq_regulation_id_rule_index",
-            "uq_rules_regulation_id_rule_index",
-        ],
-    )
     def test_raises_rule_index_conflict_when_rule_index_already_exists(
-        self, constraint_name
+        self,
     ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error(constraint_name)
+        session.commit.side_effect = _integrity_error(
+            "uq_rules_regulation_id_rule_index"
+        )
 
         with pytest.raises(RuleIndexConflictError):
             post_new_rule(session, _rule_create())
@@ -310,7 +305,9 @@ class TestPostRuleRestoredById:
 class TestPostNewRuleConflicts:
     def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error("rules_regulation_id_fkey")
+        session.commit.side_effect = _integrity_error(
+            "fk_rules_regulation_id_regulations"
+        )
 
         with pytest.raises(RuleRegulationNotFoundError):
             post_new_rule(session, _rule_create())

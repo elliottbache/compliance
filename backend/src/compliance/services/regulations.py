@@ -117,7 +117,7 @@ def post_new_regulation(session: Session, regulation: RegulationCreate) -> Regul
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "uq_title":
+        if constraint_name == "uq_regulations_title":
             raise RegulationTitleConflictError(regulation.title) from exc
 
         raise RegulationConflictError() from exc

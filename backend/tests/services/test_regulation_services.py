@@ -301,7 +301,7 @@ class TestPostRegulationRestoredById:
 class TestPostNewRegulationConflicts:
     def test_raises_title_conflict_when_title_already_exists(self) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error("uq_title")
+        session.commit.side_effect = _integrity_error("uq_regulations_title")
 
         with pytest.raises(RegulationTitleConflictError):
             post_new_regulation(session, _regulation_create())

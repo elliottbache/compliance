@@ -172,7 +172,7 @@ class TestPostNewClient:
         )
         monkeypatch.setattr(
             "compliance.services.clients.get_constraint_name",
-            lambda exc: "clients_pkey",
+            lambda exc: "pk_clients",
         )
 
         with pytest.raises(ClientNifConflictError):
@@ -196,7 +196,7 @@ class TestPostNewClient:
         )
         monkeypatch.setattr(
             "compliance.services.clients.get_constraint_name",
-            lambda exc: "uq_company_name",
+            lambda exc: "uq_clients_company_name",
         )
 
         with pytest.raises(ClientCompanyNameConflictError):

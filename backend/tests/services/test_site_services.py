@@ -381,7 +381,7 @@ class TestPostNewSite:
         site = _site_create()
         monkeypatch.setattr(
             "compliance.services.sites.get_constraint_name",
-            lambda exc: "sites_nif_fkey",
+            lambda exc: "fk_sites_nif_clients",
         )
 
         with pytest.raises(SiteClientNotFoundError):

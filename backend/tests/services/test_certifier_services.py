@@ -153,7 +153,7 @@ class TestPostNewCertifier:
         certifier = CertifierCreate(organization_name="SafeCheck Inc.")
         monkeypatch.setattr(
             "compliance.services.certifiers.get_constraint_name",
-            lambda exc: "uq_organization_name",
+            lambda exc: "uq_certifiers_organization_name",
         )
 
         with pytest.raises(CertifierOrganizationNameConflictError):

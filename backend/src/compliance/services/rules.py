@@ -120,13 +120,10 @@ def post_new_rule(session: Session, rule: RuleCreate) -> Rule:
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "rules_regulation_id_fkey":
+        if constraint_name == "fk_rules_regulation_id_regulations":
             raise RuleRegulationNotFoundError(rule.regulation_id) from exc
 
-        if constraint_name in {
-            "uq_regulation_id_rule_index",
-            "uq_rules_regulation_id_rule_index",
-        }:
+        if constraint_name == "uq_rules_regulation_id_rule_index":
             raise RuleIndexConflictError(rule.rule_index) from exc
 
         raise RuleConflictError() from exc

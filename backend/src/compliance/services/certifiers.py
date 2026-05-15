@@ -95,7 +95,7 @@ def post_new_certifier(session: Session, certifier: CertifierCreate) -> Certifie
 
         constraint_name = get_constraint_name(exc)
 
-        if constraint_name == "uq_organization_name":
+        if constraint_name == "uq_certifiers_organization_name":
             raise CertifierOrganizationNameConflictError(
                 certifier.organization_name
             ) from exc

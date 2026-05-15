@@ -442,7 +442,7 @@ class TestPostNewCertification:
     def test_raises_certifier_error_when_certifier_does_not_exist(self) -> None:
         session = MagicMock()
         session.commit.side_effect = _integrity_error(
-            "certifications_certifier_id_fkey"
+            "fk_certifications_certifier_id_certifiers"
         )
 
         with pytest.raises(CertificationCertifierNotFoundError):
@@ -453,7 +453,7 @@ class TestPostNewCertification:
     def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
         session = MagicMock()
         session.commit.side_effect = _integrity_error(
-            "certifications_regulation_id_fkey"
+            "fk_certifications_regulation_id_regulations"
         )
 
         with pytest.raises(CertificationRegulationNotFoundError):
@@ -463,7 +463,7 @@ class TestPostNewCertification:
 
     def test_raises_site_error_when_site_does_not_exist(self) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error("certifications_site_id_fkey")
+        session.commit.side_effect = _integrity_error("fk_certifications_site_id_sites")
 
         with pytest.raises(CertificationSiteNotFoundError):
             post_new_certification(session, _certification_create())
