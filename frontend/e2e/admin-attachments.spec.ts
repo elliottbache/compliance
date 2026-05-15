@@ -31,7 +31,7 @@ test("downloads the selected uploaded attachment", async ({ page }) => {
   await page.getByLabel("Attachment").selectOption("50");
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download" }).click();
+  await page.getByRole("button", { name: "Download", exact: true }).click();
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toBe("inspection_report.pdf");
