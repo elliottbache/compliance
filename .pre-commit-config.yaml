@@ -26,7 +26,8 @@ repos:
                 pyproject\.toml|
                 frontend/package-lock.json|
                 frontend/node_modules/|
-                frontend/dist/
+                frontend/dist/|
+                frontend/playwright-report/
             )
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
