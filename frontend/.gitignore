@@ -47,5 +47,5 @@ Thumbs.db
 .idea/
 
 # tests
-playwright-report/
-test-results/
+playwright-report/*
+test-results/*
