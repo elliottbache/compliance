@@ -251,9 +251,7 @@ class FindingAttachment(Base):
 
     finding_id: Mapped[int] = mapped_column(primary_key=True)
     attachment_id: Mapped[int] = mapped_column(primary_key=True)
-    certification_id: Mapped[int] = mapped_column(
-        ForeignKey("certifications.id"), primary_key=True
-    )
+    certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"))
 
     finding_attachment_certification_rel: Mapped["Certification"] = relationship(
         back_populates="certification_finding_attachment_rel",
