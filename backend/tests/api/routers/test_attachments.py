@@ -799,7 +799,7 @@ class TestPostAttachmentUploadRoute:
         self, client, monkeypatch
     ):
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentCreateError()
+            raise attachments_router.AttachmentNotFoundError()
 
         monkeypatch.setattr(
             attachments_router,
@@ -889,7 +889,7 @@ class TestPostAttachmentUploadRoute:
         )
 
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentCreateError()
+            raise attachments_router.AttachmentNotFoundError()
 
         monkeypatch.setattr(
             attachments_router,
