@@ -34,6 +34,12 @@ class TestBuildDbUrl:
 
 
 class TestGetEngine:
+    def setup_method(self) -> None:
+        get_engine.cache_clear()
+
+    def teardown_method(self) -> None:
+        get_engine.cache_clear()
+
     def test_creates_engine_from_built_url(self) -> None:
         mock_engine = MagicMock()
 
@@ -52,6 +58,27 @@ class TestGetEngine:
         mock_build_db_url.assert_called_once_with()
         mock_create_engine.assert_called_once_with("postgresql+psycopg2://test")
         assert result == mock_engine
+
+    def test_reuses_engine_after_first_creation(self) -> None:
+        mock_engine = MagicMock()
+
+        with (
+            patch(
+                "compliance.db.db_access._build_db_url",
+                return_value="postgresql+psycopg2://test",
+            ) as mock_build_db_url,
+            patch(
+                "compliance.db.db_access.create_engine",
+                return_value=mock_engine,
+            ) as mock_create_engine,
+        ):
+            first_result = get_engine()
+            second_result = get_engine()
+
+        mock_build_db_url.assert_called_once_with()
+        mock_create_engine.assert_called_once_with("postgresql+psycopg2://test")
+        assert first_result is mock_engine
+        assert second_result is mock_engine
 
 
 class TestGetDb:

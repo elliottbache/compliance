@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from functools import cache
 from os import getenv
 
 from dotenv import load_dotenv
@@ -35,8 +36,9 @@ def _build_db_url() -> str:
     return f"postgresql+psycopg2://{user}:{password}@{host}/{db_name}"
 
 
+@cache
 def get_engine() -> Engine:
-    """Create a SQLAlchemy engine using the configured database URL."""
+    """Return the process-wide SQLAlchemy engine for the configured database."""
     return create_engine(_build_db_url())
 
 
