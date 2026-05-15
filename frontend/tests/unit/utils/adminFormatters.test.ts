@@ -4,7 +4,7 @@ import {
   formatArchivedAt,
   formatArchiveReason,
   formatDateTime,
-} from "./adminFormatters";
+} from "../../../src/utils/adminFormatters";
 
 describe("formatDateTime", () => {
   it("formats ISO timestamps for admin tables", () => {

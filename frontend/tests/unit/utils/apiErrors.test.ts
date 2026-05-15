@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError } from "../api/complianceApi";
-import { getErrorMessage } from "./apiErrors";
+import { ApiError } from "../../../src/api/complianceApi";
+import { getErrorMessage } from "../../../src/utils/apiErrors";
 
 describe("getErrorMessage", () => {
   it("formats 404 API errors", () => {

@@ -45,3 +45,7 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# tests
+playwright-report/
+test-results/

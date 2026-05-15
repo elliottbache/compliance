@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSiteAnalysisMarkdown } from "./formatSiteAnalysisMarkdown";
+import { buildSiteAnalysisMarkdown } from "../../../src/utils/formatSiteAnalysisMarkdown";
 
 describe("buildSiteAnalysisMarkdown", () => {
   it("renders metadata, summary, sections, and evidence", () => {
