@@ -1,7 +1,27 @@
+from datetime import UTC, datetime
+
 import pytest
 from compliance.db.models import Base
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
+
+_SQLITE_UTC_DATETIME_FIELDS = ("archived_at", "uploaded_at")
+
+
+def _normalize_sqlite_datetimes(instance) -> None:
+    for field in _SQLITE_UTC_DATETIME_FIELDS:
+        value = getattr(instance, field, None)
+        if isinstance(value, datetime) and value.tzinfo is None:
+            setattr(instance, field, value.replace(tzinfo=UTC))
+
+
+@event.listens_for(Base, "refresh", propagate=True)
+def _normalize_refreshed_sqlite_datetimes(target, context, attrs) -> None:
+    session = object_session(target)
+    if session is None or session.get_bind().dialect.name != "sqlite":
+        return
+
+    _normalize_sqlite_datetimes(target)
 
 
 @pytest.fixture
@@ -20,6 +40,12 @@ def sqlite_session(tmp_path):
     Base.metadata.create_all(engine)
 
     with Session(engine) as session:
+
+        @event.listens_for(session, "loaded_as_persistent")
+        def _normalize_loaded_sqlite_datetimes(session, instance) -> None:
+            if session.get_bind().dialect.name == "sqlite":
+                _normalize_sqlite_datetimes(instance)
+
         yield session
 
     Base.metadata.drop_all(engine)
