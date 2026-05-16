@@ -114,17 +114,3 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
     )
 
     return user_message
-
-
-if __name__ == "__main__":
-    from compliance.logging_utils import configure_logging
-
-    configure_logging(level="DEBUG")
-
-    from compliance.services.sites import get_site_history_legacy
-
-    site_history = get_site_history_legacy(71)
-    if site_history is None:
-        raise ValueError("site_history is None")
-
-    print(summarize_previous_visits(site_history))

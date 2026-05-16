@@ -210,8 +210,6 @@ class TestGetCertificationById:
         result = get_certification_by_id(session, 42, include_archived=False)
 
         stmt = session.execute.call_args.args[0]
-        print(f"stmt: {stmt}")
-        print(f"result: {result}")
         assert "certifications.archived_at IS NULL" in str(stmt)
         assert "sites.archived_at IS NULL" in str(stmt)
         assert "regulations.archived_at IS NULL" in str(stmt)

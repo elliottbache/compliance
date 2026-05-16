@@ -347,7 +347,6 @@ class TestGetAttachmentById:
         result = get_attachment_by_id(session, 50, include_archived=False)
 
         stmt = session.execute.call_args.args[0]
-        print(f"stmt: {stmt}")
         assert "attachments.archived_at IS NULL" in str(stmt)
         assert "sites.archived_at IS NULL" in str(stmt)
         assert "findings.archived_at IS NULL" in str(stmt)

@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 
-from compliance.db.db_access import get_engine_metadata, get_tables
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -102,65 +101,6 @@ def get_site_by_id(
         stmt = stmt.where(Client.archived_at.is_(None))
 
     return session.execute(stmt).scalar_one()
-
-
-def get_site_history_legacy(site_id: int) -> SiteHistory | None:
-    """Retrieve the certification history for a site.
-
-    Builds the database connection and reflected table objects needed to query
-    certification records for the given site, joins related regulation,
-    certifier, finding, and rule data, and converts the result into a ``Site``
-    value ordered by inspection date.
-
-    Args:
-        site_id: Unique identifier of the site whose certification history
-            should be retrieved.
-
-    Returns:
-        A formatted site history containing certification and related
-        compliance details, or ``None`` if no matching records exist.
-    """
-
-    # create engine and metadata
-    engine, meta = get_engine_metadata()
-
-    # reflect existing tables
-    tables_dict = get_tables(engine, meta)
-    certifications_table = tables_dict["certifications_table"]
-    regulations_table = tables_dict["regulations_table"]
-    certifiers_table = tables_dict["certifiers_table"]
-    findings_table = tables_dict["findings_table"]
-    rules_table = tables_dict["rules_table"]
-
-    # perform query
-    stmt = (
-        select(
-            certifications_table.c.site_id,
-            certifications_table.c.id.label("cert_id"),
-            certifications_table.c.result,
-            certifications_table.c.resolution_date,
-            certifications_table.c.inspection_date,
-            regulations_table.c.title.label("reg_title"),
-            regulations_table.c.description.label("reg_description"),
-            certifiers_table.c.organization_name.label("certifier_org_name"),
-            findings_table.c.id.label("finding_id"),
-            findings_table.c.finding,
-            rules_table.c.rule_index,
-            rules_table.c.title.label("rule_title"),
-            rules_table.c.description.label("rule_description"),
-        )
-        .where(certifications_table.c.site_id == site_id)
-        .join_from(certifications_table, regulations_table)
-        .join_from(certifications_table, certifiers_table)
-        .join_from(certifications_table, findings_table, isouter=True)
-        .join_from(findings_table, rules_table, isouter=True)
-        .order_by(certifications_table.c.inspection_date)
-    )
-    with engine.connect() as conn:
-        results = conn.execute(stmt).mappings().all()
-        if not results:
-            return None
-        return _format_site_history(results)
 
 
 def get_site_history(
@@ -556,16 +496,3 @@ def _build_finding_history_from_site_history(row: Mapping) -> FindingHistory:
     finding = {k: row[k] for k in keys}
 
     return FindingHistory.model_validate(finding)
-
-
-if __name__ == "__main__":
-    from compliance.db.db_access import get_db
-
-    session = get_db()
-
-    print(f"\nsite 71: {get_site_history(next(iter(session)), 71)}")
-
-    session = get_db()
-    print(f"\nsite 71: {get_site_attachments(next(iter(session)), 71)}")
-
-    print(f"\nsite 71: {get_site_history_legacy(71)}")

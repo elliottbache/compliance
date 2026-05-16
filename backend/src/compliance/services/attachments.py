@@ -27,7 +27,7 @@ from compliance.services.schemas import (
     AttachmentWithContextOut,
 )
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -385,10 +385,15 @@ def post_attachment_upload(
         session.commit()
         session.refresh(attachment)
 
-    except Exception as e:
+    except (OSError, SQLAlchemyError) as e:
         session.rollback()
         file_path.unlink(missing_ok=True)
         raise AttachmentConflictError(file_path) from e
+
+    except Exception:
+        session.rollback()
+        file_path.unlink(missing_ok=True)
+        raise
 
     return attachment
 

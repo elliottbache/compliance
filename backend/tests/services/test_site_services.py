@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from compliance.db.models import (
@@ -33,7 +33,6 @@ from compliance.services.sites import (
     get_site_by_id,
     get_site_certifications,
     get_site_history,
-    get_site_history_legacy,
     get_sites,
     post_new_site,
     post_site_archived_by_id,
@@ -797,80 +796,6 @@ class TestFormatSiteAttachmentsOut:
     def test_raises_value_error_when_first_row_is_empty(self) -> None:
         with pytest.raises(ValueError, match="First attachment row is empty"):
             _format_site_attachments([{}])
-
-
-class TestGetSiteHistory:
-    def test_returns_none_when_query_returns_no_rows(self, db_access_mocks) -> None:
-        db_access_mocks[
-            "conn"
-        ].execute.return_value.mappings.return_value.all.return_value = []
-
-        with (
-            patch(
-                "compliance.services.sites.get_engine_metadata",
-                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
-            ) as mock_get_engine_metadata,
-            patch(
-                "compliance.services.sites.get_tables",
-                return_value=db_access_mocks["tables"],
-            ) as mock_get_tables,
-            patch(
-                "compliance.services.sites.select",
-                return_value=db_access_mocks["stmt"],
-            ) as mock_select,
-            patch("compliance.services.sites._format_site_history") as mock_format,
-        ):
-            result = get_site_history_legacy(71)
-
-        assert result is None
-        mock_get_engine_metadata.assert_called_once_with()
-        mock_get_tables.assert_called_once_with(
-            db_access_mocks["engine"], db_access_mocks["meta"]
-        )
-        mock_select.assert_called_once()
-        mock_format.assert_not_called()
-
-    def test_formats_site_history_when_query_returns_one_row(
-        self, site_history_row_factory, db_access_mocks
-    ) -> None:
-        rows = [site_history_row_factory()]
-        formatted_site = SiteHistory(
-            site_id=71,
-            certifications=[],
-            inspection_count=1,
-            latest_inspection_date=None,
-        )
-        db_access_mocks[
-            "conn"
-        ].execute.return_value.mappings.return_value.all.return_value = rows
-
-        with (
-            patch(
-                "compliance.services.sites.get_engine_metadata",
-                return_value=(db_access_mocks["engine"], db_access_mocks["meta"]),
-            ) as mock_get_engine_metadata,
-            patch(
-                "compliance.services.sites.get_tables",
-                return_value=db_access_mocks["tables"],
-            ) as mock_get_tables,
-            patch(
-                "compliance.services.sites.select",
-                return_value=db_access_mocks["stmt"],
-            ) as mock_select,
-            patch(
-                "compliance.services.sites._format_site_history",
-                return_value=formatted_site,
-            ) as mock_format,
-        ):
-            result = get_site_history_legacy(71)
-
-        assert result == formatted_site
-        mock_get_engine_metadata.assert_called_once_with()
-        mock_get_tables.assert_called_once_with(
-            db_access_mocks["engine"], db_access_mocks["meta"]
-        )
-        mock_select.assert_called_once()
-        mock_format.assert_called_once_with(rows)
 
 
 class TestPostSiteArchivedById:

@@ -234,8 +234,6 @@ def _is_valid_references(resp: SiteAnalysis, site_history: Site) -> bool:
         return True
     except ValueError:
         return False
-    except Exception:
-        raise
 
 
 def _validate_evidence_lengths(resp: SiteAnalysis, *, minimum_lengths=None) -> bool:
