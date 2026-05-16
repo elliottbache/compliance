@@ -456,6 +456,26 @@ class TestPostNewCertification:
         assert added_certification.inspection_date == date(2026, 4, 1)
         assert added_certification.resolution_date is None
 
+    def test_allows_certification_under_archived_site(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            site_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+        certification = _certification_create(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+        )
+
+        result = post_new_certification(sqlite_session, certification)
+
+        assert result.id is not None
+        assert result.site_id == 12
+
     def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
         session = MagicMock()
         session.commit.side_effect = _integrity_error()

@@ -87,6 +87,10 @@ def get_site_by_id(
 def post_new_site(session: Session, site: SiteCreate) -> Site:
     """Persist a new site record.
 
+    Parent validation checks that the client exists, not whether the client is
+    visible in default archive-aware reads. This allows bookkeeping entries
+    under archived clients.
+
     Args:
         session: Database session used to add and commit the site.
         site: Site creation data validated by the API layer.

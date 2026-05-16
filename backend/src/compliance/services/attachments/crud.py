@@ -206,6 +206,9 @@ def post_new_attachment(
     Builds temporary storage metadata for the attachment, validates that the
     parent certification and requested linked findings exist, and creates any
     finding-attachment link rows in the same transaction.
+    Parent validation checks existence, not visibility in default archive-aware
+    reads. This allows bookkeeping entries under archived certifications or
+    findings.
 
     Args:
         session: Database session used to validate related records and persist

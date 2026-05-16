@@ -97,6 +97,10 @@ def get_rule_by_id(
 def post_new_rule(session: Session, rule: RuleCreate) -> Rule:
     """Persist a new rule record.
 
+    Parent validation checks that the regulation exists, not whether the
+    regulation is visible in default archive-aware reads. This allows
+    bookkeeping entries under archived regulations.
+
     Args:
         session: Database session used to add and commit the rule.
         rule: Rule creation data validated by the API layer.

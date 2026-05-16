@@ -230,6 +230,10 @@ def post_new_certification(
 ) -> Certification:
     """Persist a new certification record.
 
+    Parent validation checks that the certifier, regulation, and site exist,
+    not whether they are visible in default archive-aware reads. This allows
+    bookkeeping entries under archived parents.
+
     Args:
         session: Database session used to add and commit the certification.
         certification: Certification creation data validated by the API layer.

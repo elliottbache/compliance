@@ -237,6 +237,10 @@ def get_finding_by_id(
 def post_new_finding(session: Session, finding: FindingCreate) -> FindingOut:
     """Persist a new finding record and optional attachment links.
 
+    Parent validation checks that the certification, rule, and linked
+    attachments exist, not whether they are visible in default archive-aware
+    reads. This allows bookkeeping entries under archived parents.
+
     Args:
         session: Database session used to add and commit the finding.
         finding: Finding creation data validated by the API layer.
