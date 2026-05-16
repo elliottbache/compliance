@@ -4,7 +4,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # copy Python package source
-COPY . .
+COPY backend/ /app/backend/
 
 # optional deps
 COPY pyproject.toml README.md ./
@@ -12,6 +12,4 @@ COPY pyproject.toml README.md ./
 # install the project (creates compliance in PATH)
 RUN pip install --no-cache-dir .
 
-# run program
-CMD ["compliance"]
-
+CMD python -m alembic -c backend/alembic.ini upgrade 68c5

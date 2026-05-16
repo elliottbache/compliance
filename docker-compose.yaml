@@ -10,5 +10,19 @@ services:
     ports:
       - "5432:5432"
 
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      POSTGRES_DB: compliance_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+      
 volumes:
   postgres_data:
