@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -14,6 +15,8 @@ _DEFAULT_PROMPT_VERSION = "v0.1"
 _DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"
 
 logger = logging.getLogger(__name__)
+_ROOT_DIR = Path(__file__).resolve().parents[4]
+_DOTENV_PATH = _ROOT_DIR / "backend" / ".env"
 
 
 def call_structured_model[
@@ -58,7 +61,7 @@ def call_structured_model[
     logger.debug(f"system_context: {system_context}")
     logger.debug(f"user_message: {user_message}")
 
-    load_dotenv()
+    load_dotenv(dotenv_path=_DOTENV_PATH)
     client = anthropic.Anthropic()
     try:
         is_retry = False

@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from functools import cache
 from os import getenv
+from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import Engine, MetaData, Table, create_engine
@@ -16,6 +17,9 @@ convention = {
 
 metadata = MetaData(naming_convention=convention)
 
+_ROOT_DIR = Path(__file__).resolve().parents[4]
+_DOTENV_PATH = _ROOT_DIR / "backend" / ".env"
+
 
 def _build_db_url() -> str:
     """Build the database URL from environment variables.
@@ -23,7 +27,7 @@ def _build_db_url() -> str:
     Raises:
         ValueError: If any required database environment variable is missing.
     """
-    load_dotenv()
+    load_dotenv(dotenv_path=_DOTENV_PATH)
 
     db_name = getenv("POSTGRES_DB")
     user = getenv("POSTGRES_USER")
