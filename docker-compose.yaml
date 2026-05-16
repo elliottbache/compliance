@@ -1,10 +1,14 @@
 services:
-  compliance:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+  postgres:
+    image: postgres:16
     environment:
-      PYTHONUNBUFFERED: "1"
+      POSTGRES_DB: compliance_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
-      - .:/app
-    command: ["compliance"]
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
