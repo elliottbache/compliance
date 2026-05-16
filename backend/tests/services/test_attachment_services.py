@@ -207,13 +207,13 @@ class TestGetAttachments:
         db_factory,
         finding_row_factory,
         finding_attachment_row_factory,
+        archived_fields,
     ) -> None:
         db_factory()
 
         archived_finding = finding_row_factory(
             id=2,
-            archived_at=datetime.now(UTC),
-            archive_reason="resolved",
+            **archived_fields("resolved"),
         )
         archived_link = finding_attachment_row_factory(
             finding_id=2,
@@ -782,7 +782,9 @@ class TestValidateFileSizeTypeAndExt:
 
 
 class TestPostAttachmentArchivedById:
-    def test_archives_attachment_and_returns_context(self, monkeypatch) -> None:
+    def test_archives_attachment_and_returns_context(
+        self, monkeypatch, assert_archived_record
+    ) -> None:
         session = MagicMock()
         attachment = SimpleNamespace(archived_at=None, archive_reason=None)
         session.get.return_value = attachment
@@ -804,9 +806,7 @@ class TestPostAttachmentArchivedById:
         )
 
         assert result is expected
-        assert attachment.archived_at is not None
-        assert attachment.archived_at.tzinfo is UTC
-        assert attachment.archive_reason == "old file"
+        assert_archived_record(attachment, "old file")
         session.get.assert_called_once_with(Attachment, 50)
         session.commit.assert_called_once_with()
 
@@ -824,7 +824,9 @@ class TestPostAttachmentArchivedById:
 
 
 class TestPostAttachmentRestoredById:
-    def test_restores_attachment_and_returns_context(self, monkeypatch) -> None:
+    def test_restores_attachment_and_returns_context(
+        self, monkeypatch, assert_restored_record
+    ) -> None:
         session = MagicMock()
         attachment = SimpleNamespace(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -841,8 +843,7 @@ class TestPostAttachmentRestoredById:
         result = post_attachment_restored_by_id(session, 50)
 
         assert result is expected
-        assert attachment.archived_at is None
-        assert attachment.archive_reason is None
+        assert_restored_record(attachment)
         session.get.assert_called_once_with(Attachment, 50)
         session.commit.assert_called_once_with()
 
@@ -859,7 +860,7 @@ class TestPostAttachmentRestoredById:
 
 class TestPostAttachmentArchiveRestoreIntegration:
     def test_archive_then_restore_works(
-        self, monkeypatch, sqlite_session, db_factory
+        self, monkeypatch, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
         monkeypatch.setattr(
@@ -869,23 +870,9 @@ class TestPostAttachmentArchiveRestoreIntegration:
             ),
         )
 
-        archived = post_attachment_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             50,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_attachment_archived_by_id,
+            restore_fn=post_attachment_restored_by_id,
         )
-        archived = post_attachment_archived_by_id(
-            sqlite_session,
-            50,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_attachment_restored_by_id(sqlite_session, 50)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

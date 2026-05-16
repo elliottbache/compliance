@@ -29,7 +29,6 @@ from compliance.services.schemas import (
     CertificationCreate,
     CertificationOut,
 )
-from sqlalchemy.exc import IntegrityError
 
 
 def _certification_create(**overrides) -> CertificationCreate:
@@ -43,11 +42,6 @@ def _certification_create(**overrides) -> CertificationCreate:
     }
     data.update(overrides)
     return CertificationCreate(**data)
-
-
-def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
-    orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
-    return IntegrityError("insert failed", {}, orig)
 
 
 class TestGetCertifications:
@@ -120,13 +114,12 @@ class TestGetCertifications:
         assert "certifications.resolution_date IS NULL" in str(stmt)
 
     def test_excludes_archived_certifications_by_default(
-        self, sqlite_session, db_factory, certification_row_factory
+        self, sqlite_session, db_factory, certification_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = certification_row_factory(
             id=43,
-            archived_at=datetime.now(UTC),
-            archive_reason="superseded",
+            **archived_fields("superseded"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -138,13 +131,10 @@ class TestGetCertifications:
         assert [certification.id for certification in certifications] == [42]
 
     def test_excludes_certifications_for_archived_client_by_default(
-        self, sqlite_session, db_factory
+        self, sqlite_session, db_factory, archived_fields
     ) -> None:
         db_factory(
-            client_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
+            client_overrides=archived_fields("closed"),
         )
 
         certifications = get_certifications(
@@ -154,13 +144,12 @@ class TestGetCertifications:
         assert certifications == []
 
     def test_includes_archived_certifications_when_requested(
-        self, sqlite_session, db_factory, certification_row_factory
+        self, sqlite_session, db_factory, certification_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = certification_row_factory(
             id=43,
-            archived_at=datetime.now(UTC),
-            archive_reason="superseded",
+            **archived_fields("superseded"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -476,9 +465,11 @@ class TestPostNewCertification:
         assert result.id is not None
         assert result.site_id == 12
 
-    def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_conflict_when_insert_conflicts(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error()
+        session.commit.side_effect = integrity_error_factory()
         certification = _certification_create()
 
         with pytest.raises(CertificationConflictError):
@@ -488,9 +479,11 @@ class TestPostNewCertification:
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
 
-    def test_raises_certifier_error_when_certifier_does_not_exist(self) -> None:
+    def test_raises_certifier_error_when_certifier_does_not_exist(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error(
+        session.commit.side_effect = integrity_error_factory(
             "fk_certifications_certifier_id_certifiers"
         )
 
@@ -499,9 +492,11 @@ class TestPostNewCertification:
 
         session.rollback.assert_called_once_with()
 
-    def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
+    def test_raises_regulation_error_when_regulation_does_not_exist(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error(
+        session.commit.side_effect = integrity_error_factory(
             "fk_certifications_regulation_id_regulations"
         )
 
@@ -510,9 +505,13 @@ class TestPostNewCertification:
 
         session.rollback.assert_called_once_with()
 
-    def test_raises_site_error_when_site_does_not_exist(self) -> None:
+    def test_raises_site_error_when_site_does_not_exist(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error("fk_certifications_site_id_sites")
+        session.commit.side_effect = integrity_error_factory(
+            "fk_certifications_site_id_sites"
+        )
 
         with pytest.raises(CertificationSiteNotFoundError):
             post_new_certification(session, _certification_create())
@@ -600,7 +599,7 @@ class TestFormatCertificationAttachmentsOut:
 
 class TestPostCertificationArchivedById:
     def test_archives_certification_with_stripped_reason(
-        self, certification_row_factory
+        self, certification_row_factory, assert_archived_record
     ) -> None:
         session = MagicMock()
         certification = certification_row_factory()
@@ -613,9 +612,7 @@ class TestPostCertificationArchivedById:
         )
 
         assert result is certification
-        assert certification.archived_at is not None
-        assert certification.archived_at.tzinfo is UTC
-        assert certification.archive_reason == "duplicate"
+        assert_archived_record(certification, "duplicate")
         session.get.assert_called_once_with(Certification, 42)
         session.commit.assert_called_once_with()
 
@@ -652,7 +649,9 @@ class TestPostCertificationArchivedById:
 
 
 class TestPostCertificationRestoredById:
-    def test_restores_archived_certification(self, certification_row_factory) -> None:
+    def test_restores_archived_certification(
+        self, certification_row_factory, assert_restored_record
+    ) -> None:
         session = MagicMock()
         certification = certification_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -663,8 +662,7 @@ class TestPostCertificationRestoredById:
         result = post_certification_restored_by_id(session, 42)
 
         assert result is certification
-        assert certification.archived_at is None
-        assert certification.archive_reason is None
+        assert_restored_record(certification)
         session.get.assert_called_once_with(Certification, 42)
         session.commit.assert_called_once_with()
 
@@ -692,26 +690,14 @@ class TestPostCertificationRestoredById:
 
 
 class TestPostCertificationArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
+    def test_archive_then_restore_works(
+        self, sqlite_session, db_factory, assert_archive_restore_round_trip
+    ) -> None:
         db_factory()
 
-        archived = post_certification_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             42,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_certification_archived_by_id,
+            restore_fn=post_certification_restored_by_id,
         )
-        archived = post_certification_archived_by_id(
-            sqlite_session,
-            42,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_certification_restored_by_id(sqlite_session, 42)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

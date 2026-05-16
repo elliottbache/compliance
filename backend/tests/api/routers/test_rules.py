@@ -410,7 +410,12 @@ class TestPostNewRuleRoute:
 class TestPostRuleArchivedByIdRoute:
     # TestClient
     def test_route_archives_active_rule(
-        self, client, mock_db, monkeypatch, rule_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        rule_record_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -431,11 +436,15 @@ class TestPostRuleArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
-        assert response.json()["archive_reason"] == "duplicate"
+        assert_archived_response(response.json(), "duplicate")
 
     def test_route_archive_already_archived_rule_returns_200(
-        self, client, mock_db, monkeypatch, rule_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        rule_record_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -455,7 +464,7 @@ class TestPostRuleArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
+        assert_archived_response(response.json())
 
     def test_route_returns_404_when_rule_does_not_exist(
         self, client, mock_db, monkeypatch
@@ -527,7 +536,12 @@ class TestPostRuleArchivedByIdRoute:
 class TestPostRuleRestoredByIdRoute:
     # TestClient
     def test_route_restores_archived_rule(
-        self, client, mock_db, monkeypatch, rule_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        rule_record_factory,
+        assert_restored_response,
     ):
         def fake_post_rule_restored_by_id(session, rule_id):
             assert session is mock_db
@@ -542,11 +556,15 @@ class TestPostRuleRestoredByIdRoute:
 
         assert response.status_code == 200
         response_json = response.json()
-        assert response_json["archived_at"] is None
-        assert response_json["archive_reason"] is None
+        assert_restored_response(response_json)
 
     def test_route_restore_active_rule_returns_200(
-        self, client, mock_db, monkeypatch, rule_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        rule_record_factory,
+        assert_restored_response,
     ):
         def fake_post_rule_restored_by_id(session, rule_id):
             assert session is mock_db
@@ -560,7 +578,7 @@ class TestPostRuleRestoredByIdRoute:
         response = client.post("/rules/20/restore")
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is None
+        assert_restored_response(response.json())
 
     def test_route_returns_404_when_rule_does_not_exist(
         self, client, mock_db, monkeypatch

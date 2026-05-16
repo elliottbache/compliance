@@ -267,13 +267,19 @@ class TestGetSiteByIdRoute:
 class TestGetSiteCertificationsRoute:
     # TestClient
     def test_route_returns_certifications_json_when_found(
-        self, main_module, client, mock_db, monkeypatch, certifications_factory
+        self,
+        main_module,
+        client,
+        mock_db,
+        monkeypatch,
+        certifications_factory,
+        id_record_factory,
     ):
         def fake_get_site_by_id(session, site_id, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
             assert include_archived is True
-            return SimpleNamespace(id=site_id)
+            return id_record_factory(site_id)
 
         def fake_get_site_certifications(
             session, site_id, *, limit, offset, include_archived=False
@@ -326,12 +332,12 @@ class TestGetSiteCertificationsRoute:
         }
 
     def test_route_returns_empty_list_when_site_has_no_certifications(
-        self, main_module, client, mock_db, monkeypatch
+        self, main_module, client, mock_db, monkeypatch, id_record_factory
     ):
         def fake_get_site_by_id(session, site_id, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
-            return SimpleNamespace(id=site_id)
+            return id_record_factory(site_id)
 
         def fake_get_site_certifications(
             session, site_id, *, limit, offset, include_archived=False
@@ -843,7 +849,7 @@ class TestPostNewSiteRoute:
 class TestPostSiteArchivedByIdRoute:
     # TestClient
     def test_route_archives_active_site(
-        self, client, mock_db, monkeypatch, site_factory
+        self, client, mock_db, monkeypatch, site_factory, assert_archived_response
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -862,11 +868,10 @@ class TestPostSiteArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
-        assert response.json()["archive_reason"] == "duplicate"
+        assert_archived_response(response.json(), "duplicate")
 
     def test_route_archive_already_archived_site_returns_200(
-        self, client, mock_db, monkeypatch, site_factory
+        self, client, mock_db, monkeypatch, site_factory, assert_archived_response
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -884,7 +889,7 @@ class TestPostSiteArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
+        assert_archived_response(response.json())
 
     def test_route_returns_404_when_site_does_not_exist(
         self, client, mock_db, monkeypatch
@@ -959,7 +964,7 @@ class TestPostSiteArchivedByIdRoute:
 class TestPostSiteRestoredByIdRoute:
     # TestClient
     def test_route_restores_archived_site(
-        self, client, mock_db, monkeypatch, site_factory
+        self, client, mock_db, monkeypatch, site_factory, assert_restored_response
     ):
         def fake_post_site_restored_by_id(session, site_id):
             assert session is mock_db
@@ -974,11 +979,10 @@ class TestPostSiteRestoredByIdRoute:
 
         assert response.status_code == 200
         response_json = response.json()
-        assert response_json["archived_at"] is None
-        assert response_json["archive_reason"] is None
+        assert_restored_response(response_json)
 
     def test_route_restore_active_site_returns_200(
-        self, client, mock_db, monkeypatch, site_factory
+        self, client, mock_db, monkeypatch, site_factory, assert_restored_response
     ):
         def fake_post_site_restored_by_id(session, site_id):
             assert session is mock_db
@@ -992,7 +996,7 @@ class TestPostSiteRestoredByIdRoute:
         response = client.post("/sites/12/restore")
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is None
+        assert_restored_response(response.json())
 
     def test_route_returns_404_when_site_does_not_exist(
         self, client, mock_db, monkeypatch
@@ -1289,7 +1293,7 @@ class TestCreateSiteAnalysis:
 
 class TestGetSiteAttachmentsRoute:
     def test_route_returns_site_attachments_json_when_found(
-        self, main_module, client, mock_db, monkeypatch
+        self, main_module, client, mock_db, monkeypatch, id_record_factory
     ):
         site_attachments = sites_router.SiteAttachmentsOut(
             site_id=12,
@@ -1299,7 +1303,7 @@ class TestGetSiteAttachmentsRoute:
         def fake_get_site_by_id(session, site_id, *, include_archived=False):
             assert site_id == 12
             assert session is mock_db
-            return SimpleNamespace(id=site_id)
+            return id_record_factory(site_id)
 
         def fake_get_site_attachments(session, site_id, *, include_archived=False):
             assert site_id == 12
@@ -1323,12 +1327,12 @@ class TestGetSiteAttachmentsRoute:
         assert response.json() == {"site_id": 12, "attachments": []}
 
     def test_route_returns_empty_attachment_list_when_site_has_none(
-        self, main_module, client, mock_db, monkeypatch
+        self, main_module, client, mock_db, monkeypatch, id_record_factory
     ):
         def fake_get_site_by_id(session, site_id, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
-            return SimpleNamespace(id=site_id)
+            return id_record_factory(site_id)
 
         def fake_get_site_attachments(session, site_id, *, include_archived=False):
             assert site_id == 999

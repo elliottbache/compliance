@@ -66,15 +66,14 @@ class TestGetCertifiers:
         assert [certifier.id for certifier in certifiers] == []
 
     def test_includes_archived_certifiers_when_requested(
-        self, sqlite_session, db_factory
+        self, sqlite_session, db_factory, archived_fields
     ) -> None:
         db_factory()
 
         archived = _certifier(
             id=11,
             organization_name="Archived Certifier",
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+            **archived_fields("merged"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -165,7 +164,9 @@ class TestPostNewCertifier:
 
 
 class TestPostCertifierArchivedById:
-    def test_archives_certifier_with_stripped_reason(self) -> None:
+    def test_archives_certifier_with_stripped_reason(
+        self, assert_archived_record
+    ) -> None:
         session = MagicMock()
         certifier = _certifier()
         session.get.return_value = certifier
@@ -177,9 +178,7 @@ class TestPostCertifierArchivedById:
         )
 
         assert result is certifier
-        assert certifier.archived_at is not None
-        assert certifier.archived_at.tzinfo is UTC
-        assert certifier.archive_reason == "duplicate"
+        assert_archived_record(certifier, "duplicate")
         session.get.assert_called_once_with(Certifier, 10)
         session.commit.assert_called_once_with()
 
@@ -212,7 +211,7 @@ class TestPostCertifierArchivedById:
 
 
 class TestPostCertifierRestoredById:
-    def test_restores_archived_certifier(self) -> None:
+    def test_restores_archived_certifier(self, assert_restored_record) -> None:
         session = MagicMock()
         certifier = _certifier(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -223,8 +222,7 @@ class TestPostCertifierRestoredById:
         result = post_certifier_restored_by_id(session, 10)
 
         assert result is certifier
-        assert certifier.archived_at is None
-        assert certifier.archive_reason is None
+        assert_restored_record(certifier)
         session.get.assert_called_once_with(Certifier, 10)
         session.commit.assert_called_once_with()
 
@@ -269,27 +267,13 @@ class TestPostCertifierRestoredById:
 
 class TestPostCertifierArchiveRestoreIntegration:
     def test_archive_then_restore_works(
-        self, monkeypatch, sqlite_session, db_factory
+        self, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
 
-        archived = post_certifier_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             7,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_certifier_archived_by_id,
+            restore_fn=post_certifier_restored_by_id,
         )
-        archived = post_certifier_archived_by_id(
-            sqlite_session,
-            7,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_certifier_restored_by_id(sqlite_session, 7)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

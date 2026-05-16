@@ -22,6 +22,76 @@ from compliance.llm.schemas import (
     SiteAnalysis,
     SuggestionItem,
 )
+from compliance.services.schemas import ArchiveRequest
+from sqlalchemy.exc import IntegrityError
+
+
+@pytest.fixture
+def archived_fields():
+    def _archived_fields(reason="archived"):
+        return {
+            "archived_at": datetime.now(UTC),
+            "archive_reason": reason,
+        }
+
+    return _archived_fields
+
+
+@pytest.fixture
+def integrity_error_factory():
+    def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
+        orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
+        return IntegrityError("insert failed", {}, orig)
+
+    return _integrity_error
+
+
+@pytest.fixture
+def assert_archived_record():
+    def _assert_archived_record(record, reason=None):
+        assert record.archived_at is not None
+        assert record.archived_at.tzinfo is UTC
+        if reason is not None:
+            assert record.archive_reason == reason
+
+    return _assert_archived_record
+
+
+@pytest.fixture
+def assert_restored_record():
+    def _assert_restored_record(record):
+        assert record.archived_at is None
+        assert record.archive_reason is None
+
+    return _assert_restored_record
+
+
+@pytest.fixture
+def assert_archive_restore_round_trip(assert_archived_record, assert_restored_record):
+    def _assert_archive_restore_round_trip(
+        session, record_id, *, archive_fn, restore_fn
+    ):
+        archived = archive_fn(
+            session,
+            record_id,
+            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+        )
+        archived = archive_fn(
+            session,
+            record_id,
+            archive_request=ArchiveRequest(archive_reason=" second "),
+        )
+
+        assert archived is not None
+        assert_archived_record(archived, "duplicate")
+
+        restored = restore_fn(session, record_id)
+
+        assert restored is not None
+        assert_restored_record(restored)
+        return restored
+
+    return _assert_archive_restore_round_trip
 
 
 @pytest.fixture

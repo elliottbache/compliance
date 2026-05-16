@@ -43,7 +43,7 @@ class TestGetClients:
         assert "ORDER BY clients.company_name, clients.nif" in str(stmt)
 
     def test_excludes_archived_clients_by_default(
-        self, sqlite_session, db_factory, client_row_factory
+        self, sqlite_session, db_factory, client_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = client_row_factory(
@@ -52,8 +52,7 @@ class TestGetClients:
             contact_name="Grace",
             email=None,
             telephone=None,
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+            **archived_fields("merged"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -63,7 +62,7 @@ class TestGetClients:
         assert [client.nif for client in clients] == ["A1234567B"]
 
     def test_includes_archived_clients_when_requested(
-        self, sqlite_session, db_factory, client_row_factory
+        self, sqlite_session, db_factory, client_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = client_row_factory(
@@ -72,8 +71,7 @@ class TestGetClients:
             contact_name="Grace",
             email=None,
             telephone=None,
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+            **archived_fields("merged"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -208,7 +206,9 @@ class TestPostNewClient:
 
 
 class TestPostClientArchivedByNif:
-    def test_archives_client_with_stripped_reason(self, client_row_factory) -> None:
+    def test_archives_client_with_stripped_reason(
+        self, client_row_factory, assert_archived_record
+    ) -> None:
         session = MagicMock()
         client = client_row_factory()
         session.get.return_value = client
@@ -220,9 +220,7 @@ class TestPostClientArchivedByNif:
         )
 
         assert result is client
-        assert client.archived_at is not None
-        assert client.archived_at.tzinfo is UTC
-        assert client.archive_reason == "duplicate client"
+        assert_archived_record(client, "duplicate client")
         session.get.assert_called_once_with(Client, "A1234567B")
         session.commit.assert_called_once_with()
 
@@ -275,7 +273,9 @@ class TestPostClientArchivedByNif:
 
 
 class TestPostClientRestoredByNif:
-    def test_restores_archived_client(self, client_row_factory) -> None:
+    def test_restores_archived_client(
+        self, client_row_factory, assert_restored_record
+    ) -> None:
         session = MagicMock()
         client = client_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -286,8 +286,7 @@ class TestPostClientRestoredByNif:
         result = post_client_restored_by_nif(session, "A1234567B")
 
         assert result is client
-        assert client.archived_at is None
-        assert client.archive_reason is None
+        assert_restored_record(client)
         session.get.assert_called_once_with(Client, "A1234567B")
         session.commit.assert_called_once_with()
 
@@ -299,8 +298,6 @@ class TestPostClientRestoredByNif:
         result = post_client_restored_by_nif(session, "A1234567B")
 
         assert result is client
-        assert client.archived_at is None
-        assert client.archive_reason is None
         session.commit.assert_not_called()
 
     def test_returns_none_when_client_does_not_exist(self) -> None:
@@ -339,28 +336,14 @@ class TestPostClientRestoredByNif:
 
 
 class TestClientArchiveRestoreService:
-    def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
+    def test_archive_then_restore_works(
+        self, sqlite_session, db_factory, assert_archive_restore_round_trip
+    ) -> None:
         db_factory()
 
-        archived = post_client_archived_by_nif(
+        assert_archive_restore_round_trip(
             sqlite_session,
             "A1234567B",
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_client_archived_by_nif,
+            restore_fn=post_client_restored_by_nif,
         )
-
-        archived = post_client_archived_by_nif(
-            sqlite_session,
-            "A1234567B",
-            archive_request=ArchiveRequest(archive_reason=" second request "),
-        )
-
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_client_restored_by_nif(sqlite_session, "A1234567B")
-        restored = post_client_restored_by_nif(sqlite_session, "A1234567B")
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

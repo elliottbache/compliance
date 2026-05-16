@@ -114,14 +114,18 @@ class TestGetFindings:
         assert findings == []
 
     def test_includes_archived_findings_when_requested(
-        self, monkeypatch, sqlite_session, db_factory, finding_row_factory
+        self,
+        monkeypatch,
+        sqlite_session,
+        db_factory,
+        finding_row_factory,
+        archived_fields,
     ) -> None:
         db_factory()
 
         archived = finding_row_factory(
             id=2,
-            archived_at=datetime.now(UTC),
-            archive_reason="resolved",
+            **archived_fields("resolved"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -265,12 +269,12 @@ class TestGetFindings:
         db_factory,
         attachment_row_factory,
         finding_attachment_row_factory,
+        archived_fields,
     ) -> None:
         db_factory()
         archived_attachment = attachment_row_factory(
             id=51,
-            archived_at=datetime.now(UTC),
-            archive_reason="obsolete",
+            **archived_fields("obsolete"),
         )
         archived_link = finding_attachment_row_factory(
             attachment_id=51,
@@ -538,7 +542,9 @@ class TestBuildFindingOut:
 
 
 class TestPostFindingArchivedById:
-    def test_archives_finding_and_returns_context(self, monkeypatch) -> None:
+    def test_archives_finding_and_returns_context(
+        self, monkeypatch, assert_archived_record
+    ) -> None:
         session = MagicMock()
         finding = SimpleNamespace(archived_at=None, archive_reason=None)
         session.get.return_value = finding
@@ -560,9 +566,7 @@ class TestPostFindingArchivedById:
         )
 
         assert result is expected
-        assert finding.archived_at is not None
-        assert finding.archived_at.tzinfo is UTC
-        assert finding.archive_reason == "resolved"
+        assert_archived_record(finding, "resolved")
         session.get.assert_called_once_with(Finding, 1)
         session.commit.assert_called_once_with()
 
@@ -580,7 +584,9 @@ class TestPostFindingArchivedById:
 
 
 class TestPostFindingRestoredById:
-    def test_restores_finding_and_returns_context(self, monkeypatch) -> None:
+    def test_restores_finding_and_returns_context(
+        self, monkeypatch, assert_restored_record
+    ) -> None:
         session = MagicMock()
         finding = SimpleNamespace(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -597,8 +603,7 @@ class TestPostFindingRestoredById:
         result = post_finding_restored_by_id(session, 1)
 
         assert result is expected
-        assert finding.archived_at is None
-        assert finding.archive_reason is None
+        assert_restored_record(finding)
         session.get.assert_called_once_with(Finding, 1)
         session.commit.assert_called_once_with()
 
@@ -615,7 +620,7 @@ class TestPostFindingRestoredById:
 
 class TestPostFindingArchiveRestoreIntegration:
     def test_archive_then_restore_works(
-        self, monkeypatch, sqlite_session, db_factory
+        self, monkeypatch, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
         monkeypatch.setattr(
@@ -625,23 +630,9 @@ class TestPostFindingArchiveRestoreIntegration:
             ),
         )
 
-        archived = post_finding_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             1,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_finding_archived_by_id,
+            restore_fn=post_finding_restored_by_id,
         )
-        archived = post_finding_archived_by_id(
-            sqlite_session,
-            1,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_finding_restored_by_id(sqlite_session, 1)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

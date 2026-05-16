@@ -501,14 +501,14 @@ class TestGetCertificationAttachmentsByIdRoute:
 
 class TestGetCertificationFindingsRoute:
     def test_route_returns_findings_json_when_certification_is_found(
-        self, client, mock_db, monkeypatch, finding_factory
+        self, client, mock_db, monkeypatch, finding_factory, id_record_factory
     ):
         def fake_get_certification_by_id(
             session, certification_id, *, include_archived=False
         ):
             assert certification_id == 100
             assert session is mock_db
-            return SimpleNamespace(id=100)
+            return id_record_factory(100)
 
         def fake_get_findings(
             session,
@@ -558,13 +558,13 @@ class TestGetCertificationFindingsRoute:
         ]
 
     def test_route_returns_empty_findings_json_when_certification_has_none(
-        self, client, mock_db, monkeypatch
+        self, client, mock_db, monkeypatch, id_record_factory
     ):
         def fake_get_certification_by_id(
             session, certification_id, *, include_archived=False
         ):
             assert session is mock_db
-            return SimpleNamespace(id=certification_id)
+            return id_record_factory(certification_id)
 
         def fake_get_findings(
             session,
@@ -618,7 +618,7 @@ class TestGetCertificationFindingsRoute:
         assert response.status_code == 422
 
     def test_returns_findings_when_certification_is_found(
-        self, monkeypatch, finding_factory
+        self, monkeypatch, finding_factory, id_record_factory
     ) -> None:
         fake_session = object()
         expected_findings = [finding_factory()]
@@ -628,7 +628,7 @@ class TestGetCertificationFindingsRoute:
         ):
             assert certification_id == 100
             assert session is fake_session
-            return SimpleNamespace(id=100)
+            return id_record_factory(100)
 
         def fake_get_findings(
             session,
@@ -663,12 +663,12 @@ class TestGetCertificationFindingsRoute:
         assert result == expected_findings
 
     def test_returns_empty_list_when_certification_has_no_findings(
-        self, monkeypatch
+        self, monkeypatch, id_record_factory
     ) -> None:
         def fake_get_certification_by_id(
             session, certification_id, *, include_archived=False
         ):
-            return SimpleNamespace(id=certification_id)
+            return id_record_factory(certification_id)
 
         def fake_get_findings(
             session,
@@ -991,7 +991,12 @@ class TestPostNewCertificationRoute:
 class TestPostCertificationArchivedByIdRoute:
     # TestClient
     def test_route_archives_active_certification(
-        self, client, mock_db, monkeypatch, certifications_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        certifications_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -1019,11 +1024,15 @@ class TestPostCertificationArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
-        assert response.json()["archive_reason"] == "duplicate"
+        assert_archived_response(response.json(), "duplicate")
 
     def test_route_archive_already_archived_certification_returns_200(
-        self, client, mock_db, monkeypatch, certifications_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        certifications_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -1050,7 +1059,7 @@ class TestPostCertificationArchivedByIdRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is not None
+        assert_archived_response(response.json())
 
     def test_route_returns_404_when_certification_does_not_exist(
         self, client, mock_db, monkeypatch
@@ -1134,7 +1143,12 @@ class TestPostCertificationArchivedByIdRoute:
 class TestPostCertificationRestoredByIdRoute:
     # TestClient
     def test_route_restores_archived_certification(
-        self, client, mock_db, monkeypatch, certifications_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        certifications_factory,
+        assert_restored_response,
     ):
         def fake_post_certification_restored_by_id(session, certification_id):
             assert session is mock_db
@@ -1153,11 +1167,15 @@ class TestPostCertificationRestoredByIdRoute:
 
         assert response.status_code == 200
         response_json = response.json()
-        assert response_json["archived_at"] is None
-        assert response_json["archive_reason"] is None
+        assert_restored_response(response_json)
 
     def test_route_restore_active_certification_returns_200(
-        self, client, mock_db, monkeypatch, certifications_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        certifications_factory,
+        assert_restored_response,
     ):
         def fake_post_certification_restored_by_id(session, certification_id):
             assert session is mock_db
@@ -1175,7 +1193,7 @@ class TestPostCertificationRestoredByIdRoute:
         response = client.post("/certifications/100/restore")
 
         assert response.status_code == 200
-        assert response.json()["archived_at"] is None
+        assert_restored_response(response.json())
 
     def test_route_returns_404_when_certification_does_not_exist(
         self, client, mock_db, monkeypatch

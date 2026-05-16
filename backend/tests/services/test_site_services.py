@@ -179,14 +179,13 @@ class TestGetSites:
         assert "ORDER BY sites.city, sites.nif, sites.id" in str(stmt)
 
     def test_excludes_archived_sites_by_default(
-        self, sqlite_session, db_factory, site_row_factory
+        self, sqlite_session, db_factory, site_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
-            archived_at=datetime.now(UTC),
-            archive_reason="closed",
+            **archived_fields("closed"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -196,14 +195,13 @@ class TestGetSites:
         assert [site.id for site in sites] == [12]
 
     def test_includes_archived_sites_when_requested(
-        self, sqlite_session, db_factory, site_row_factory
+        self, sqlite_session, db_factory, site_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = site_row_factory(
             id=13,
             city="Valencia",
-            archived_at=datetime.now(UTC),
-            archive_reason="closed",
+            **archived_fields("closed"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -813,7 +811,9 @@ class TestFormatSiteAttachmentsOut:
 
 
 class TestPostSiteArchivedById:
-    def test_archives_site_with_stripped_reason(self, site_row_factory) -> None:
+    def test_archives_site_with_stripped_reason(
+        self, site_row_factory, assert_archived_record
+    ) -> None:
         session = MagicMock()
         site = site_row_factory()
         session.get.return_value = site
@@ -825,9 +825,7 @@ class TestPostSiteArchivedById:
         )
 
         assert result is site
-        assert site.archived_at is not None
-        assert site.archived_at.tzinfo is UTC
-        assert site.archive_reason == "duplicate"
+        assert_archived_record(site, "duplicate")
         session.get.assert_called_once_with(Site, 71)
         session.commit.assert_called_once_with()
 
@@ -858,7 +856,9 @@ class TestPostSiteArchivedById:
 
 
 class TestPostSiteRestoredById:
-    def test_restores_archived_site(self, site_row_factory) -> None:
+    def test_restores_archived_site(
+        self, site_row_factory, assert_restored_record
+    ) -> None:
         session = MagicMock()
         site = site_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -869,8 +869,7 @@ class TestPostSiteRestoredById:
         result = post_site_restored_by_id(session, 71)
 
         assert result is site
-        assert site.archived_at is None
-        assert site.archive_reason is None
+        assert_restored_record(site)
         session.get.assert_called_once_with(Site, 71)
         session.commit.assert_called_once_with()
 
@@ -896,24 +895,13 @@ class TestPostSiteRestoredById:
 
 
 class TestPostSiteArchiveRestoreIntegration:
-    def test_archive_then_restore_works(self, sqlite_session, db_factory) -> None:
+    def test_archive_then_restore_works(
+        self, sqlite_session, db_factory, assert_archive_restore_round_trip
+    ) -> None:
         db_factory()
-        archived = post_site_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             12,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_site_archived_by_id,
+            restore_fn=post_site_restored_by_id,
         )
-        archived = post_site_archived_by_id(
-            sqlite_session,
-            12,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_site_restored_by_id(sqlite_session, 12)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

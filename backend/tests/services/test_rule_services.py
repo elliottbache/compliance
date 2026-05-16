@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -19,7 +18,6 @@ from compliance.services.schemas import (
     RuleCreate,
     RuleOut,
 )
-from sqlalchemy.exc import IntegrityError
 
 
 def _rule_create(**overrides) -> RuleCreate:
@@ -31,11 +29,6 @@ def _rule_create(**overrides) -> RuleCreate:
     }
     data.update(overrides)
     return RuleCreate(**data)
-
-
-def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
-    orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
-    return IntegrityError("insert failed", {}, orig)
 
 
 class TestGetRules:
@@ -61,15 +54,14 @@ class TestGetRules:
         assert "ORDER BY rules.regulation_id, rules.rule_index, rules.id" in str(stmt)
 
     def test_excludes_archived_rules_by_default(
-        self, sqlite_session, db_factory, rule_row_factory
+        self, sqlite_session, db_factory, rule_row_factory, archived_fields
     ) -> None:
         db_factory()
 
         archived = rule_row_factory(
             id=21,
             rule_index="FS-102",
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+            **archived_fields("merged"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -79,14 +71,13 @@ class TestGetRules:
         assert [rule.id for rule in rules] == [5]
 
     def test_includes_archived_rules_when_requested(
-        self, sqlite_session, db_factory, rule_row_factory
+        self, sqlite_session, db_factory, rule_row_factory, archived_fields
     ) -> None:
         db_factory()
         archived = rule_row_factory(
             id=21,
             rule_index="FS-102",
-            archived_at=datetime.now(UTC),
-            archive_reason="merged",
+            **archived_fields("merged"),
         )
         sqlite_session.add(archived)
         sqlite_session.commit()
@@ -194,9 +185,11 @@ class TestPostNewRule:
         assert added_rule.title == "Equipment Maintenance"
         assert added_rule.description == "Equipment must be maintained."
 
-    def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_conflict_when_insert_conflicts(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error()
+        session.commit.side_effect = integrity_error_factory()
 
         with pytest.raises(RuleConflictError):
             post_new_rule(session, _rule_create())
@@ -206,10 +199,10 @@ class TestPostNewRule:
         session.rollback.assert_called_once_with()
 
     def test_raises_rule_index_conflict_when_rule_index_already_exists(
-        self,
+        self, integrity_error_factory
     ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error(
+        session.commit.side_effect = integrity_error_factory(
             "uq_rules_regulation_id_rule_index"
         )
 
@@ -220,7 +213,9 @@ class TestPostNewRule:
 
 
 class TestPostRuleArchivedById:
-    def test_archives_rule_with_stripped_reason(self, rule_row_factory) -> None:
+    def test_archives_rule_with_stripped_reason(
+        self, rule_row_factory, assert_archived_record
+    ) -> None:
         session = MagicMock()
         rule = rule_row_factory()
         session.get.return_value = rule
@@ -232,9 +227,7 @@ class TestPostRuleArchivedById:
         )
 
         assert result is rule
-        assert rule.archived_at is not None
-        assert rule.archived_at.tzinfo is UTC
-        assert rule.archive_reason == "duplicate"
+        assert_archived_record(rule, "duplicate")
         session.get.assert_called_once_with(Rule, 5)
         session.commit.assert_called_once_with()
 
@@ -265,7 +258,9 @@ class TestPostRuleArchivedById:
 
 
 class TestPostRuleRestoredById:
-    def test_restores_archived_rule(self, rule_row_factory) -> None:
+    def test_restores_archived_rule(
+        self, rule_row_factory, assert_restored_record
+    ) -> None:
         session = MagicMock()
         rule = rule_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -276,8 +271,7 @@ class TestPostRuleRestoredById:
         result = post_rule_restored_by_id(session, 5)
 
         assert result is rule
-        assert rule.archived_at is None
-        assert rule.archive_reason is None
+        assert_restored_record(rule)
         session.get.assert_called_once_with(Rule, 5)
         session.commit.assert_called_once_with()
 
@@ -303,9 +297,11 @@ class TestPostRuleRestoredById:
 
 
 class TestPostNewRuleConflicts:
-    def test_raises_regulation_error_when_regulation_does_not_exist(self) -> None:
+    def test_raises_regulation_error_when_regulation_does_not_exist(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error(
+        session.commit.side_effect = integrity_error_factory(
             "fk_rules_regulation_id_regulations"
         )
 
@@ -317,26 +313,13 @@ class TestPostNewRuleConflicts:
 
 class TestPostRuleArchiveRestoreIntegration:
     def test_archive_then_restore_works(
-        self, sqlite_session, db_factory, rule_row_factory
+        self, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
 
-        archived = post_rule_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             5,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_rule_archived_by_id,
+            restore_fn=post_rule_restored_by_id,
         )
-        archived = post_rule_archived_by_id(
-            sqlite_session,
-            5,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_rule_restored_by_id(sqlite_session, 5)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None

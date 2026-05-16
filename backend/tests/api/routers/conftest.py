@@ -35,6 +35,33 @@ def mock_db(main_module):
 
 
 @pytest.fixture
+def id_record_factory():
+    def _id_record(record_id):
+        return SimpleNamespace(id=record_id)
+
+    return _id_record
+
+
+@pytest.fixture
+def assert_archived_response():
+    def _assert_archived_response(payload, reason=None):
+        assert payload["archived_at"] is not None
+        if reason is not None:
+            assert payload["archive_reason"] == reason
+
+    return _assert_archived_response
+
+
+@pytest.fixture
+def assert_restored_response():
+    def _assert_restored_response(payload):
+        assert payload["archived_at"] is None
+        assert payload["archive_reason"] is None
+
+    return _assert_restored_response
+
+
+@pytest.fixture
 def site_factory():
     def _site(**overrides):
         site = SimpleNamespace(

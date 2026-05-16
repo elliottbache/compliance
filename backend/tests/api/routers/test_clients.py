@@ -577,7 +577,12 @@ class TestPostNewClientRoute:
 class TestPostClientArchivedByNifRoute:
     # TestClient
     def test_route_archives_active_client(
-        self, client, mock_db, monkeypatch, client_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        client_record_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -603,11 +608,15 @@ class TestPostClientArchivedByNifRoute:
         assert response.status_code == 200
         response_json = response.json()
         assert response_json["nif"] == "A1234567B"
-        assert response_json["archived_at"] is not None
-        assert response_json["archive_reason"] == "duplicate client"
+        assert_archived_response(response_json, "duplicate client")
 
     def test_route_returns_already_archived_client(
-        self, client, mock_db, monkeypatch, client_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        client_record_factory,
+        assert_archived_response,
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
@@ -629,8 +638,7 @@ class TestPostClientArchivedByNifRoute:
         assert response.status_code == 200
         response_json = response.json()
         assert response_json["nif"] == "A1234567B"
-        assert response_json["archived_at"] is not None
-        assert response_json["archive_reason"] == "old reason"
+        assert_archived_response(response_json, "old reason")
 
     def test_route_returns_404_when_client_does_not_exist(
         self, client, mock_db, monkeypatch
@@ -733,7 +741,12 @@ class TestPostClientArchivedByNifRoute:
 class TestPostClientRestoredByNifRoute:
     # TestClient
     def test_route_restores_archived_client(
-        self, client, mock_db, monkeypatch, client_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        client_record_factory,
+        assert_restored_response,
     ):
         def fake_post_client_restored_by_nif(session, nif):
             assert session is mock_db
@@ -751,11 +764,15 @@ class TestPostClientRestoredByNifRoute:
         assert response.status_code == 200
         response_json = response.json()
         assert response_json["nif"] == "A1234567B"
-        assert response_json["archived_at"] is None
-        assert response_json["archive_reason"] is None
+        assert_restored_response(response_json)
 
     def test_route_returns_active_client(
-        self, client, mock_db, monkeypatch, client_record_factory
+        self,
+        client,
+        mock_db,
+        monkeypatch,
+        client_record_factory,
+        assert_restored_response,
     ):
         def fake_post_client_restored_by_nif(session, nif):
             assert session is mock_db
@@ -773,8 +790,7 @@ class TestPostClientRestoredByNifRoute:
         assert response.status_code == 200
         response_json = response.json()
         assert response_json["nif"] == "A1234567B"
-        assert response_json["archived_at"] is None
-        assert response_json["archive_reason"] is None
+        assert_restored_response(response_json)
 
     def test_route_returns_404_when_client_does_not_exist(
         self, client, mock_db, monkeypatch

@@ -1,5 +1,4 @@
 from datetime import UTC, date, datetime
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,7 +17,6 @@ from compliance.services.schemas import (
     RegulationCreate,
     RegulationOut,
 )
-from sqlalchemy.exc import IntegrityError
 
 
 def _regulation_create(**overrides) -> RegulationCreate:
@@ -29,11 +27,6 @@ def _regulation_create(**overrides) -> RegulationCreate:
     }
     data.update(overrides)
     return RegulationCreate(**data)
-
-
-def _integrity_error(constraint_name: str | None = None) -> IntegrityError:
-    orig = SimpleNamespace(diag=SimpleNamespace(constraint_name=constraint_name))
-    return IntegrityError("insert failed", {}, orig)
 
 
 class TestGetRegulations:
@@ -193,9 +186,11 @@ class TestPostNewRegulation:
         )
         assert added_regulation.published_date == date(2026, 1, 15)
 
-    def test_rolls_back_and_raises_conflict_when_insert_conflicts(self) -> None:
+    def test_rolls_back_and_raises_conflict_when_insert_conflicts(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error()
+        session.commit.side_effect = integrity_error_factory()
 
         with pytest.raises(RegulationConflictError):
             post_new_regulation(session, _regulation_create())
@@ -207,7 +202,7 @@ class TestPostNewRegulation:
 
 class TestPostRegulationArchivedById:
     def test_archives_regulation_with_stripped_reason(
-        self, regulation_row_factory
+        self, regulation_row_factory, assert_archived_record
     ) -> None:
         session = MagicMock()
         regulation = regulation_row_factory()
@@ -220,9 +215,7 @@ class TestPostRegulationArchivedById:
         )
 
         assert result is regulation
-        assert regulation.archived_at is not None
-        assert regulation.archived_at.tzinfo is UTC
-        assert regulation.archive_reason == "duplicate"
+        assert_archived_record(regulation, "duplicate")
         session.get.assert_called_once_with(Regulation, 3)
         session.commit.assert_called_once_with()
 
@@ -259,7 +252,9 @@ class TestPostRegulationArchivedById:
 
 
 class TestPostRegulationRestoredById:
-    def test_restores_archived_regulation(self, regulation_row_factory) -> None:
+    def test_restores_archived_regulation(
+        self, regulation_row_factory, assert_restored_record
+    ) -> None:
         session = MagicMock()
         regulation = regulation_row_factory(
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
@@ -270,8 +265,7 @@ class TestPostRegulationRestoredById:
         result = post_regulation_restored_by_id(session, 3)
 
         assert result is regulation
-        assert regulation.archived_at is None
-        assert regulation.archive_reason is None
+        assert_restored_record(regulation)
         session.get.assert_called_once_with(Regulation, 3)
         session.commit.assert_called_once_with()
 
@@ -299,9 +293,11 @@ class TestPostRegulationRestoredById:
 
 
 class TestPostNewRegulationConflicts:
-    def test_raises_title_conflict_when_title_already_exists(self) -> None:
+    def test_raises_title_conflict_when_title_already_exists(
+        self, integrity_error_factory
+    ) -> None:
         session = MagicMock()
-        session.commit.side_effect = _integrity_error("uq_regulations_title")
+        session.commit.side_effect = integrity_error_factory("uq_regulations_title")
 
         with pytest.raises(RegulationTitleConflictError):
             post_new_regulation(session, _regulation_create())
@@ -311,7 +307,7 @@ class TestPostNewRegulationConflicts:
 
 class TestPostRegulationArchiveRestoreIntegration:
     def test_archive_then_restore_works(
-        self, monkeypatch, sqlite_session, db_factory
+        self, monkeypatch, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
         monkeypatch.setattr(
@@ -321,22 +317,9 @@ class TestPostRegulationArchiveRestoreIntegration:
             ),
         )
 
-        archived = post_regulation_archived_by_id(
+        assert_archive_restore_round_trip(
             sqlite_session,
             3,
-            archive_request=ArchiveRequest(archive_reason=" duplicate "),
+            archive_fn=post_regulation_archived_by_id,
+            restore_fn=post_regulation_restored_by_id,
         )
-        archived = post_regulation_archived_by_id(
-            sqlite_session,
-            3,
-            archive_request=ArchiveRequest(archive_reason=" second "),
-        )
-        assert archived is not None
-        assert archived.archived_at is not None
-        assert archived.archive_reason == "duplicate"
-
-        restored = post_regulation_restored_by_id(sqlite_session, 3)
-
-        assert restored is not None
-        assert restored.archived_at is None
-        assert restored.archive_reason is None
