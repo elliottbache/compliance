@@ -12,7 +12,6 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import format_attachment
 from compliance.services.attachments import (
     _UPLOAD_DIR,
     AttachmentCertificationNotFoundError,
@@ -33,12 +32,14 @@ from compliance.services.attachments import (
     post_attachment_upload,
     post_new_attachment,
 )
+from compliance.services.attachments.formatting import format_attachment
 from compliance.services.schemas import (
     ArchiveRequest,
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 class TestGetAttachments:
@@ -113,7 +114,7 @@ class TestGetAttachments:
         )
 
         monkeypatch.setattr(
-            "compliance.services.attachments._format_attachments",
+            "compliance.services.attachments.crud._format_attachments",
             lambda rows: [row["Attachment"].id for row in rows],
         )
 
@@ -159,7 +160,7 @@ class TestGetAttachments:
         )
 
         monkeypatch.setattr(
-            "compliance.services.attachments._format_attachments",
+            "compliance.services.attachments.crud._format_attachments",
             lambda rows: [row["Attachment"].id for row in rows],
         )
 
@@ -216,7 +217,7 @@ class TestGetAttachments:
             ]
 
         monkeypatch.setattr(
-            "compliance.services.attachments._format_attachments",
+            "compliance.services.attachments.crud._format_attachments",
             fake_format_attachments,
         )
 
@@ -317,7 +318,7 @@ class TestGetAttachmentById:
         )
 
         monkeypatch.setattr(
-            "compliance.services.attachments.format_attachment",
+            "compliance.services.attachments.formatting.format_attachment",
             lambda rows: rows[0]["Attachment"],
         )
         result = get_attachment_by_id(sqlite_session, 50)
@@ -586,7 +587,9 @@ class TestPostAttachmentUpload:
         self, monkeypatch, tmp_path, sqlite_session, db_factory
     ) -> None:
         db_factory()
-        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
 
         result = post_attachment_upload(
             sqlite_session,
@@ -607,7 +610,9 @@ class TestPostAttachmentUpload:
         self, monkeypatch, tmp_path, sqlite_session, db_factory
     ) -> None:
         db_factory()
-        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
 
         result = post_attachment_upload(
             sqlite_session,
@@ -624,7 +629,9 @@ class TestPostAttachmentUpload:
         self, monkeypatch, tmp_path, sqlite_session, db_factory
     ) -> None:
         db_factory(attachment_overrides={"file_name": "evidence"})
-        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
 
         result = post_attachment_upload(
             sqlite_session,
@@ -675,8 +682,14 @@ class TestPostAttachmentUpload:
     ) -> None:
         session = MagicMock()
         session.get.return_value = SimpleNamespace(id=50)
-        session.commit.side_effect = RuntimeError("commit failed")
-        monkeypatch.setattr("compliance.services.attachments._UPLOAD_DIR", tmp_path)
+        session.commit.side_effect = IntegrityError(
+            statement="SQL to create attachment",
+            params=("attachment",),
+            orig=Exception("UNIQUE constraint failed: attachment stuff"),
+        )
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
 
         with pytest.raises(AttachmentConflictError):
             post_attachment_upload(
@@ -743,7 +756,7 @@ class TestPostAttachmentArchivedById:
             return expected
 
         monkeypatch.setattr(
-            "compliance.services.attachments.get_attachment_by_id",
+            "compliance.services.attachments.crud.get_attachment_by_id",
             fake_get_attachment_by_id,
         )
 
@@ -782,7 +795,7 @@ class TestPostAttachmentRestoredById:
         expected = object()
 
         monkeypatch.setattr(
-            "compliance.services.attachments.get_attachment_by_id",
+            "compliance.services.attachments.crud.get_attachment_by_id",
             lambda session_arg, attachment_id, *, include_archived: expected,
         )
 
@@ -811,7 +824,7 @@ class TestPostAttachmentArchiveRestoreIntegration:
     ) -> None:
         db_factory()
         monkeypatch.setattr(
-            "compliance.services.attachments.get_attachment_by_id",
+            "compliance.services.attachments.crud.get_attachment_by_id",
             lambda session_arg, attachment_id, *, include_archived: session_arg.get(
                 Attachment, attachment_id
             ),

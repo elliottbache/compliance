@@ -1,10 +1,3 @@
-import shutil
-from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import BinaryIO
-from uuid import uuid4
-
 from compliance.db.models import (
     Attachment,
     Certification,
@@ -14,9 +7,13 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import (
-    archive_record_by_id,
+from compliance.services.attachments.formatting import (
+    _format_attachments,
+    _format_new_attachment_with_context,
     format_attachment,
+)
+from compliance.services.lifecycle import (
+    archive_record_by_id,
     record_is_visible,
     restore_record_by_id,
 )
@@ -27,20 +24,8 @@ from compliance.services.schemas import (
     AttachmentWithContextOut,
 )
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
-_UPLOAD_DIR = _PROJECT_ROOT / "backend" / "storage" / "attachments"
-_ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"}
-_ALLOWED_MIME_TYPES = {
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "text/plain",
-    "text/csv",
-}
-_ALLOWED_SIZE = int(5e7)
 
 
 class AttachmentCreateError(Exception):
@@ -236,24 +221,6 @@ def get_attachment_by_id(
     return None if not rows else format_attachment(rows)
 
 
-def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
-    attachment = session.get(Attachment, attachment_id)
-    if not attachment:
-        raise AttachmentNotFoundError(attachment_id)
-
-    if not attachment.file_path:
-        raise AttachmentFileError(attachment_id, attachment.file_path)
-
-    file_path = Path(attachment.file_path)
-    if not file_path.is_file():
-        raise AttachmentFileError(attachment_id, attachment.file_path)
-
-    file_name = attachment.file_name or ""
-    file_name += str(file_path.suffix)
-
-    return file_name, file_path
-
-
 def post_new_attachment(
     session: Session, attachment: AttachmentCreate
 ) -> AttachmentOut:
@@ -345,59 +312,6 @@ def post_new_attachment(
     return AttachmentOut.model_validate(new_attachment_with_context)
 
 
-def post_attachment_upload(
-    session: Session,
-    *,
-    attachment_id: int,
-    file_size: int | None,
-    file_type: str | None,
-    file_name: str | None,
-    file_stream: BinaryIO,
-) -> Attachment:
-    # check that content type and extension is acceptable
-    if not _validate_file_size_type_and_ext(file_size, file_type, file_name):
-        raise AttachmentFileError(file_size, file_type, file_name)
-
-    # fetch metadata
-    attachment = session.get(Attachment, attachment_id)
-    if attachment is None:
-        raise AttachmentNotFoundError(attachment_id)
-
-    # extract extension
-    ext = Path(file_name).suffix if file_name is not None else ""
-
-    # create file name
-    unique_filename = f"{uuid4()}{ext}"
-
-    # set file path
-    file_path = _UPLOAD_DIR / unique_filename
-
-    try:
-        # stream to path
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file_stream, buffer)
-
-        attachment.file_path = str(file_path)
-        attachment.uploaded_at = datetime.now(UTC)
-
-        session.add(attachment)
-        session.commit()
-        session.refresh(attachment)
-
-    except (OSError, SQLAlchemyError) as e:
-        session.rollback()
-        file_path.unlink(missing_ok=True)
-        raise AttachmentConflictError(file_path) from e
-
-    except Exception:
-        session.rollback()
-        file_path.unlink(missing_ok=True)
-        raise
-
-    return attachment
-
-
 def post_attachment_archived_by_id(
     session: Session, attachment_id: int, *, archive_request: ArchiveRequest
 ) -> AttachmentWithContextOut | None:
@@ -437,94 +351,3 @@ def post_attachment_restored_by_id(
     if attachment is None:
         return None
     return get_attachment_by_id(session, attachment_id, include_archived=True)
-
-
-def _format_new_attachment_with_context(
-    attachment: Attachment,
-    certification: Certification,
-    finding_ids: list[int],
-) -> AttachmentOut:
-    """Build output metadata for a newly created attachment.
-
-    Args:
-        attachment: Newly persisted attachment ORM object.
-        certification: Parent certification for the attachment.
-        finding_ids: Finding IDs linked to the attachment during creation.
-
-    Returns:
-        Attachment metadata enriched with certification and regulation context.
-    """
-    return AttachmentOut(
-        id=attachment.id,
-        file_name=attachment.file_name,
-        file_path=attachment.file_path,
-        certification_id=attachment.certification_id,
-        description=attachment.description,
-        uploaded_at=None,
-        finding_ids=list(finding_ids),
-        inspection_date=certification.inspection_date,
-        regulation_id=certification.regulation_id,
-        regulation_title=certification.certification_regulation_rel.title,
-        archived_at=attachment.archived_at,
-        archive_reason=attachment.archive_reason,
-    )
-
-
-def _validate_file_size_type_and_ext(
-    file_size: int | None,
-    file_type: str | None,
-    file_name: str | None,
-    *,
-    allowed_size: int = _ALLOWED_SIZE,
-    allowed_types: set[str] = _ALLOWED_MIME_TYPES,
-    allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
-) -> bool:
-
-    if not file_size or file_size > allowed_size:
-        return False
-
-    if file_type is None or file_type not in allowed_types:
-        return False
-
-    return file_name is None or Path(file_name).suffix in allowed_extensions
-
-
-def _format_attachments(attachment_list: Sequence[Mapping]) -> list[AttachmentOut]:
-    """Format attachment query rows into public attachment output records."""
-    rows_by_attachment: dict[int, list[Mapping]] = {}
-    for row in attachment_list:
-        attachment_id = row["Attachment"].id
-        if attachment_id not in rows_by_attachment:
-            rows_by_attachment[attachment_id] = []
-        rows_by_attachment[attachment_id].append(row)
-
-    return [_build_attachment_out(rows) for rows in rows_by_attachment.values()]
-
-
-def _build_attachment_out(rows: Sequence[Mapping]) -> AttachmentOut:
-    """Build one attachment output object from grouped attachment query rows."""
-    first_row = rows[0]
-    attachment = first_row["Attachment"]
-    certification = first_row["Certification"]
-    regulation = first_row["Regulation"]
-
-    finding_ids: list[int] = []
-    for row in rows:
-        finding = row["Finding"]
-        if finding is not None and finding.id not in finding_ids:
-            finding_ids.append(finding.id)
-
-    return AttachmentOut(
-        id=attachment.id,
-        file_name=attachment.file_name,
-        file_path=attachment.file_path,
-        certification_id=attachment.certification_id,
-        description=attachment.description,
-        finding_ids=finding_ids,
-        uploaded_at=attachment.uploaded_at,
-        inspection_date=certification.inspection_date,
-        regulation_id=certification.regulation_id,
-        regulation_title=regulation.title,
-        archived_at=attachment.archived_at,
-        archive_reason=attachment.archive_reason,
-    )

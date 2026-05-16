@@ -11,10 +11,10 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import (
+from compliance.services.attachments.formatting import format_attachment
+from compliance.services.lifecycle import (
     archive_record_by_id,
     certification_parent_chain_is_visible,
-    format_attachment,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,

@@ -9,7 +9,7 @@ from compliance.db.models import (
     Site,
 )
 from compliance.schemas import FindingHistory, SiteHistory
-from compliance.services._helpers import (
+from compliance.services.attachments.formatting import (
     _build_finding_history_from_site_attachments,
 )
 from compliance.services.certifications import (
@@ -379,7 +379,7 @@ class TestPostNewSite:
         session.commit.side_effect = IntegrityError("insert failed", {}, None)
         site = _site_create()
         monkeypatch.setattr(
-            "compliance.services.sites.get_constraint_name",
+            "compliance.services.sites.crud.get_constraint_name",
             lambda exc: "fk_sites_nif_clients",
         )
 

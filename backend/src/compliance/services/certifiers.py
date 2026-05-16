@@ -1,7 +1,7 @@
 from compliance.db.models import (
     Certifier,
 )
-from compliance.services._helpers import (
+from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
     record_is_visible,

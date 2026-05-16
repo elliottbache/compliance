@@ -9,7 +9,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services._helpers import (
+from compliance.services.lifecycle import (
     archive_record_by_id,
     certification_parent_chain_is_visible,
     record_is_visible,

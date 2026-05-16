@@ -25,10 +25,8 @@ def _normalize_refreshed_sqlite_datetimes(target, context, attrs) -> None:
 
 
 @pytest.fixture
-def sqlite_session(tmp_path):
+def sqlite_session():
     """Create a temporary SQLite DB session for service-level tests."""
-    """db_path = tmp_path / "test_compliance.db"
-    engine = create_engine(f"sqlite+pysqlite:///{db_path}")"""
     engine = create_engine("sqlite+pysqlite:///:memory:")
 
     @event.listens_for(engine, "connect")

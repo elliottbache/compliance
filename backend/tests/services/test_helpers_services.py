@@ -4,10 +4,12 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 from compliance.schemas import FindingHistory
-from compliance.services._helpers import (
+from compliance.services.attachments.formatting import (
     _build_finding_history_from_site_attachments,
-    archive_record_by_id,
     format_attachment,
+)
+from compliance.services.lifecycle import (
+    archive_record_by_id,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
