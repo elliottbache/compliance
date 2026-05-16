@@ -5,7 +5,7 @@ from typing import BinaryIO
 from uuid import uuid4
 
 from compliance.db.models import Attachment
-from compliance.services.attachments.crud import (
+from compliance.services.attachments import (
     AttachmentConflictError,
     AttachmentFileError,
     AttachmentNotFoundError,

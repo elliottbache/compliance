@@ -8,6 +8,14 @@ from compliance.db.models import (
     Rule,
     Site,
 )
+from compliance.services.attachments import (
+    AttachmentCertificationNotFoundError,
+    AttachmentConflictError,
+    AttachmentFindingCertificationMismatchError,
+    AttachmentFindingNotFoundError,
+    AttachmentRuleNotFoundError,
+    AttachmentSiteNotFoundError,
+)
 from compliance.services.attachments.formatting import (
     _format_attachments,
     _format_new_attachment_with_context,
@@ -27,42 +35,6 @@ from compliance.services.schemas import (
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-
-class AttachmentCreateError(Exception):
-    """Base error for attachment creation failures."""
-
-
-class AttachmentNotFoundError(AttachmentCreateError):
-    """Raised when an attachment ID doesn't exist."""
-
-
-class AttachmentSiteNotFoundError(AttachmentCreateError):
-    """Raised when an attachment filter references a missing site."""
-
-
-class AttachmentCertificationNotFoundError(AttachmentCreateError):
-    """Raised when an attachment's certification does not exist."""
-
-
-class AttachmentRuleNotFoundError(AttachmentCreateError):
-    """Raised when an attachment filter references a missing rule."""
-
-
-class AttachmentFindingNotFoundError(AttachmentCreateError):
-    """Raised when an attachment's linked finding does not exist."""
-
-
-class AttachmentFindingCertificationMismatchError(AttachmentCreateError):
-    """Raised when a linked finding belongs to another certification."""
-
-
-class AttachmentConflictError(AttachmentCreateError):
-    """Raised when attachment creation conflicts with stored data."""
-
-
-class AttachmentFileError(AttachmentCreateError):
-    """Raised when attachment file upload is invalid."""
 
 
 def get_attachments(
