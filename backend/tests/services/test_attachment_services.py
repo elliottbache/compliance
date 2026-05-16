@@ -128,6 +128,31 @@ class TestGetAttachments:
 
         assert attachment_ids == []
 
+    def test_excludes_attachments_for_archived_client_by_default(
+        self, monkeypatch, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        monkeypatch.setattr(
+            "compliance.services.attachments.crud._format_attachments",
+            lambda rows: [row["Attachment"].id for row in rows],
+        )
+
+        attachment_ids = get_attachments(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            finding_id=None,
+        )
+
+        assert attachment_ids == []
+
     def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
@@ -325,6 +350,20 @@ class TestGetAttachmentById:
 
         assert result is not None
         assert result.archived_at is not None
+
+    def test_returns_none_when_archived_client_excluded(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        result = get_attachment_by_id(sqlite_session, 50, include_archived=False)
+
+        assert result is None
 
     def test_filters_optional_archive_links_in_outer_join_by_default(self) -> None:
         session = MagicMock()

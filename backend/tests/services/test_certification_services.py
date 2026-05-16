@@ -137,6 +137,22 @@ class TestGetCertifications:
 
         assert [certification.id for certification in certifications] == [42]
 
+    def test_excludes_certifications_for_archived_client_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        certifications = get_certifications(
+            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
+        )
+
+        assert certifications == []
+
     def test_includes_archived_certifications_when_requested(
         self, sqlite_session, db_factory, certification_row_factory
     ) -> None:
@@ -212,8 +228,23 @@ class TestGetCertificationById:
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
         assert "sites.archived_at IS NULL" in str(stmt)
+        assert "clients.archived_at IS NULL" in str(stmt)
         assert "regulations.archived_at IS NULL" in str(stmt)
         assert "certifiers.archived_at IS NULL" in str(stmt)
+        assert result is None
+
+    def test_returns_none_when_archived_client_excluded(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        result = get_certification_by_id(sqlite_session, 42, include_archived=False)
+
         assert result is None
 
 

@@ -3,6 +3,7 @@ from collections.abc import Mapping, Sequence
 from compliance.db.models import (
     Certification,
     Certifier,
+    Client,
     Finding,
     Regulation,
     Rule,
@@ -41,6 +42,10 @@ def get_site_history(
     # perform query
     site = session.get(Site, site_id)
     if site is None or not record_is_visible(site, include_archived):
+        return None
+
+    client = session.get(Client, site.nif)
+    if not record_is_visible(client, include_archived):
         return None
 
     finding_join_condition = Finding.certification_id == Certification.id

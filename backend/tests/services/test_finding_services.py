@@ -92,6 +92,27 @@ class TestGetFindings:
 
         assert [finding.finding_id for finding in findings] == [1]
 
+    def test_excludes_findings_for_archived_client_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        findings = get_findings(
+            sqlite_session,
+            site_id=None,
+            certification_id=None,
+            rule_id=None,
+            attachment_id=None,
+            open_only=False,
+        )
+
+        assert findings == []
+
     def test_includes_archived_findings_when_requested(
         self, monkeypatch, sqlite_session, db_factory, finding_row_factory
     ) -> None:
@@ -315,6 +336,20 @@ class TestGetFindingById:
         result = get_finding_by_id(sqlite_session, 1)
 
         assert result == "closed"
+
+    def test_returns_none_when_archived_client_excluded(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        result = get_finding_by_id(sqlite_session, 1, include_archived=False)
+
+        assert result is None
 
     def test_includes_archived_finding_when_requested(self) -> None:
         session = MagicMock()

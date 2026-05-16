@@ -1,6 +1,7 @@
 from compliance.db.models import (
     Attachment,
     Certification,
+    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -115,6 +116,7 @@ def get_attachments(
         select(Attachment, Certification, Regulation, FindingAttachment, Finding, Rule)
         .join(Attachment.attachment_certification_rel)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .outerjoin(
             FindingAttachment,
@@ -131,6 +133,7 @@ def get_attachments(
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
 
     if site_id is not None:
@@ -202,6 +205,7 @@ def get_attachment_by_id(
         .where(Attachment.id == attachment_id)
         .join(Attachment.attachment_certification_rel)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .outerjoin(
             FindingAttachment,
@@ -215,6 +219,7 @@ def get_attachment_by_id(
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
 
     rows = session.execute(stmt).mappings().all()

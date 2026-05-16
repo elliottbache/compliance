@@ -3,6 +3,7 @@ from collections.abc import Mapping, Sequence
 from compliance.db.models import (
     Attachment,
     Certification,
+    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -110,6 +111,7 @@ def get_findings(
         select(Finding, Certification, Regulation, Rule, Attachment)
         .join(Finding.finding_certification_rel)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .join(Finding.finding_rule_rel)
         .outerjoin(
@@ -126,6 +128,7 @@ def get_findings(
         stmt = stmt.where(Finding.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Rule.archived_at.is_(None))
 
@@ -204,6 +207,7 @@ def get_finding_by_id(
         select(Finding, Certification, Regulation, Rule, Attachment)
         .join(Finding.finding_certification_rel)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .join(Finding.finding_rule_rel)
         .outerjoin(
@@ -221,6 +225,7 @@ def get_finding_by_id(
         stmt = stmt.where(Finding.archived_at.is_(None))
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Rule.archived_at.is_(None))
 

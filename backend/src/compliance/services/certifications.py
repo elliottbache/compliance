@@ -5,6 +5,7 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Certifier,
+    Client,
     Finding,
     FindingAttachment,
     Regulation,
@@ -81,12 +82,14 @@ def get_certifications(
     stmt = (
         select(Certification)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .join(Certification.certification_certifier_rel)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Certifier.archived_at.is_(None))
 
@@ -125,12 +128,14 @@ def get_certification_by_id(
         select(Certification)
         .where(Certification.id == certification_id)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_regulation_rel)
         .join(Certification.certification_certifier_rel)
     )
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))
         stmt = stmt.where(Certifier.archived_at.is_(None))
 
@@ -192,6 +197,7 @@ def get_certification_attachments_by_id(
         .where(Certification.id == certification_id)
         .join(Attachment.attachment_certification_rel)
         .join(Certification.certification_site_rel)
+        .join(Site.site_client_rel)
         .join(Certification.certification_certifier_rel)
         .join(Certification.certification_regulation_rel)
         .outerjoin(
@@ -206,6 +212,7 @@ def get_certification_attachments_by_id(
     if not include_archived:
         stmt = stmt.where(Certification.archived_at.is_(None))
         stmt = stmt.where(Site.archived_at.is_(None))
+        stmt = stmt.where(Client.archived_at.is_(None))
         stmt = stmt.where(Certifier.archived_at.is_(None))
         stmt = stmt.where(Attachment.archived_at.is_(None))
         stmt = stmt.where(Regulation.archived_at.is_(None))

@@ -530,6 +530,20 @@ class TestGetSiteHistoryForSite:
         stmt = session.execute.call_args.args[0]
         assert "certifications.archived_at IS NULL" in str(stmt)
 
+    def test_returns_none_when_client_is_archived_by_default(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory(
+            client_overrides={
+                "archived_at": datetime.now(UTC),
+                "archive_reason": "closed",
+            },
+        )
+
+        result = get_site_history(sqlite_session, 12)
+
+        assert result is None
+
     def test_includes_archived_history_records_when_requested(self) -> None:
         session = MagicMock()
         session.execute.return_value.mappings.return_value.all.return_value = []
