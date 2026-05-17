@@ -20,7 +20,7 @@ dependencies = [
   "sqlalchemy==2.0.38",
   "psycopg2-binary==2.9.10",
   "python-dotenv==1.0.1",
-  "fastapi==0.115.8",
+  "fastapi[standard]==0.129.2",
   "python-multipart==0.0.20",
   "alembic==1.18.4"
 ]
