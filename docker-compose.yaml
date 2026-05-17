@@ -29,6 +29,15 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
-      
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:5173:5173"
+
 volumes:
   postgres_data:
