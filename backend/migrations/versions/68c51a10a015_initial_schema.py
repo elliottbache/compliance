@@ -85,7 +85,6 @@ def upgrade() -> None:
         sa.Column("result", sa.String(length=80), nullable=True),
         sa.Column("inspection_date", sa.Date(), nullable=True),
         sa.Column("resolution_date", sa.Date(), nullable=True),
-        sa.CheckConstraint("result IN ('Pass', 'Fail')", name=op.f("result_check")),
         sa.ForeignKeyConstraint(
             ["certifier_id"],
             ["certifiers.id"],
@@ -102,6 +101,12 @@ def upgrade() -> None:
             name="certifications_site_id_fkey",
         ),
         sa.PrimaryKeyConstraint("id", name="certifications_pkey"),
+    )
+    op.execute(
+        """
+        ALTER TABLE certifications
+        ADD CONSTRAINT result_check CHECK (result IN ('Pass', 'Fail'))
+        """
     )
     op.create_table(
         "attachments",
