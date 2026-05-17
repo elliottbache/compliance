@@ -12,4 +12,4 @@ COPY pyproject.toml README.md ./
 # install the project (creates compliance in PATH)
 RUN pip install --no-cache-dir .
 
-CMD ["sh", "-c", "python -m alembic -c backend/alembic.ini upgrade head && fastapi dev backend/src/compliance/api/main.py"]
+CMD ["sh", "-c", "python -m alembic -c backend/alembic.ini upgrade head && fastapi dev backend/src/compliance/api/main.py --host 0.0.0.0 --port 8000"]
