@@ -1,4 +1,4 @@
-# docker/Dockerfile
+# docker/backend.Dockerfile
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -12,4 +12,4 @@ COPY pyproject.toml README.md ./
 # install the project (creates compliance in PATH)
 RUN pip install --no-cache-dir .
 
-CMD python -m alembic -c backend/alembic.ini upgrade 68c5
+CMD ["sh", "-c", "python -m alembic -c backend/alembic.ini upgrade head && fastapi dev backend/src/compliance/api/main.py"]
