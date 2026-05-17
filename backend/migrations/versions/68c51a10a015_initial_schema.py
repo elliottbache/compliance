@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.Column("result", sa.String(length=80), nullable=True),
         sa.Column("inspection_date", sa.Date(), nullable=True),
         sa.Column("resolution_date", sa.Date(), nullable=True),
-        sa.CheckConstraint("result IN ('Pass', 'Fail')", name="result_check"),
+        sa.CheckConstraint("result IN ('Pass', 'Fail')", name=op.f("result_check")),
         sa.ForeignKeyConstraint(
             ["certifier_id"],
             ["certifiers.id"],

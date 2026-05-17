@@ -8,6 +8,7 @@ Create Date: 2026-05-15 14:07:18.595960
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -17,10 +18,32 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def _rename_constraint(table_name: str, old_name: str, new_name: str) -> None:
-    op.execute(
-        f'ALTER TABLE "{table_name}" ' f'RENAME CONSTRAINT "{old_name}" TO "{new_name}"'
+def _constraint_exists(table_name: str, constraint_name: str) -> bool:
+    return bool(
+        op.get_bind()
+        .execute(
+            sa.text(
+                """
+                SELECT 1
+                FROM pg_constraint
+                WHERE conrelid = to_regclass(:table_name)
+                AND conname = :constraint_name
+                """
+            ),
+            {"table_name": table_name, "constraint_name": constraint_name},
+        )
+        .scalar()
     )
+
+
+def _rename_constraint(table_name: str, old_name: str, new_name: str) -> None:
+    if _constraint_exists(table_name, old_name):
+        op.execute(
+            f'ALTER TABLE "{table_name}" '
+            f'RENAME CONSTRAINT "{old_name}" TO "{new_name}"'
+        )
+    elif not _constraint_exists(table_name, new_name):
+        raise RuntimeError(f"Constraint {table_name}.{old_name} does not exist")
 
 
 def upgrade() -> None:
