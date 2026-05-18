@@ -40,28 +40,61 @@ cp examples/demo/attachments/* backend/storage/attachments/
 
 ## Mounting the servers
 
-There are two routes listed here: using Docker or launching locally.
+There are two routes listed here: using Docker or launching locally. In both
+cases, the demo can run in mock AI mode or Anthropic AI mode. Mock mode does
+not require internet access or an API key. Anthropic mode requires internet
+access and a valid Anthropic API key. See the repo README.md for instructions
+on setting up an Anthropic API key.
 
 ### Docker instructions
 
 When using Docker Compose, the backend should connect to the `postgres` service
-and the database should already exist before this seed file is loaded.  This can be 
-done by launching the Docker container from the project root with the provided 
-docker-compose.yaml:
+and the database should already exist before this seed file is loaded.
+
+Create the Docker environment file from the template:
 
 ```bash
-docker compose up -d --build
+cp docker/.env.example docker/.env
+```
+
+For offline demos, keep the default mock AI mode in `docker/.env`:
+
+```env
+AI_MODE=mock
+ANTHROPIC_API_KEY=
+```
+
+For live Anthropic analysis, edit `docker/.env`:
+
+```env
+AI_MODE=anthropic
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+Then launch the Docker containers from the project root with the Docker
+environment file:
+
+```bash
+docker compose --env-file docker/.env up -d --build
 ```
 
 From the repository root, with Docker Compose running:
 
 ```bash
-docker compose exec -T postgres psql   -U postgres   -d compliance_db   < examples/demo/seed_demo_data.sql
+docker compose --env-file docker/.env exec -T postgres psql -U postgres -d compliance_db < examples/demo/seed_demo_data.sql
 ```
 
 ### Local run instructions
 
-Run migrations before loading the demo data from the root folder with:
+Create the local backend environment file from the template:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Use the same `AI_MODE` values described above in `backend/.env`.
+
+Run migrations before loading the demo data from the project root:
 
 ```bash
 alembic upgrade head
@@ -70,7 +103,7 @@ alembic upgrade head
 If launching without Docker, the backend can be launched from the root folder with:
 
 ```bash
-fastapi run backend/src/compliance/api/main.py 
+fastapi dev backend/src/compliance/api/main.py 
 ```
 
 and the frontend can be launched in another terminal from the frontend folder with:
@@ -103,7 +136,21 @@ Generate Markdown
 Download Markdown
 ```
 
-Sample screenshots for "Load History" and "Load Attachments" can be found in the examples/demo/results/ folder.
+Sample screenshots for "Load History" and "Load Attachments" can be found in
+the examples/demo/results/ folder.
+
+After loading the demo site, click **Run AI Analysis** to generate a structured
+analysis for `site_id = 71`. In mock mode, this response is deterministic and
+can be generated without internet access. In Anthropic mode, the backend sends
+the site history to Anthropic and returns a live AI-generated analysis.
+
+After the analysis appears, click **Generate Markdown** to preview the report,
+then click **Download Markdown** to save it locally. The downloaded markdown can
+be compared with the saved demo result file:
+
+```text
+examples/demo/results/site-71-analysis.md
+```
 
 ## Notes
 

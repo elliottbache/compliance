@@ -167,7 +167,7 @@ def call_structured_model[
     logger.debug(f"system_context: {system_context}")
     logger.debug(f"user_message: {user_message}")
 
-    load_dotenv(dotenv_path=_DOTENV_PATH)
+    load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
     client = anthropic.Anthropic()
     try:
         is_retry = False

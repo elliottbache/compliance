@@ -27,17 +27,18 @@ def _build_db_url() -> str:
     Raises:
         ValueError: If any required database environment variable is missing.
     """
-    load_dotenv(dotenv_path=_DOTENV_PATH)
+    load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
 
     db_name = getenv("POSTGRES_DB")
     user = getenv("POSTGRES_USER")
     password = getenv("POSTGRES_PASSWORD")
     host = getenv("POSTGRES_HOST")
+    port = getenv("POSTGRES_PORT")
 
     if db_name is None or user is None or password is None or host is None:
         raise ValueError(".env value is not being read correctly.")
 
-    return f"postgresql+psycopg2://{user}:{password}@{host}/{db_name}"
+    return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"
 
 
 @cache

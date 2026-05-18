@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from compliance.llm.anthropic_api import call_structured_model
 from compliance.llm.schemas import SiteAnalysis
@@ -38,6 +39,16 @@ def summarize_previous_visits(
         json.JSONDecodeError: If the model returns invalid JSON that cannot
             be recovered.
     """
+    ai_mode = os.getenv("AI_MODE", "mock").lower()
+
+    if ai_mode == "mock":
+        return _mock_site_analysis(site_history)
+
+    if ai_mode != "anthropic":
+        raise ValueError(f"Unsupported AI_MODE: {ai_mode}")
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY is required when AI_MODE=anthropic.")
 
     system_context = _build_site_analysis_system_prompt()
     user_message = _build_site_analysis_user_message(site_history)
@@ -114,3 +125,19 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
     )
 
     return user_message
+
+
+def _mock_site_analysis(site_history: SiteHistory) -> SiteAnalysis:
+    """Return deterministic site analysis for offline demos and tests."""
+    return SiteAnalysis(
+        site_id=site_history.site_id,
+        inspection_count=site_history.inspection_count,
+        executive_summary=(
+            "Mock AI analysis: this site history was loaded successfully. "
+            "Use AI_MODE=anthropic with an Anthropic API key for live analysis."
+        ),
+        recurring_issues=[],
+        missing_information=[],
+        needs_human_review=[],
+        suggestions=[],
+    )
