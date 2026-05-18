@@ -46,8 +46,10 @@ def site_history() -> SiteHistory:
 
 class TestSummarizePreviousVisits:
     def test_builds_site_analysis_prompt_and_calls_structured_model(
-        self, site_history, site_analysis_factory
+        self, monkeypatch, site_history, site_analysis_factory
     ) -> None:
+        monkeypatch.setenv("AI_MODE", "anthropic")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         site_analysis = site_analysis_factory()
 
         with patch(
@@ -65,8 +67,10 @@ class TestSummarizePreviousVisits:
         )
 
     def test_passes_provided_ai_model_and_case_info(
-        self, site_history, site_analysis_factory
+        self, monkeypatch, site_history, site_analysis_factory
     ) -> None:
+        monkeypatch.setenv("AI_MODE", "anthropic")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         site_analysis = site_analysis_factory()
 
         with patch(
@@ -86,6 +90,39 @@ class TestSummarizePreviousVisits:
             mock_call_structured_model.call_args.kwargs["prompt_version"] == "v-custom"
         )
         assert mock_call_structured_model.call_args.kwargs["case_info"] == "case-1"
+
+    def test_returns_mock_analysis_by_default(self, monkeypatch, site_history) -> None:
+        monkeypatch.delenv("AI_MODE", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+        with patch(
+            "compliance.services.site_analysis.call_structured_model"
+        ) as mock_call_structured_model:
+            result = summarize_previous_visits(site_history)
+
+        assert result.site_id == 71
+        assert result.inspection_count == 1
+        assert "Mock AI analysis" in result.executive_summary
+        assert result.recurring_issues == []
+        assert result.missing_information == []
+        assert result.needs_human_review == []
+        assert result.suggestions == []
+        mock_call_structured_model.assert_not_called()
+
+    def test_raises_for_unsupported_ai_mode(self, monkeypatch, site_history) -> None:
+        monkeypatch.setenv("AI_MODE", "local")
+
+        with pytest.raises(ValueError, match="Unsupported AI_MODE: local"):
+            summarize_previous_visits(site_history)
+
+    def test_requires_api_key_for_anthropic_mode(
+        self, monkeypatch, site_history
+    ) -> None:
+        monkeypatch.setenv("AI_MODE", "anthropic")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY is required"):
+            summarize_previous_visits(site_history)
 
 
 class TestBuildSiteAnalysisPrompts:

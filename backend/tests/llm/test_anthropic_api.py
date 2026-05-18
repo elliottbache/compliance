@@ -101,6 +101,28 @@ class TestCallStructuredModel:
                 response_model=ExampleModel(value=7),
             )
 
+    def test_loads_dotenv_without_overriding_existing_environment(self) -> None:
+        response = SimpleNamespace(
+            content=[TextBlock(type="text", text='{"value": 7}')]
+        )
+
+        with (
+            patch("compliance.llm.anthropic_api.load_dotenv") as mock_load_dotenv,
+            patch("compliance.llm.anthropic_api.anthropic.Anthropic"),
+            patch(
+                "compliance.llm.anthropic_api._call_model",
+                return_value=response,
+            ),
+        ):
+            call_structured_model(
+                "system text",
+                "user text",
+                response_model=ExampleModel,
+            )
+
+        mock_load_dotenv.assert_called_once()
+        assert mock_load_dotenv.call_args.kwargs["override"] is False
+
 
 class TestCallModel:
     def test_calls_messages_create_with_expected_payload(self) -> None:

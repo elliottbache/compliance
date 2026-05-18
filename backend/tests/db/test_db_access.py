@@ -17,15 +17,35 @@ class TestBuildDbUrl:
         monkeypatch.setenv("POSTGRES_USER", "test_user")
         monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
         monkeypatch.setenv("POSTGRES_HOST", "localhost")
+        monkeypatch.setenv("POSTGRES_PORT", "5433")
 
         assert (
             _build_db_url()
-            == "postgresql+psycopg2://test_user:test_password@localhost/test_db"
+            == "postgresql+psycopg2://test_user:test_password@localhost:5433/test_db"
         )
+
+    def test_loads_dotenv_without_overriding_existing_environment(self) -> None:
+        with (
+            patch("compliance.db.db_access.load_dotenv") as mock_load_dotenv,
+            patch("compliance.db.db_access.getenv") as mock_getenv,
+        ):
+            mock_getenv.side_effect = {
+                "POSTGRES_DB": "test_db",
+                "POSTGRES_USER": "test_user",
+                "POSTGRES_PASSWORD": "test_password",
+                "POSTGRES_HOST": "localhost",
+                "POSTGRES_PORT": "5432",
+            }.__getitem__
+
+            _build_db_url()
+
+        mock_load_dotenv.assert_called_once()
+        assert mock_load_dotenv.call_args.kwargs["override"] is False
 
     def test_raises_when_required_environment_is_missing(self, monkeypatch) -> None:
         monkeypatch.setattr(
-            "compliance.db.db_access.load_dotenv", lambda dotenv_path: None
+            "compliance.db.db_access.load_dotenv",
+            lambda dotenv_path, override=False: None,
         )
         monkeypatch.delenv("POSTGRES_DB", raising=False)
         monkeypatch.delenv("POSTGRES_USER", raising=False)
