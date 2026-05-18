@@ -1,3 +1,4 @@
+<!-- docs:start -->
 # Compliance
 
 Inspection and compliance management system with structured records, evidence
@@ -119,14 +120,14 @@ cp docker/.env.example docker/.env
 
 For offline demos, keep:
 
-```env
+```ini
 AI_MODE=mock
 ANTHROPIC_API_KEY=
 ```
 
 For live Anthropic analysis, edit `docker/.env`:
 
-```env
+```ini
 AI_MODE=anthropic
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
@@ -200,7 +201,7 @@ cp backend/.env.example backend/.env
 
 Default local values:
 
-```env
+```ini
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=compliance_db
@@ -240,7 +241,7 @@ npm run dev
 
 `frontend/.env` should normally contain:
 
-```env
+```ini
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
@@ -267,7 +268,7 @@ When `AI_MODE=anthropic`, `ANTHROPIC_API_KEY` must be set.
 
 The backend builds its database URL from:
 
-```env
+```ini
 POSTGRES_USER
 POSTGRES_PASSWORD
 POSTGRES_DB
@@ -365,3 +366,4 @@ Elliott Bache
 ## License
 
 PolyForm Noncommercial License 1.0.0. See `LICENSE`.
+<!-- docs:end -->

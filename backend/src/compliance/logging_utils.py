@@ -25,14 +25,15 @@ from logging.handlers import RotatingFileHandler
 def configure_logging(*, level: str = "INFO", is_tutorial: bool = False) -> None:
     """Configure root logging for the application.
 
-    This attaches two handlers to the **root** logger:
+    This attaches two handlers to the **root** logger.
 
-    1) A file handler at ``level`` writing to ``<state-dir>/compliance/logs/compliance.log``.
-       - On Linux/WSL: ``$XDG_STATE_HOME`` (fallback: ``~/.local/state``)
-       - On Windows: ``%LOCALAPPDATA%`` (fallback: ``~/AppData/Local``)
-    This is rotating for non-tutorial.
+    The file handler writes at ``level`` to
+    ``<state-dir>/compliance/logs/compliance.log``. On Linux/WSL, the state
+    directory is ``$XDG_STATE_HOME`` with a fallback to ``~/.local/state``. On
+    Windows, it is ``%LOCALAPPDATA%`` with a fallback to ``~/AppData/Local``.
+    The file handler rotates in non-tutorial mode.
 
-    2) A stderr handler at ``WARNING`` and above.
+    The stderr handler writes messages at ``WARNING`` and above.
 
     Calling this function multiple times is safe: existing root handlers are
     removed and closed before new handlers are installed.

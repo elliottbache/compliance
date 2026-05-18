@@ -29,12 +29,21 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
+    "sphinx_paramlinks",
 ]
 
 source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "_autosummary/compliance.rst",
+    "_autosummary/compliance.api.rst",
+    "_autosummary/compliance.db.rst",
+    "_autosummary/compliance.llm.rst",
+    "Thumbs.db",
+    ".DS_Store",
+]
 
 # Generate autosummary stub pages automatically on build
 autosummary_generate = True
@@ -69,4 +78,17 @@ napoleon_numpy_docstring = True
 # html_theme = 'alabaster'
 html_theme = "sphinx_rtd_theme"
 
-html_static_path = ["_static"]
+# html_static_path = ["_static"]
+
+
+def _skip_imported_member(app, what, name, obj, skip, options):
+    """Skip third-party imports that are not part of the Compliance API."""
+    module_name = getattr(obj, "__module__", "")
+    if module_name and not module_name.startswith("compliance"):
+        return True
+
+    return skip
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", _skip_imported_member)
