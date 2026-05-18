@@ -3,10 +3,15 @@ name: CI
 on:
   push:
     paths:
-      - "src/**"
-      - "tests/**"
+      - "backend/src/**"
+      - "backend/tests/**"
+      - "frontend/src/**"
+      - "frontend/tests/**"
       - "docs/**"
       - ".github/workflows/**"
+      - "pyproject.toml"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
   pull_request:
   workflow_dispatch:
 
@@ -38,7 +43,7 @@ jobs:
 
       - name: Run tests
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/backend/src
         run: |
           pytest -q --cov --cov-branch --cov-report=xml --cov-fail-under=85
 
