@@ -27,6 +27,20 @@ _ALLOWED_SIZE = int(5e7)
 
 
 def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
+    """Return the download name and stored file path for an attachment.
+
+    Args:
+        session: Database session used to retrieve the attachment metadata.
+        attachment_id: Primary key of the attachment to download.
+
+    Returns:
+        The browser-facing filename and the stored filesystem path.
+
+    Raises:
+        AttachmentNotFoundError: If no attachment exists for the supplied ID.
+        AttachmentFileError: If the attachment has no stored path or the file is
+            missing from disk.
+    """
     attachment = session.get(Attachment, attachment_id)
     if not attachment:
         raise AttachmentNotFoundError(attachment_id)
@@ -53,6 +67,26 @@ def post_attachment_upload(
     file_name: str | None,
     file_stream: BinaryIO,
 ) -> Attachment:
+    """Persist an uploaded file for an existing attachment metadata record.
+
+    Args:
+        session: Database session used to retrieve and update attachment metadata.
+        attachment_id: Primary key of the attachment metadata row to update.
+        file_size: Size of the uploaded file in bytes.
+        file_type: MIME type reported for the uploaded file.
+        file_name: Original uploaded filename, used only to derive the extension.
+        file_stream: Binary stream containing the uploaded file content.
+
+    Returns:
+        The updated attachment ORM object.
+
+    Raises:
+        AttachmentFileError: If the upload size, MIME type, or extension is not
+            accepted.
+        AttachmentNotFoundError: If no attachment metadata row exists for the ID.
+        AttachmentConflictError: If the file or database update cannot be
+            persisted.
+    """
     # check that content type and extension is acceptable
     if not _validate_file_size_type_and_ext(file_size, file_type, file_name):
         raise AttachmentFileError(file_size, file_type, file_name)

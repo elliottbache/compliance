@@ -100,7 +100,8 @@ def _format_site_history(site_history_rows: Sequence[Mapping]) -> SiteHistory:
             records.
 
     Returns:
-        A Site object containing the aggregated site history summary.
+        A SiteHistory object containing the aggregated certification history
+        summary.
 
     Raises:
         StopIteration: If ``site_history_rows`` is empty.

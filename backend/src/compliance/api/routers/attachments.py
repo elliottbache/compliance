@@ -123,6 +123,19 @@ def get_attachment_by_id_route(
 def get_attachment_download_route(
     session: SessionDep, attachment_id: Annotated[int, Path(ge=1)]
 ) -> FileResponse:
+    """Download the stored file for one attachment.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        attachment_id: Primary key of the attachment whose file should be
+            downloaded.
+
+    Returns:
+        A file response with a browser-facing filename.
+
+    Raises:
+        HTTPException: If the attachment metadata or stored file cannot be found.
+    """
 
     try:
         file_name, file_path = get_attachment_download(session, attachment_id)
@@ -182,6 +195,17 @@ def post_attachment_upload_route(
     file: UploadFile,
     id: Annotated[int, Form()],
 ) -> None:
+    """Upload a file for an existing attachment metadata record.
+
+    Args:
+        session: Database session provided by FastAPI dependency injection.
+        file: Uploaded file supplied as multipart form data.
+        id: Attachment metadata ID supplied as multipart form data.
+
+    Raises:
+        HTTPException: If the upload is invalid, the attachment metadata is
+        missing, or the file cannot be persisted.
+    """
     # call attachment upload service
     try:
         post_attachment_upload(

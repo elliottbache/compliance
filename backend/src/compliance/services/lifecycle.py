@@ -9,6 +9,15 @@ from sqlalchemy.orm import Session
 
 
 def get_constraint_name(exc: IntegrityError) -> str | None:
+    """Extract a database constraint name from an integrity error.
+
+    Args:
+        exc: SQLAlchemy integrity error raised by the database driver.
+
+    Returns:
+        The database-reported constraint name, or ``None`` when the driver does
+        not expose one.
+    """
     diag = getattr(exc.orig, "diag", None)
     return getattr(diag, "constraint_name", None)
 
@@ -93,6 +102,17 @@ def certification_parent_chain_is_visible(
     session: Session,
     certification: Certification,
 ) -> bool:
+    """Return whether a certification's required parent records are active.
+
+    Args:
+        session: Database session used to load parent records.
+        certification: Certification whose site, client, certifier, and
+            regulation records should be checked.
+
+    Returns:
+        ``True`` when every required parent exists and is active; otherwise
+        ``False``.
+    """
     site = session.get(Site, certification.site_id)
     if site is None or not record_is_visible(site, include_archived=False):
         return False
