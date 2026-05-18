@@ -97,7 +97,7 @@ module = "tests.*"
 ignore_errors = true
 
 [tool.codespell]
-skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,pyproject.toml,./build*,./backend/htmlcov,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist,./frontend/playwright-report"
+skip = "./docs/_build,./build,./dist,./.venv,./docs/html,./backend/src/include,./docs/_static,pyproject.toml,./build*,./backend/htmlcov,./htmlcov,./frontend/node_modules,./frontend/package-lock.json,./frontend/dist,./frontend/playwright-report,./examples/demo,./backend/storage/attachments"
 ignore-words-list = "teh,nd,seh,atleast,atmost,deques,ser,requeried"
 
 [tool.pytest.ini_options]

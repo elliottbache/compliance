@@ -233,7 +233,7 @@ def post_new_attachment(
         "file_name": attachment.file_name,
         "certification_id": attachment.certification_id,
         "description": attachment.description,
-        "file_path": f"/path/placeholder/{attachment.file_name}",
+        "file_path": None,
         "uploaded_at": None,
     }
     new_attachment = Attachment(**orm_data)

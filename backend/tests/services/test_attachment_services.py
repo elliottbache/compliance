@@ -395,6 +395,23 @@ class TestGetAttachmentById:
 
 
 class TestPostNewAttachment:
+    def test_creates_metadata_with_null_file_path(
+        self, sqlite_session, db_factory
+    ) -> None:
+        db_factory()
+        attachment = AttachmentCreate(
+            file_name="pending_evidence",
+            certification_id=42,
+            description="Pending upload",
+        )
+
+        result = post_new_attachment(sqlite_session, attachment)
+        persisted = sqlite_session.get(Attachment, result.id)
+
+        assert result.file_path is None
+        assert persisted.file_path is None
+        assert result.uploaded_at is None
+
     def test_raises_when_certification_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
             file_name="evidence",

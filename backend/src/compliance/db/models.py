@@ -176,7 +176,7 @@ class Attachment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     file_name: Mapped[str | None] = mapped_column(String(300))
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"))
-    file_path: Mapped[str] = mapped_column(String(300))
+    file_path: Mapped[str | None] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(String(80))
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

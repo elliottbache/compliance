@@ -8,7 +8,11 @@ function formatDate(value: string | null): string {
   return value ?? "—";
 }
 
-function getFileLabel(filePath: string): string {
+function getFileLabel(filePath: string | null): string {
+  if (!filePath) {
+    return "Pending upload";
+  }
+
   const parts = filePath.split(/[\\/]/);
   return parts[parts.length - 1] || filePath;
 }
@@ -60,7 +64,7 @@ export function AttachmentsPanel({ attachments }: AttachmentsPanelProps) {
 
                 <div className="badge-row">
                   <span className="badge">
-                    {attachment.file_path.includes(".")
+                    {attachment.file_path?.includes(".")
                       ? attachment.file_path.split(".").pop()
                       : null}
                   </span>
