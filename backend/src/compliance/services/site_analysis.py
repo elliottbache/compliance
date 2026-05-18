@@ -63,6 +63,22 @@ def summarize_previous_visits(
     )
 
 
+def _mock_site_analysis(site_history: SiteHistory) -> SiteAnalysis:
+    """Return deterministic site analysis for offline demos and tests."""
+    return SiteAnalysis(
+        site_id=site_history.site_id,
+        inspection_count=site_history.inspection_count,
+        executive_summary=(
+            "Mock AI analysis: this site history was loaded successfully. "
+            "Use AI_MODE=anthropic with an Anthropic API key for live analysis."
+        ),
+        recurring_issues=[],
+        missing_information=[],
+        needs_human_review=[],
+        suggestions=[],
+    )
+
+
 def _build_site_analysis_system_prompt() -> str:
     """Build the system prompt that defines the site-analysis guardrails."""
     return """You are assisting with inspection-history analysis for an 
@@ -125,19 +141,3 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
     )
 
     return user_message
-
-
-def _mock_site_analysis(site_history: SiteHistory) -> SiteAnalysis:
-    """Return deterministic site analysis for offline demos and tests."""
-    return SiteAnalysis(
-        site_id=site_history.site_id,
-        inspection_count=site_history.inspection_count,
-        executive_summary=(
-            "Mock AI analysis: this site history was loaded successfully. "
-            "Use AI_MODE=anthropic with an Anthropic API key for live analysis."
-        ),
-        recurring_issues=[],
-        missing_information=[],
-        needs_human_review=[],
-        suggestions=[],
-    )

@@ -30,101 +30,6 @@ _SUPPORTED_STRING_FORMATS = {
 }
 
 
-def transform_schema(json_schema: dict[str, Any]) -> dict[str, Any]:
-    """Return an Anthropic-compatible subset of a JSON schema."""
-    strict_schema: dict[str, Any] = {}
-    json_schema = {**json_schema}
-
-    ref = json_schema.pop("$ref", None)
-    if ref is not None:
-        strict_schema["$ref"] = ref
-        return strict_schema
-
-    defs = json_schema.pop("$defs", None)
-    if isinstance(defs, dict):
-        strict_schema["$defs"] = {
-            name: transform_schema(cast("dict[str, Any]", schema))
-            for name, schema in defs.items()
-        }
-
-    type_ = json_schema.pop("type", None)
-    any_of = json_schema.pop("anyOf", None)
-    one_of = json_schema.pop("oneOf", None)
-    all_of = json_schema.pop("allOf", None)
-
-    if isinstance(any_of, list):
-        strict_schema["anyOf"] = [
-            transform_schema(cast("dict[str, Any]", variant)) for variant in any_of
-        ]
-    elif isinstance(one_of, list):
-        strict_schema["anyOf"] = [
-            transform_schema(cast("dict[str, Any]", variant)) for variant in one_of
-        ]
-    elif isinstance(all_of, list):
-        strict_schema["allOf"] = [
-            transform_schema(cast("dict[str, Any]", variant)) for variant in all_of
-        ]
-    elif type_ is None:
-        raise ValueError("Schema must have a type, anyOf, oneOf, or allOf field.")
-    else:
-        strict_schema["type"] = type_
-
-    enum = json_schema.pop("enum", None)
-    if isinstance(enum, list):
-        strict_schema["enum"] = enum
-
-    description = json_schema.pop("description", None)
-    if description is not None:
-        strict_schema["description"] = description
-
-    title = json_schema.pop("title", None)
-    if title is not None:
-        strict_schema["title"] = title
-
-    if type_ == "object":
-        properties = json_schema.pop("properties", {})
-        strict_schema["properties"] = {
-            key: transform_schema(cast("dict[str, Any]", prop_schema))
-            for key, prop_schema in properties.items()
-        }
-        json_schema.pop("additionalProperties", None)
-        strict_schema["additionalProperties"] = False
-
-        required = json_schema.pop("required", None)
-        if required is not None:
-            strict_schema["required"] = required
-
-    elif type_ == "string":
-        schema_format = json_schema.pop("format", None)
-        if schema_format in _SUPPORTED_STRING_FORMATS:
-            strict_schema["format"] = schema_format
-        elif schema_format is not None:
-            json_schema["format"] = schema_format
-
-    elif type_ == "array":
-        items = json_schema.pop("items", None)
-        if items is not None:
-            strict_schema["items"] = transform_schema(cast("dict[str, Any]", items))
-
-        min_items = json_schema.pop("minItems", None)
-        if min_items in (0, 1):
-            strict_schema["minItems"] = min_items
-        elif min_items is not None:
-            json_schema["minItems"] = min_items
-
-    if json_schema:
-        description = strict_schema.get("description")
-        prefix = f"{description}\n\n" if description is not None else ""
-        strict_schema["description"] = (
-            prefix
-            + "{"
-            + ", ".join(f"{key}: {value}" for key, value in json_schema.items())
-            + "}"
-        )
-
-    return strict_schema
-
-
 def call_structured_model[
     T: BaseModel
 ](
@@ -232,6 +137,101 @@ def call_structured_model[
     logger.debug(f"response: {_parse_message_to_string(response)}")
 
     return structured_output
+
+
+def transform_schema(json_schema: dict[str, Any]) -> dict[str, Any]:
+    """Return an Anthropic-compatible subset of a JSON schema."""
+    strict_schema: dict[str, Any] = {}
+    json_schema = {**json_schema}
+
+    ref = json_schema.pop("$ref", None)
+    if ref is not None:
+        strict_schema["$ref"] = ref
+        return strict_schema
+
+    defs = json_schema.pop("$defs", None)
+    if isinstance(defs, dict):
+        strict_schema["$defs"] = {
+            name: transform_schema(cast("dict[str, Any]", schema))
+            for name, schema in defs.items()
+        }
+
+    type_ = json_schema.pop("type", None)
+    any_of = json_schema.pop("anyOf", None)
+    one_of = json_schema.pop("oneOf", None)
+    all_of = json_schema.pop("allOf", None)
+
+    if isinstance(any_of, list):
+        strict_schema["anyOf"] = [
+            transform_schema(cast("dict[str, Any]", variant)) for variant in any_of
+        ]
+    elif isinstance(one_of, list):
+        strict_schema["anyOf"] = [
+            transform_schema(cast("dict[str, Any]", variant)) for variant in one_of
+        ]
+    elif isinstance(all_of, list):
+        strict_schema["allOf"] = [
+            transform_schema(cast("dict[str, Any]", variant)) for variant in all_of
+        ]
+    elif type_ is None:
+        raise ValueError("Schema must have a type, anyOf, oneOf, or allOf field.")
+    else:
+        strict_schema["type"] = type_
+
+    enum = json_schema.pop("enum", None)
+    if isinstance(enum, list):
+        strict_schema["enum"] = enum
+
+    description = json_schema.pop("description", None)
+    if description is not None:
+        strict_schema["description"] = description
+
+    title = json_schema.pop("title", None)
+    if title is not None:
+        strict_schema["title"] = title
+
+    if type_ == "object":
+        properties = json_schema.pop("properties", {})
+        strict_schema["properties"] = {
+            key: transform_schema(cast("dict[str, Any]", prop_schema))
+            for key, prop_schema in properties.items()
+        }
+        json_schema.pop("additionalProperties", None)
+        strict_schema["additionalProperties"] = False
+
+        required = json_schema.pop("required", None)
+        if required is not None:
+            strict_schema["required"] = required
+
+    elif type_ == "string":
+        schema_format = json_schema.pop("format", None)
+        if schema_format in _SUPPORTED_STRING_FORMATS:
+            strict_schema["format"] = schema_format
+        elif schema_format is not None:
+            json_schema["format"] = schema_format
+
+    elif type_ == "array":
+        items = json_schema.pop("items", None)
+        if items is not None:
+            strict_schema["items"] = transform_schema(cast("dict[str, Any]", items))
+
+        min_items = json_schema.pop("minItems", None)
+        if min_items in (0, 1):
+            strict_schema["minItems"] = min_items
+        elif min_items is not None:
+            json_schema["minItems"] = min_items
+
+    if json_schema:
+        description = strict_schema.get("description")
+        prefix = f"{description}\n\n" if description is not None else ""
+        strict_schema["description"] = (
+            prefix
+            + "{"
+            + ", ".join(f"{key}: {value}" for key, value in json_schema.items())
+            + "}"
+        )
+
+    return strict_schema
 
 
 def _call_model(

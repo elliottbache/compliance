@@ -26,38 +26,6 @@ _ALLOWED_MIME_TYPES = {
 _ALLOWED_SIZE = int(5e7)
 
 
-def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
-    """Return the download name and stored file path for an attachment.
-
-    Args:
-        session: Database session used to retrieve the attachment metadata.
-        attachment_id: Primary key of the attachment to download.
-
-    Returns:
-        The browser-facing filename and the stored filesystem path.
-
-    Raises:
-        AttachmentNotFoundError: If no attachment exists for the supplied ID.
-        AttachmentFileError: If the attachment has no stored path or the file is
-            missing from disk.
-    """
-    attachment = session.get(Attachment, attachment_id)
-    if not attachment:
-        raise AttachmentNotFoundError(attachment_id)
-
-    if not attachment.file_path:
-        raise AttachmentFileError(attachment_id, attachment.file_path)
-
-    file_path = Path(attachment.file_path)
-    if not file_path.is_file():
-        raise AttachmentFileError(attachment_id, attachment.file_path)
-
-    file_name = attachment.file_name or ""
-    file_name += str(file_path.suffix)
-
-    return file_name, file_path
-
-
 def post_attachment_upload(
     session: Session,
     *,
@@ -129,6 +97,38 @@ def post_attachment_upload(
         raise
 
     return attachment
+
+
+def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
+    """Return the download name and stored file path for an attachment.
+
+    Args:
+        session: Database session used to retrieve the attachment metadata.
+        attachment_id: Primary key of the attachment to download.
+
+    Returns:
+        The browser-facing filename and the stored filesystem path.
+
+    Raises:
+        AttachmentNotFoundError: If no attachment exists for the supplied ID.
+        AttachmentFileError: If the attachment has no stored path or the file is
+            missing from disk.
+    """
+    attachment = session.get(Attachment, attachment_id)
+    if not attachment:
+        raise AttachmentNotFoundError(attachment_id)
+
+    if not attachment.file_path:
+        raise AttachmentFileError(attachment_id, attachment.file_path)
+
+    file_path = Path(attachment.file_path)
+    if not file_path.is_file():
+        raise AttachmentFileError(attachment_id, attachment.file_path)
+
+    file_name = attachment.file_name or ""
+    file_name += str(file_path.suffix)
+
+    return file_name, file_path
 
 
 def _validate_file_size_type_and_ext(
