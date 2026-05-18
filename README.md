@@ -72,6 +72,7 @@ Open:
 The frontend does not run AI automatically. AI analysis is only requested when the user clicks **Run AI Analysis**. Generated Markdown is created from the currently loaded AI analysis in browser state and is not persisted after page refresh.
 
 ## TODO
+- Add technology badges
 - Add local model option to use for site analysis.
 - Add privacy for Anthropic and write guide in README.
 - Add LLM function to return differences in regulation since last visit.
