@@ -88,20 +88,6 @@ Open:
 
 The frontend does not run AI automatically. AI analysis is only requested when the user clicks **Run AI Analysis**. Generated Markdown is created from the currently loaded AI analysis in browser state and is not persisted after page refresh.
 
-## TODO
-- Add local model option to use for site analysis.
-- Add privacy for Anthropic and write guide in README.
-- Add LLM function to return differences in regulation since last visit.
-- Add stop_reason: "refusal" and stop_reason: "max_tokens" and others to requerying on failure in anthropic_api.py
-- Add migration
-- Add LLM to parse regulation into database.
-- Add LLM to compare current regulation with last regulation
-- Add MCP and hosting?
-- Add sanitizer for files and delete those that are not linked to an attachment in the db
-- Add check to db so that if uploaded_at is not null then there must be a file_path for attachments
-- Add a better drop-down list for attachment downloads (and uploads).  Perhaps using search bar or using checkboxes.
-- Add Markdown to pdf converter.
-
 ## Database description
 ### Notes
 - Historical records are not hard-deleted by normal users.
