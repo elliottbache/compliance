@@ -9,5 +9,6 @@ def main_module(monkeypatch):
     monkeypatch.setenv("POSTGRES_USER", "test_user")
     monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
     monkeypatch.setenv("POSTGRES_HOST", "localhost")
+    monkeypatch.setenv("POSTGRES_PORT", "5432")
 
     return import_module("compliance.api.main")
