@@ -7,6 +7,23 @@
 [![Release](https://img.shields.io/github/v/release/elliottbache/compliance)](https://github.com/elliottbache/compliance/releases)
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm_NC_1.0.0-525252?style=flat-square)](https://polyformproject.org/licenses/noncommercial/1.0.0/)
 
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-blue?logo=fastapi&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-blue)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-psycopg2-blue?logo=postgresql&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-v2-blue)
+![Alembic](https://img.shields.io/badge/Alembic-migrations-blue)
+![Anthropic](https://img.shields.io/badge/AI-Anthropic-blue)
+![React](https://img.shields.io/badge/React-19-blue?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-blue?logo=vite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker&logoColor=white)
+![Make](https://img.shields.io/badge/Make-automation-blue)
+![pytest](https://img.shields.io/badge/tests-pytest-blue?logo=pytest&logoColor=white)
+![ruff](https://img.shields.io/badge/lint-ruff-blue)
+![black](https://img.shields.io/badge/format-black-blue)
+![mypy](https://img.shields.io/badge/types-mypy-blue)
+![Sphinx](https://img.shields.io/badge/docs-Sphinx-blue?logo=sphinx&logoColor=white)
 
 ## Short description
 This project is a backend-first inspection and compliance management system designed to keep 
