@@ -26,13 +26,12 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: python
-          build-mode: none
-          source-root: .
+          setup-for-dependency-caching: false
           queries: security-extended,security-and-quality
           config-file: .github/codeql/codeql-config.yaml
         env:
           CODEQL_EXTRACTOR_PYTHON_ROOT: ${{ github.workspace }}
-          
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
