@@ -16,7 +16,7 @@ keywords = ["database", "compliance", "AI", "LLM"]
 
 dependencies = [
   "pydantic==2.10.6",
-  "anthropic==0.45.2",
+  "anthropic==0.96.0",
   "sqlalchemy==2.0.38",
   "psycopg2-binary==2.9.10",
   "python-dotenv==1.0.1",

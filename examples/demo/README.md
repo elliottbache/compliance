@@ -71,6 +71,10 @@ AI_MODE=anthropic
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
 
+If your network requires a proxy for outbound HTTPS, also set `HTTPS_PROXY` in
+`docker/.env`. No inbound port is required for Anthropic because the backend
+container makes an outbound HTTPS request.
+
 Then launch the Docker containers from the project root with the Docker
 environment file:
 
