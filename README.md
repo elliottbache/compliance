@@ -399,4 +399,26 @@ Elliott Bache
 ## License
 
 PolyForm Noncommercial License 1.0.0. See `LICENSE`.
+
+## Version History
+
+### v0.1.0 — Compliance MVP demo release
+
+Initial public MVP release of the Compliance project.
+
+Includes:
+
+- FastAPI backend with PostgreSQL persistence.
+- SQLAlchemy ORM/Core models and Alembic migrations.
+- React/Vite/TypeScript frontend for the main demo workflow.
+- Site-history loading for certifications, regulations, rules, and findings.
+- Attachment metadata plus file upload/download support.
+- Archive/restore workflows for main domain records.
+- Optional AI site-analysis preview with mock and Anthropic-backed modes.
+- Human-review-only Markdown report generation.
+- Docker Compose local demo setup.
+- Seeded demo dataset centered on Site ID `71`.
+- Fake evidence attachment files for reproducible local walkthroughs.
+
+This release is intended for local demos, portfolio review, and experimentation. It is not production-ready for real compliance data without additional security, privacy, deployment, and operational hardening.
 <!-- docs:end -->
