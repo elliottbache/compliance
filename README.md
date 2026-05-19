@@ -141,6 +141,13 @@ Start the stack:
 docker compose --env-file docker/.env up -d --build
 ```
 
+Note: if the user is not part of the Docker security group, they can be added with:
+
+```bash
+sudo usermod -aG docker guest
+newgrp docker
+```
+
 Open:
 
 ```text
@@ -350,14 +357,39 @@ GitHub Pages deployment is configured in `.github/workflows/pages.yaml`.
 
 Near-term ideas:
 
-- Bring code to production-level
+### Bring code to production-level:
+#### Security
+-Authentication and authorization: users, roles, permissions, tenant/client isolation.
+-File upload hardening: malware scanning, stricter MIME validation, size limits, quarantine, safe filenames, no direct path exposure.
+-Secrets management: move API keys/db passwords to managed secrets, not .env files in deployed environments.
+-API hardening: rate limits, CORS policy, request size limits, structured error handling, audit logging.
+-Database security: least-privilege DB users, TLS connections, encrypted backups, migration safety checks.
+
+#### Privacy
+-Data classification: define what personal, client, regulatory, and confidential data may be stored.
+-AI data policy: decide whether site history/attachments can be sent to Anthropic; document opt-in, redaction, retention, and audit trail.
+-PII handling: redaction, minimization, retention periods, export/delete procedures where applicable.
+-Attachment privacy: avoid exposing original filenames or storage paths if they contain sensitive info.
+
+#### Deployment
+-Production config: separate dev/staging/prod settings, no default passwords, no debug mode.
+-Infrastructure: HTTPS, reverse proxy, container health checks, persistent storage, backups, restore testing.
+-CI/CD: deployment gates, migration review, rollback plan, image scanning.
+-Observability: logs, metrics, tracing, alerting, error reporting.
+
+#### Operations
+-Audit trail: who created/changed/archived/restored/uploaded/downloaded what and when.
+-Data lifecycle: retention, archival, deletion, orphaned file cleanup.
+-Incident response: what happens if data leaks, uploads fail, AI fails, or migrations fail.
+-Human review policy: AI output should be labeled draft, reviewed by a person, and traceable to source records.
+
+### New features
 - Add a local model option for site analysis.
 - Document Anthropic privacy boundaries and AI usage policy.
 - Add regulation comparison/versioning workflows.
 - Convert generated Markdown reports to PDF.
 - Improve attachment upload/download selection UX.
 - Add cleanup tooling for orphaned files.
-- Strengthen deployment documentation.
 
 ## Author
 
