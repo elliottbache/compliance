@@ -7,10 +7,10 @@ analysis.
 
 ## Project Status
 
-This project is in active development. It is suitable for local demos,
-portfolio review, and experimentation, but it is not production-ready and should
-not be used with real compliance data without additional security, privacy, and
-operational review.
+This project is an active portfolio MVP. It is designed for local demos,
+technical review, and experimentation with compliance workflows, database-backed
+APIs, and AI-assisted analysis. Before use with real compliance data, it would
+need additional security, privacy, deployment, and operational review.
 
 [![CI](https://github.com/elliottbache/compliance/actions/workflows/ci.yaml/badge.svg)](https://github.com/elliottbache/compliance/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/github/elliottbache/compliance/graph/badge.svg?token=kNwbaexX4N)](https://codecov.io/github/elliottbache/compliance)
@@ -32,6 +32,12 @@ operational review.
 ![ruff](https://img.shields.io/badge/lint-ruff-blue)
 ![Sphinx](https://img.shields.io/badge/docs-Sphinx-blue?logo=sphinx&logoColor=white)
 
+## Short demo: installation
+![Installation demo](docs/demo.gif)
+
+## Short demo: usage
+![Usage demo](docs/browser_demo.gif)
+
 ## Overview
 
 Compliance is a backend-first full-stack MVP for tracking inspection histories
@@ -40,11 +46,6 @@ supporting evidence. The project emphasizes backend architecture, database
 design, API boundaries, migrations, and service-layer correctness.  The goal is to keep 
 compliance records queryable and traceable while making it
 easy to review a site's prior inspection history before a new visit.
-
-This project is an active portfolio MVP. It is designed for local demos,
-technical review, and experimentation with compliance workflows, database-backed
-APIs, and AI-assisted analysis. Before use with real compliance data, it would
-need additional security, privacy, deployment, and operational review.
 
 The current app supports:
 
