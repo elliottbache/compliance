@@ -2,7 +2,7 @@
 # Compliance
 
 Inspection and compliance management system with structured records, evidence
-attachments, archive/restore workflows, and optional AI-assisted site-history
+attachments, archive/restore workflows, and AI-assisted site-history
 analysis.
 
 ## Project Status
