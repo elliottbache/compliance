@@ -23,6 +23,7 @@ build/
 
 # Local database dumps or logs
 *.sql
+!examples/demo/seed_demo_data.sql
 *.log
 
 # attachment storage
