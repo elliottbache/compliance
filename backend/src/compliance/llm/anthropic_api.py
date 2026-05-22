@@ -7,13 +7,10 @@ from typing import Any
 import anthropic
 from anthropic import (
     APIConnectionError,
+    APIStatusError,
     APITimeoutError,
-    ConflictError,
-    InternalServerError,
-    RateLimitError,
     transform_schema,
 )
-from anthropic._exceptions import OverloadedError
 from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
@@ -144,22 +141,30 @@ def dynamic_stop_by_error(retry_state: RetryCallState) -> bool:
 
     exc = retry_state.outcome.exception()
 
-    if isinstance(exc, ConflictError):
-        return retry_state.attempt_number >= 2
+    if isinstance(exc, APIStatusError):
+        if (
+            exc.status_code in {408, 429} or exc.status_code >= 500
+        ):  # request_timeout, rate_limited, transient_provider (500), transient_timeout (504), transient_overload (509), overloaded_error (529)
+            return retry_state.attempt_number >= 6
 
-    if isinstance(
-        exc,
-        (
-            RateLimitError,
-            APIConnectionError,
-            InternalServerError,
-            OverloadedError,
-            APITimeoutError,
-        ),
-    ):
+        elif exc.status_code in {
+            400,
+            401,
+            402,
+            403,
+            404,
+            413,
+            422,
+        }:  # invalid_request_error, authentication_error, billing_error, permission_error, not_found_error, request_too_large, unprocessable_entity
+            return retry_state.attempt_number >= 1
+
+        else:  # 409 (ConflictError), etc.
+            return retry_state.attempt_number >= 2
+
+    if isinstance(exc, (APIConnectionError, APITimeoutError)):
         return retry_state.attempt_number >= 6
 
-    # 3. Default fallback for other retryable errors (e.g. BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError)
+    # 3. Default fallback for other retryable errors
     return retry_state.attempt_number >= 1
 
 
@@ -168,11 +173,9 @@ def dynamic_stop_by_error(retry_state: RetryCallState) -> bool:
     wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
     retry=retry_if_exception_type(
         (
-            OverloadedError,
             APIConnectionError,
-            InternalServerError,
-            RateLimitError,
-            ConflictError,
+            APITimeoutError,
+            APIStatusError,
         )
     ),
     reraise=True,  # Throw original exception if all fail
