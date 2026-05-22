@@ -22,7 +22,8 @@ dependencies = [
   "python-dotenv==1.0.1",
   "fastapi[standard]==0.129.2",
   "python-multipart==0.0.20",
-  "alembic==1.18.4"
+  "alembic==1.18.4",
+  "tenacity==9.1.2"
 ]
 
 # Optional extras for dev tools
