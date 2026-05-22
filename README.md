@@ -102,6 +102,9 @@ business logic can be tested without importing FastAPI models. Read paths apply
 archive visibility rules in service queries; exact detail endpoints may still
 return archived records for audit-trail access.
 
+For a route-by-route overview of the backend request flow, see
+[Backend Code Flow](docs/backend-flow.md).
+
 ## Quickstart
 
 ### Download repo
