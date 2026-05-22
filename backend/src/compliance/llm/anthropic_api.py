@@ -5,10 +5,19 @@ from pathlib import Path
 from typing import Any
 
 import anthropic
-from anthropic import transform_schema
+from anthropic import (
+    APIConnectionError,
+    APITimeoutError,
+    ConflictError,
+    InternalServerError,
+    RateLimitError,
+    transform_schema,
+)
+from anthropic._exceptions import OverloadedError
 from anthropic.types import Message, TextBlock
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
+from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
 
 MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v0.1"
@@ -128,6 +137,46 @@ def call_structured_model[
     return structured_output
 
 
+def dynamic_stop_by_error(retry_state: RetryCallState) -> bool:
+    """Dynamically drops or extends retry limits based on the specific exception."""
+    if retry_state.outcome is None:
+        return retry_state.attempt_number >= 2
+
+    exc = retry_state.outcome.exception()
+
+    if isinstance(exc, ConflictError):
+        return retry_state.attempt_number >= 2
+
+    if isinstance(
+        exc,
+        (
+            RateLimitError,
+            APIConnectionError,
+            InternalServerError,
+            OverloadedError,
+            APITimeoutError,
+        ),
+    ):
+        return retry_state.attempt_number >= 6
+
+    # 3. Default fallback for other retryable errors (e.g. BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError)
+    return retry_state.attempt_number >= 1
+
+
+@retry(
+    stop=dynamic_stop_by_error,  # Dynamically change the max attempts based on the exception type
+    wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
+    retry=retry_if_exception_type(
+        (
+            OverloadedError,
+            APIConnectionError,
+            InternalServerError,
+            RateLimitError,
+            ConflictError,
+        )
+    ),
+    reraise=True,  # Throw original exception if all fail
+)
 def _call_model(
     *,
     client: anthropic.Anthropic,
