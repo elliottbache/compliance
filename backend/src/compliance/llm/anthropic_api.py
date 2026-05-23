@@ -192,20 +192,38 @@ def _call_model(
         raise TypeError(f"{response_model} is not a Pydantic BaseModel.")
 
     schema = _convert_base_model_to_json_schema(response_model)
-    return client.messages.create(
+    messages = [
+        {
+            "role": "user",
+            "content": user_message,
+        }
+    ]
+
+    response = client.messages.create(
         model=ai_model,
         max_tokens=MAX_TOKENS,
         system=system_context,
-        messages=[
-            {
-                "role": "user",
-                "content": user_message,
-            }
-        ],
+        messages=messages,
         output_config={
             "format": {"type": "json_schema", "schema": schema},
         },
     )
+
+    if response.stop_reason == "end_turn" and not response.content:
+        # Add a continuation prompt in a NEW user message
+        messages.append({"role": "user", "content": "Please continue"})
+
+        response = client.messages.create(
+            model=ai_model,
+            max_tokens=MAX_TOKENS,
+            messages=messages,
+            system=system_context,
+            output_config={
+                "format": {"type": "json_schema", "schema": schema},
+            },
+        )
+
+    return response
 
 
 def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> dict[str, Any]:
