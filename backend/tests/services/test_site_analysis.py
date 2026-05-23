@@ -53,16 +53,14 @@ class TestSummarizePreviousVisits:
         site_analysis = site_analysis_factory()
 
         with patch(
-            "compliance.services.site_analysis.call_structured_model",
+            "compliance.services.site_analysis.call_model",
             return_value=site_analysis,
-        ) as mock_call_structured_model:
+        ) as mock_call_model:
             result = summarize_previous_visits(site_history)
 
         assert result == site_analysis
-        assert mock_call_structured_model.call_args.kwargs["response_model"] is (
-            SiteAnalysis
-        )
-        assert mock_call_structured_model.call_args.kwargs["ai_model"] == (
+        assert mock_call_model.call_args.kwargs["response_model"] is SiteAnalysis
+        assert mock_call_model.call_args.kwargs["ai_model"] == (
             anthropic_api._DEFAULT_AI_MODEL
         )
 
@@ -74,9 +72,9 @@ class TestSummarizePreviousVisits:
         site_analysis = site_analysis_factory()
 
         with patch(
-            "compliance.services.site_analysis.call_structured_model",
+            "compliance.services.site_analysis.call_model",
             return_value=site_analysis,
-        ) as mock_call_structured_model:
+        ) as mock_call_model:
             result = summarize_previous_visits(
                 site_history,
                 ai_model="claude-test",
@@ -85,19 +83,15 @@ class TestSummarizePreviousVisits:
             )
 
         assert result == site_analysis
-        assert mock_call_structured_model.call_args.kwargs["ai_model"] == "claude-test"
-        assert (
-            mock_call_structured_model.call_args.kwargs["prompt_version"] == "v-custom"
-        )
-        assert mock_call_structured_model.call_args.kwargs["case_info"] == "case-1"
+        assert mock_call_model.call_args.kwargs["ai_model"] == "claude-test"
+        assert mock_call_model.call_args.kwargs["prompt_version"] == "v-custom"
+        assert mock_call_model.call_args.kwargs["case_info"] == "case-1"
 
     def test_returns_mock_analysis_by_default(self, monkeypatch, site_history) -> None:
         monkeypatch.delenv("AI_MODE", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
-        with patch(
-            "compliance.services.site_analysis.call_structured_model"
-        ) as mock_call_structured_model:
+        with patch("compliance.services.site_analysis.call_model") as mock_call_model:
             result = summarize_previous_visits(site_history)
 
         assert result.site_id == 71
@@ -107,7 +101,7 @@ class TestSummarizePreviousVisits:
         assert result.missing_information == []
         assert result.needs_human_review == []
         assert result.suggestions == []
-        mock_call_structured_model.assert_not_called()
+        mock_call_model.assert_not_called()
 
     def test_raises_for_unsupported_ai_mode(self, monkeypatch, site_history) -> None:
         monkeypatch.setenv("AI_MODE", "local")

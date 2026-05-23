@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-from compliance.llm.anthropic_api import call_structured_model
+from compliance.llm.anthropic_api import call_model
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
 
@@ -53,7 +53,7 @@ def summarize_previous_visits(
     system_context = _build_site_analysis_system_prompt()
     user_message = _build_site_analysis_user_message(site_history)
 
-    return call_structured_model(
+    return call_model(
         system_context,
         user_message,
         response_model=SiteAnalysis,

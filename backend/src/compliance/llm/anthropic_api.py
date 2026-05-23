@@ -11,7 +11,7 @@ from anthropic import (
     APITimeoutError,
     transform_schema,
 )
-from anthropic.types import Message, TextBlock
+from anthropic.types import Message, MessageParam, OutputConfigParam, TextBlock
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
@@ -25,7 +25,81 @@ _ROOT_DIR = Path(__file__).resolve().parents[4]
 _DOTENV_PATH = _ROOT_DIR / "backend" / ".env"
 
 
-def call_structured_model[
+class LLMStopReasonError(RuntimeError):
+    """Base error for Anthropic responses that stop before valid output is returned."""
+
+
+class LLMMaxTokensError(LLMStopReasonError):
+    """Raised when Anthropic stops because the response reached max_tokens."""
+
+
+class LLMToolUseError(LLMStopReasonError):
+    """Raised when Anthropic requests tool use that this adapter cannot handle."""
+
+
+class LLMPauseTurnError(LLMStopReasonError):
+    """Raised when Anthropic pauses a turn that this adapter cannot resume."""
+
+
+class LLMRefusalError(LLMStopReasonError):
+    """Raised when Anthropic refuses the request for safety reasons."""
+
+
+class LLMContextWindowExceededError(LLMStopReasonError):
+    """Raised when Anthropic reports that the model context window was exceeded."""
+
+
+class LLMTokenBudgetExceededError(LLMStopReasonError):
+    """Raised when continuation attempts exceed the adapter token budget."""
+
+
+def _stop_after_attempts_by_error(retry_state: RetryCallState) -> bool:
+    """Dynamically drops or extends retry limits based on the specific exception."""
+    if retry_state.outcome is None:
+        return retry_state.attempt_number >= 2
+
+    exc = retry_state.outcome.exception()
+
+    if isinstance(exc, APIStatusError):
+        if (
+            exc.status_code in {408, 429} or exc.status_code >= 500
+        ):  # request_timeout, rate_limited, transient_provider (500), transient_timeout (504), transient_overload (529)
+            return retry_state.attempt_number >= 6
+
+        elif exc.status_code in {
+            400,
+            401,
+            402,
+            403,
+            404,
+            413,
+            422,
+        }:  # invalid_request_error, authentication_error, billing_error, permission_error, not_found_error, request_too_large, unprocessable_entity
+            return retry_state.attempt_number >= 1
+
+        else:  # 409 (ConflictError), etc.
+            return retry_state.attempt_number >= 2
+
+    if isinstance(exc, (APIConnectionError, APITimeoutError)):
+        return retry_state.attempt_number >= 6
+
+    # 3. Default fallback for other retryable errors
+    return retry_state.attempt_number >= 1
+
+
+@retry(
+    stop=_stop_after_attempts_by_error,  # Dynamically change the max attempts based on the exception type
+    wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
+    retry=retry_if_exception_type(
+        (
+            APIConnectionError,
+            APITimeoutError,
+            APIStatusError,
+        )
+    ),
+    reraise=True,  # Throw original exception if all fail
+)
+def call_model[
     T: BaseModel
 ](
     system_context: str,
@@ -68,59 +142,67 @@ def call_structured_model[
     logger.debug(f"user_message: {user_message}")
 
     load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
-    client = anthropic.Anthropic()
-    try:
-        response = _call_model(
-            client=client,
-            ai_model=ai_model,
-            system_context=system_context,
-            user_message=user_message,
-            response_model=response_model,
-        )
-        structured_output = _convert_response_to_model_type(response, response_model)
 
-    except (json.JSONDecodeError, ValidationError) as e:
-        logger.warning(
-            _create_error_message(
-                case_info=case_info,
-                ai_model=ai_model,
+    client = anthropic.Anthropic()
+    remaining_tokens = (
+        _MAX_TOKENS  # start a counter to make sure we don't use too many tokens
+    )
+    schema = _convert_base_model_to_json_schema(response_model)
+    messages: list[MessageParam] = [
+        {
+            "role": "user",
+            "content": user_message,
+        }
+    ]
+    output_config: OutputConfigParam = {
+        "format": {"type": "json_schema", "schema": schema},
+    }
+    added_context = ""
+    response: Message | None = None
+    output: T | None
+    structured_output: T
+
+    while True:
+        if remaining_tokens < 0:
+            raise LLMTokenBudgetExceededError(
+                f"Claude exceeded the max_tokens limit of {_MAX_TOKENS}."
+            )
+
+        try:
+            response = client.messages.create(
+                model=ai_model,
+                max_tokens=remaining_tokens,
+                system=system_context,
+                messages=messages,
+                output_config=output_config,
+            )
+            remaining_tokens -= response.usage.output_tokens
+
+            output = _convert_response_to_structured_output(
+                response=response,
+                response_model=response_model,
+                messages=messages,
+                user_message=user_message,
+                system_context=system_context,
+            )
+            if output is not None:
+                structured_output = output
+                break
+
+        except (json.JSONDecodeError, ValidationError) as exc:
+            if response is None:
+                raise
+            added_context = _raise_or_modify_message_for_format_exception(
+                exc,
                 system_context=system_context,
                 user_message=user_message,
-                response=_parse_message_to_string(response),
-            )
-        )
-
-        if isinstance(e, ValidationError):
-            _log_validation_error_messages(e)
-
-        added_context = (
-            "Your previous response did not match the required schema. I got "
-            f"ValidationError: {e}. Return only valid structured output matching "
-            f"{response_model}. Original message:"
-        )
-        try:
-            response = _call_model(
-                client=client,
-                ai_model=ai_model,
-                system_context=system_context,
-                user_message=added_context + user_message,
+                added_context=added_context,
                 response_model=response_model,
+                ai_model=ai_model,
+                case_info=case_info,
+                response=response,
+                messages=messages,
             )
-            structured_output = _convert_response_to_model_type(
-                response, response_model
-            )
-        except ValidationError as err:
-            logger.error(
-                _create_error_message(
-                    case_info=case_info,
-                    ai_model=ai_model,
-                    system_context=system_context,
-                    user_message=user_message,
-                    response=_parse_message_to_string(response),
-                )
-            )
-            _log_validation_error_messages(err)
-            raise
 
     logger.info(
         f"Timestamp: {datetime.now()}, "
@@ -131,130 +213,88 @@ def call_structured_model[
     return structured_output
 
 
-def dynamic_stop_by_error(retry_state: RetryCallState) -> bool:
-    """Dynamically drops or extends retry limits based on the specific exception."""
-    if retry_state.outcome is None:
-        return retry_state.attempt_number >= 2
-
-    exc = retry_state.outcome.exception()
-
-    if isinstance(exc, APIStatusError):
-        if (
-            exc.status_code in {408, 429} or exc.status_code >= 500
-        ):  # request_timeout, rate_limited, transient_provider (500), transient_timeout (504), transient_overload (509), overloaded_error (529)
-            return retry_state.attempt_number >= 6
-
-        elif exc.status_code in {
-            400,
-            401,
-            402,
-            403,
-            404,
-            413,
-            422,
-        }:  # invalid_request_error, authentication_error, billing_error, permission_error, not_found_error, request_too_large, unprocessable_entity
-            return retry_state.attempt_number >= 1
-
-        else:  # 409 (ConflictError), etc.
-            return retry_state.attempt_number >= 2
-
-    if isinstance(exc, (APIConnectionError, APITimeoutError)):
-        return retry_state.attempt_number >= 6
-
-    # 3. Default fallback for other retryable errors
-    return retry_state.attempt_number >= 1
-
-
-@retry(
-    stop=dynamic_stop_by_error,  # Dynamically change the max attempts based on the exception type
-    wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
-    retry=retry_if_exception_type(
-        (
-            APIConnectionError,
-            APITimeoutError,
-            APIStatusError,
-        )
-    ),
-    reraise=True,  # Throw original exception if all fail
-)
-def _call_model(
+def _convert_response_to_structured_output[
+    T: BaseModel
+](
     *,
-    client: anthropic.Anthropic,
-    ai_model: str,
+    response: Message,
+    response_model: type[T],
+    messages: list[MessageParam],
+    user_message: str,
+    system_context: str,
+) -> (T | None):
+    if response.stop_reason == "end_turn" and response.content:
+        return _convert_response_to_model_type(response, response_model)
+
+    if response.stop_reason == "end_turn" and not response.content:
+        # Add a continuation prompt in a NEW user message
+        messages.append({"role": "user", "content": "Please continue"})
+
+        return None
+
+    elif response.stop_reason == "max_tokens":
+        raise LLMMaxTokensError(
+            f"Reached max tokens {_MAX_TOKENS}.  Raise token limits or shorten user message and/or system context.  Exiting"
+        )
+
+    elif response.stop_reason == "tool_use":
+        raise LLMToolUseError("Tool use not yet implemented.")
+
+    # Continue the conversation after Anthropic pauses a long-running turn.
+    elif response.stop_reason == "pause_turn":
+        raise LLMPauseTurnError("pause_turn returned; continuation not implemented")
+
+    elif response.stop_reason == "refusal":
+        raise LLMRefusalError(
+            f"Claude was unable to process this request due to safety concerns.  System context = {system_context}, \nuser message = {user_message}."
+        )
+
+    elif response.stop_reason == "model_context_window_exceeded":
+        raise LLMContextWindowExceededError(
+            f"Claude reached the model context window limit.  Reduce tokens in system context and/or user message.  System context = {system_context}, \nuser message = {user_message}."
+        )
+
+    return None  # just in case catch-all that shouldn't occur
+
+
+def _raise_or_modify_message_for_format_exception[
+    T: BaseModel
+](
+    exc: ValidationError | json.JSONDecodeError,
+    *,
     system_context: str,
     user_message: str,
-    response_model: type[BaseModel],
-) -> Message:
-    """Send a structured-output prompt to Anthropic and return the raw response."""
-    if not isinstance(response_model, type) or not issubclass(
-        response_model, BaseModel
-    ):
-        raise TypeError(f"{response_model} is not a Pydantic BaseModel.")
-
-    remaining_tokens = (
-        _MAX_TOKENS  # start a counter to make sure we don't use too many tokens
-    )
-    schema = _convert_base_model_to_json_schema(response_model)
-    messages = [
-        {
-            "role": "user",
-            "content": user_message,
-        }
-    ]
-
-    while True:
-        if remaining_tokens < 0:
-            raise ValueError(f"Claude exceeded the max_tokens limit of {_MAX_TOKENS}.")
-
-        response = client.messages.create(
-            model=ai_model,
-            max_tokens=remaining_tokens,
-            system=system_context,
-            messages=messages,
-            output_config={
-                "format": {"type": "json_schema", "schema": schema},
-            },
+    added_context: str,
+    response_model: type[T],
+    ai_model: str,
+    case_info: str,
+    response: Message,
+    messages: list[MessageParam],
+) -> str:
+    logger.warning(
+        _create_error_message(
+            case_info=case_info,
+            ai_model=ai_model,
+            system_context=system_context,
+            user_message=user_message,
+            response=_parse_message_to_string(response),
         )
-        remaining_tokens -= response.usage.total_tokens
+    )
+    if isinstance(exc, ValidationError):
+        _log_validation_error_messages(exc)
 
-        if response.stop_reason == "end_turn" and response.content:
-            break
+    # only allow one retry for response format errors
+    if added_context:
+        raise exc
 
-        if response.stop_reason == "end_turn" and not response.content:
+    added_context = (
+        "Your previous response did not match the required schema. I got "
+        f"{exc.__class__.__name__}: {exc}. Return only valid structured output matching "
+        f"{response_model} in json format. Original message:"
+    )
+    messages.append({"role": "user", "content": added_context + user_message})
 
-            # Add a continuation prompt in a NEW user message
-            messages.append({"role": "user", "content": "Please continue"})
-
-            continue
-
-        elif response.stop_reason == "max_tokens":
-            raise ValueError(
-                f"Reached max tokens {_MAX_TOKENS}.  Raise token limits or shorten user message and/or system context.  Exiting"
-            )
-
-        elif response.stop_reason == "tool_use":
-            raise ValueError("Tool use not yet implemented.")
-
-        # continue iterating in server until reaching token limit
-        elif response.stop_reason == "pause_turn":
-
-            # Continue the conversation by sending the response back
-            messages.append({"role": "user", "content": user_message})
-            messages.append({"role": "assistant", "content": response.content})
-
-            continue
-
-        elif response.stop_reason == "refusal":
-            raise ValueError(
-                f"Claude was unable to process this request due to safety concerns.  System context = {system_context}, \nuser message = {user_message}."
-            )
-
-        elif response.stop_reason == "model_context_window_exceeded":
-            raise ValueError(
-                f"Claude reached the model context window limit.  Reduce tokens in system context and/or user message.  System context = {system_context}, \nuser message = {user_message}."
-            )
-
-    return response
+    return added_context
 
 
 def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> dict[str, Any]:
@@ -302,11 +342,13 @@ def _create_error_message(
     )
 
 
-def _parse_message_to_string(response: Message) -> str:
+def _parse_message_to_string(response: Message | None) -> str:
     """Return the first response text block as a string, or an empty string."""
     return (
         response.content[0].text
-        if (response.content and isinstance(response.content[0], TextBlock))
+        if (
+            response and response.content and isinstance(response.content[0], TextBlock)
+        )
         else ""
     )
 
