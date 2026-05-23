@@ -357,6 +357,116 @@ sphinx-build -b html docs docs/_build/html
 
 GitHub Pages deployment is configured in `.github/workflows/pages.yaml`.
 
+## Anthropic Retry and Error Policy
+
+Live AI analysis uses `compliance.llm.anthropic_api.call_model` to send a
+structured-output request to Anthropic and validate the response against a
+Pydantic schema. The adapter separates transport/API retry behavior from model
+stop-reason handling so operational failures, schema failures, and provider stop
+states remain distinguishable.
+
+### Retry policy
+
+The retry decorator only retries Anthropic API/transport exceptions:
+
+- `APIConnectionError`
+- `APITimeoutError`
+- `APIStatusError`
+
+Retry limits are selected by status code:
+
+- `408`, `429`, and `>=500`: retry up to 6 attempts.
+- `400`, `401`, `402`, `403`, `404`, `413`, and `422`: stop after 1 attempt.
+- Other API statuses, such as `409`: stop after 2 attempts.
+- Connection and timeout errors: retry up to 6 attempts.
+
+Model stop reasons are not treated as transport errors. They are converted into
+typed application errors so callers and logs can distinguish why generation
+stopped.
+
+### Stop-reason errors
+
+The adapter raises `LLMStopReasonError` subclasses for terminal stop reasons:
+
+- `LLMMaxTokensError`: Anthropic returned `max_tokens`.
+- `LLMToolUseError`: Anthropic requested tool use, which is not implemented by
+  this adapter.
+- `LLMPauseTurnError`: Anthropic returned `pause_turn`; continuation is not
+  currently implemented.
+- `LLMRefusalError`: Anthropic refused the request for safety reasons.
+- `LLMContextWindowExceededError`: the model context window was exceeded.
+- `LLMTokenBudgetExceededError`: local continuation handling exceeded the
+  adapter token budget.
+
+These errors are intentionally separate from Anthropic `APIStatusError`
+failures. A refusal, a context-window problem, and a transient provider fault
+need different operator responses.
+
+### Typical flow patterns
+
+Successful first response:
+
+1. Build the system prompt, user message, and JSON schema.
+2. Send the request to Anthropic.
+3. Receive `stop_reason="end_turn"` with text content.
+4. Parse the JSON and validate it against the requested Pydantic model.
+5. Return the validated model.
+
+Empty `end_turn` continuation:
+
+1. Anthropic returns `stop_reason="end_turn"` with no content.
+2. The adapter appends a user message asking the model to continue.
+3. The next response is parsed and validated normally.
+4. If the local token budget is exhausted, `LLMTokenBudgetExceededError` is
+    raised.
+
+Schema repair flow:
+
+1. Anthropic returns text that is invalid JSON or fails Pydantic validation.
+2. The adapter logs the failed response.
+3. The adapter appends corrective context asking for valid structured output.
+4. One repair attempt is allowed.
+5. If validation fails again, the original JSON/Pydantic error is raised.
+
+Transient API failure:
+
+1. Anthropic raises a connection, timeout, rate-limit, or server-side status
+    error.
+2. Tenacity retries according to the status-code policy.
+3. If all attempts fail, the original Anthropic exception is raised.
+
+Terminal model stop:
+
+1. Anthropic returns a stop reason such as `refusal`, `max_tokens`,
+    `tool_use`, `pause_turn`, or `model_context_window_exceeded`.
+2. The adapter raises the matching `LLMStopReasonError` subclass.
+3. The caller can decide whether the issue needs prompt changes, smaller input,
+    tool support, user review, or a durable failure record.
+
+### Some Anthropic errors
+```text
+Exception (Python Base)
+├── anthropic.APIConnectionError           # Network-layer errors (no HTTP response received)
+│   └── anthropic.APITimeoutError          # Subclass for request or connection timeouts
+│
+└── anthropic.APIError                     # API-layer base exception
+    └── anthropic.APIStatusError           # Server returned a non-2xx status code
+        ├── anthropic.BadRequestError       # HTTP 400
+        ├── anthropic.AuthenticationError   # HTTP 401
+        ├── anthropic.PermissionDeniedError # HTTP 403
+        ├── anthropic.NotFoundError         # HTTP 404
+        ├── anthropic.ConflictError         # HTTP 409
+        ├── anthropic.RateLimitError        # HTTP 429
+        ├── anthropic.InternalServerError   # HTTP 500-504 - Backend Cluster Crash
+        ├── anthropic.OverloadedError       # HTTP 529 - Heavy Traffic Spike
+        └── Generic APIStatusError Fallbacks
+            ├── HTTP 402                    # Payment Required / Billing Error
+            ├── HTTP 408                    # Request Timeout (Gateway Proxy)
+            ├── HTTP 413                    # Payload Too Large (> 32 MB)
+            └── HTTP 422                    # Unprocessable Entity Data
+```
+
+
 ## Roadmap
 
 Near-term ideas:
