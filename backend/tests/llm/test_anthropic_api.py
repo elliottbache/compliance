@@ -3,7 +3,13 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import compliance.llm.anthropic_api as anthropic_api
+import httpx
 import pytest
+from anthropic import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+)
 from anthropic.types import TextBlock
 from compliance.llm.anthropic_api import (
     _call_model,
@@ -14,8 +20,10 @@ from compliance.llm.anthropic_api import (
     _log_validation_error_messages,
     _parse_message_to_string,
     call_structured_model,
+    dynamic_stop_by_error,
 )
 from pydantic import BaseModel, ValidationError
+from tenacity import wait_none
 
 
 @pytest.fixture
@@ -36,6 +44,38 @@ def response_factory(text_block_factory):
 
 class ExampleModel(BaseModel):
     value: int
+
+
+def _anthropic_request() -> httpx.Request:
+    return httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def _anthropic_response(status_code: int) -> httpx.Response:
+    return httpx.Response(status_code=status_code, request=_anthropic_request())
+
+
+def _retry_state(attempt_number: int, exception: BaseException | None):
+    outcome = None
+    if exception is not None:
+        outcome = SimpleNamespace(exception=lambda: exception)
+
+    return SimpleNamespace(attempt_number=attempt_number, outcome=outcome)
+
+
+def _api_connection_error() -> APIConnectionError:
+    return APIConnectionError(request=_anthropic_request())
+
+
+def _api_timeout_error() -> APITimeoutError:
+    return APITimeoutError(request=_anthropic_request())
+
+
+def _api_status_error(status_code: int) -> APIStatusError:
+    return APIStatusError(
+        f"Status {status_code}",
+        response=_anthropic_response(status_code),
+        body={"error": {"message": f"status {status_code}"}},
+    )
 
 
 class TestCallStructuredModel:
@@ -177,6 +217,130 @@ class TestCallModel:
                 user_message="user text",
                 response_model=dict,
             )
+
+    def test_retry_decorator_returns_response_after_retryable_error(self) -> None:
+        client = MagicMock()
+        response = MagicMock()
+        client.messages.create.side_effect = [_api_status_error(503), response]
+
+        with patch(
+            "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+            return_value={"type": "object"},
+        ):
+            result = _call_model.retry_with(wait=wait_none())(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+        assert result == response
+        assert client.messages.create.call_count == 2
+
+    @pytest.mark.parametrize(
+        ("exception_factory", "expected_attempts"),
+        [
+            (lambda: _api_status_error(400), 1),
+            (lambda: _api_status_error(408), 6),
+            (lambda: _api_status_error(418), 2),
+            (lambda: _api_status_error(503), 6),
+            (_api_connection_error, 6),
+            (_api_timeout_error, 6),
+        ],
+    )
+    def test_retry_decorator_stops_at_exception_specific_attempt_limit(
+        self, exception_factory, expected_attempts
+    ) -> None:
+        client = MagicMock()
+        errors = [exception_factory() for _ in range(expected_attempts)]
+        client.messages.create.side_effect = errors
+
+        with (
+            patch(
+                "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+                return_value={"type": "object"},
+            ),
+            pytest.raises(type(errors[-1])),
+        ):
+            _call_model.retry_with(wait=wait_none())(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+        assert client.messages.create.call_count == expected_attempts
+
+    def test_retry_decorator_does_not_retry_unhandled_exceptions(self) -> None:
+        client = MagicMock()
+        client.messages.create.side_effect = RuntimeError("boom")
+
+        with (
+            patch(
+                "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+                return_value={"type": "object"},
+            ),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            _call_model.retry_with(wait=wait_none())(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+        client.messages.create.assert_called_once()
+
+
+class TestDynamicStopByError:
+    def test_stops_after_two_attempts_when_outcome_is_missing(self) -> None:
+        assert dynamic_stop_by_error(_retry_state(1, None)) is False
+        assert dynamic_stop_by_error(_retry_state(2, None)) is True
+
+    @pytest.mark.parametrize("status_code", [408, 429, 500, 504, 529])
+    def test_transient_api_status_errors_stop_after_six_attempts(
+        self, status_code
+    ) -> None:
+        error = _api_status_error(status_code)
+
+        assert dynamic_stop_by_error(_retry_state(5, error)) is False
+        assert dynamic_stop_by_error(_retry_state(6, error)) is True
+
+    @pytest.mark.parametrize("status_code", [400, 401, 402, 403, 404, 413, 422])
+    def test_non_retryable_api_status_errors_stop_after_one_attempt(
+        self, status_code
+    ) -> None:
+        error = _api_status_error(status_code)
+
+        assert dynamic_stop_by_error(_retry_state(1, error)) is True
+
+    @pytest.mark.parametrize("status_code", [409, 418, 499])
+    def test_other_api_status_errors_stop_after_two_attempts(self, status_code) -> None:
+        error = _api_status_error(status_code)
+
+        assert dynamic_stop_by_error(_retry_state(1, error)) is False
+        assert dynamic_stop_by_error(_retry_state(2, error)) is True
+
+    @pytest.mark.parametrize(
+        "exception_factory",
+        [
+            _api_connection_error,
+            _api_timeout_error,
+        ],
+    )
+    def test_connection_errors_stop_after_six_attempts(self, exception_factory) -> None:
+        error = exception_factory()
+
+        assert dynamic_stop_by_error(_retry_state(5, error)) is False
+        assert dynamic_stop_by_error(_retry_state(6, error)) is True
+
+    def test_other_retryable_errors_stop_after_one_attempt(self) -> None:
+        error = RuntimeError("boom")
+
+        assert dynamic_stop_by_error(_retry_state(1, error)) is True
 
 
 class TestConvertBaseModelToJsonSchema:
