@@ -70,7 +70,6 @@ def call_structured_model[
     load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
     client = anthropic.Anthropic()
     try:
-        is_retry = False
         response = _call_model(
             client=client,
             ai_model=ai_model,
@@ -81,7 +80,6 @@ def call_structured_model[
         structured_output = _convert_response_to_model_type(response, response_model)
 
     except (json.JSONDecodeError, ValidationError) as e:
-        is_retry = True
         logger.warning(
             _create_error_message(
                 case_info=case_info,
@@ -126,8 +124,7 @@ def call_structured_model[
 
     logger.info(
         f"Timestamp: {datetime.now()}, "
-        f"model: {ai_model}, prompt version: {prompt_version}, "
-        f"retry used: {is_retry}"
+        f"model: {ai_model}, prompt version: {prompt_version}"
     )
     logger.debug(f"response: {_parse_message_to_string(response)}")
 

@@ -77,7 +77,7 @@ def run_evals(
         # run your current prompt + model call
         eval_results[case] = dict()
         try:
-            is_retry, prompt_version, response = summarize_previous_visits(
+            prompt_version, response = summarize_previous_visits(
                 site_history, ai_model=_DEFAULT_AI_MODEL, case_info=case
             )
 
@@ -86,9 +86,6 @@ def run_evals(
 
             # record whether structured parse succeeded
             eval_results[case]["parse_succeeded"] = True
-
-            # record whether the query had to be retried
-            eval_results[case]["is_retry"] = is_retry
 
             # record the parsed result
             eval_results[case]["model_results"] = response
@@ -269,7 +266,6 @@ def _write_eval_results(eval_results: dict[str, Any], outfile: Path) -> None:
         to_write[case_name]["prompt_version"] = eval_results[case_name][
             "prompt_version"
         ]
-        to_write[case_name]["is_retry"] = eval_results[case_name]["is_retry"]
         to_write[case_name]["output_summary"] = eval_results[case_name][
             "model_results"
         ].executive_summary
