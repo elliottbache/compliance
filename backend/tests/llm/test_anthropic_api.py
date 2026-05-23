@@ -78,6 +78,22 @@ def _api_status_error(status_code: int) -> APIStatusError:
     )
 
 
+def _model_response(
+    *,
+    stop_reason: str = "end_turn",
+    content: list | None = None,
+    total_tokens: int = 10,
+):
+    if content is None:
+        content = [TextBlock(type="text", text='{"value": 7}')]
+
+    return SimpleNamespace(
+        stop_reason=stop_reason,
+        content=content,
+        usage=SimpleNamespace(total_tokens=total_tokens),
+    )
+
+
 class TestCallStructuredModel:
     def test_returns_validated_model(self) -> None:
         response = SimpleNamespace(
@@ -168,6 +184,7 @@ class TestCallModel:
     def test_calls_messages_create_with_expected_payload(self) -> None:
         client = MagicMock()
         schema = {"type": "object"}
+        client.messages.create.return_value = _model_response()
 
         with patch(
             "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
@@ -183,7 +200,7 @@ class TestCallModel:
 
         client.messages.create.assert_called_once_with(
             model="claude-test",
-            max_tokens=anthropic_api.MAX_TOKENS,
+            max_tokens=anthropic_api._MAX_TOKENS,
             system="system text",
             messages=[{"role": "user", "content": "user text"}],
             output_config={"format": {"type": "json_schema", "schema": schema}},
@@ -191,7 +208,7 @@ class TestCallModel:
 
     def test_returns_messages_create_response(self) -> None:
         client = MagicMock()
-        response = MagicMock()
+        response = _model_response()
         client.messages.create.return_value = response
 
         with patch(
@@ -220,7 +237,7 @@ class TestCallModel:
 
     def test_retry_decorator_returns_response_after_retryable_error(self) -> None:
         client = MagicMock()
-        response = MagicMock()
+        response = _model_response()
         client.messages.create.side_effect = [_api_status_error(503), response]
 
         with patch(
@@ -237,6 +254,122 @@ class TestCallModel:
 
         assert result == response
         assert client.messages.create.call_count == 2
+
+    def test_continues_when_end_turn_response_has_no_content(self) -> None:
+        client = MagicMock()
+        first_response_tokens = 25
+        response = _model_response()
+        client.messages.create.side_effect = [
+            _model_response(content=[], total_tokens=first_response_tokens),
+            response,
+        ]
+
+        with patch(
+            "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+            return_value={"type": "object"},
+        ):
+            result = _call_model(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+        assert result == response
+        assert client.messages.create.call_count == 2
+        assert client.messages.create.call_args_list[1].kwargs["max_tokens"] == (
+            anthropic_api._MAX_TOKENS - first_response_tokens
+        )
+        assert client.messages.create.call_args_list[1].kwargs["messages"] == [
+            {"role": "user", "content": "user text"},
+            {"role": "user", "content": "Please continue"},
+        ]
+
+    @pytest.mark.parametrize(
+        ("stop_reason", "match"),
+        [
+            ("max_tokens", "Reached max tokens"),
+            ("tool_use", "Tool use not yet implemented"),
+            ("refusal", "safety concerns"),
+            ("model_context_window_exceeded", "context window limit"),
+        ],
+    )
+    def test_raises_value_error_for_terminal_stop_reasons(
+        self, stop_reason, match
+    ) -> None:
+        client = MagicMock()
+        client.messages.create.return_value = _model_response(stop_reason=stop_reason)
+
+        with (
+            patch(
+                "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+                return_value={"type": "object"},
+            ),
+            pytest.raises(ValueError, match=match),
+        ):
+            _call_model(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+    def test_continues_after_pause_turn_response(self) -> None:
+        client = MagicMock()
+        pause_response_tokens = 25
+        pause_response = _model_response(
+            stop_reason="pause_turn",
+            total_tokens=pause_response_tokens,
+        )
+        final_response = _model_response()
+        client.messages.create.side_effect = [pause_response, final_response]
+
+        with patch(
+            "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+            return_value={"type": "object"},
+        ):
+            result = _call_model(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
+
+        assert result == final_response
+        assert client.messages.create.call_count == 2
+        assert client.messages.create.call_args_list[1].kwargs["max_tokens"] == (
+            anthropic_api._MAX_TOKENS - pause_response_tokens
+        )
+        assert client.messages.create.call_args_list[1].kwargs["messages"] == [
+            {"role": "user", "content": "user text"},
+            {"role": "user", "content": "user text"},
+            {"role": "assistant", "content": pause_response.content},
+        ]
+
+    def test_raises_value_error_when_continuation_exceeds_token_limit(self) -> None:
+        client = MagicMock()
+        client.messages.create.return_value = _model_response(
+            content=[],
+            total_tokens=anthropic_api._MAX_TOKENS + 1,
+        )
+
+        with (
+            patch(
+                "compliance.llm.anthropic_api._convert_base_model_to_json_schema",
+                return_value={"type": "object"},
+            ),
+            pytest.raises(ValueError, match="exceeded the max_tokens limit"),
+        ):
+            _call_model(
+                client=client,
+                ai_model="claude-test",
+                system_context="system text",
+                user_message="user text",
+                response_model=ExampleModel,
+            )
 
     @pytest.mark.parametrize(
         ("exception_factory", "expected_attempts"),
@@ -421,7 +554,7 @@ class TestCreateErrorMessage:
         assert "system text" in result
         assert "user text" in result
         assert "response text" in result
-        assert str(anthropic_api.MAX_TOKENS) in result
+        assert str(anthropic_api._MAX_TOKENS) in result
 
 
 class TestParseMessageToString:

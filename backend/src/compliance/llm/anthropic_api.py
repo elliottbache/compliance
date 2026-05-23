@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
 
-MAX_TOKENS = 2500
+_MAX_TOKENS = 2500
 _DEFAULT_PROMPT_VERSION = "v0.1"
 _DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"
 
@@ -191,6 +191,9 @@ def _call_model(
     ):
         raise TypeError(f"{response_model} is not a Pydantic BaseModel.")
 
+    remaining_tokens = (
+        _MAX_TOKENS  # start a counter to make sure we don't use too many tokens
+    )
     schema = _convert_base_model_to_json_schema(response_model)
     messages = [
         {
@@ -199,29 +202,57 @@ def _call_model(
         }
     ]
 
-    response = client.messages.create(
-        model=ai_model,
-        max_tokens=MAX_TOKENS,
-        system=system_context,
-        messages=messages,
-        output_config={
-            "format": {"type": "json_schema", "schema": schema},
-        },
-    )
-
-    if response.stop_reason == "end_turn" and not response.content:
-        # Add a continuation prompt in a NEW user message
-        messages.append({"role": "user", "content": "Please continue"})
+    while True:
+        if remaining_tokens < 0:
+            raise ValueError(f"Claude exceeded the max_tokens limit of {_MAX_TOKENS}.")
 
         response = client.messages.create(
             model=ai_model,
-            max_tokens=MAX_TOKENS,
-            messages=messages,
+            max_tokens=remaining_tokens,
             system=system_context,
+            messages=messages,
             output_config={
                 "format": {"type": "json_schema", "schema": schema},
             },
         )
+        remaining_tokens -= response.usage.total_tokens
+
+        if response.stop_reason == "end_turn" and response.content:
+            break
+
+        if response.stop_reason == "end_turn" and not response.content:
+
+            # Add a continuation prompt in a NEW user message
+            messages.append({"role": "user", "content": "Please continue"})
+
+            continue
+
+        elif response.stop_reason == "max_tokens":
+            raise ValueError(
+                f"Reached max tokens {_MAX_TOKENS}.  Raise token limits or shorten user message and/or system context.  Exiting"
+            )
+
+        elif response.stop_reason == "tool_use":
+            raise ValueError("Tool use not yet implemented.")
+
+        # continue iterating in server until reaching token limit
+        elif response.stop_reason == "pause_turn":
+
+            # Continue the conversation by sending the response back
+            messages.append({"role": "user", "content": user_message})
+            messages.append({"role": "assistant", "content": response.content})
+
+            continue
+
+        elif response.stop_reason == "refusal":
+            raise ValueError(
+                f"Claude was unable to process this request due to safety concerns.  System context = {system_context}, \nuser message = {user_message}."
+            )
+
+        elif response.stop_reason == "model_context_window_exceeded":
+            raise ValueError(
+                f"Claude reached the model context window limit.  Reduce tokens in system context and/or user message.  System context = {system_context}, \nuser message = {user_message}."
+            )
 
     return response
 
@@ -266,7 +297,7 @@ def _create_error_message(
     """Build a detailed log message for a failed model response."""
     return (
         f"Model failed for case: {case_info}, model={ai_model}"
-        f" max_tokens={MAX_TOKENS}, system={system_context},"
+        f" max_tokens={_MAX_TOKENS}, system={system_context},"
         f" \nand user_message={user_message}\nresponse: {response}"
     )
 
