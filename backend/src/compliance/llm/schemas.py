@@ -33,7 +33,7 @@ class MissingInfoItem(BaseModel):
 
     item: str
     why_missing_matters: str
-    evidence: list[EvidenceRef] = Field(min_length=1, max_length=1)
+    evidence: list[EvidenceRef] = Field(min_length=1)
 
 
 class HumanReviewItem(BaseModel):
