@@ -5,6 +5,16 @@ Inspection and compliance management system with structured records, evidence
 attachments, archive/restore workflows, and AI-assisted site-history
 analysis.
 
+## What this project demonstrates
+
+This project shows a backend-first compliance/inspection tracking system built with FastAPI, SQLAlchemy, and Pydantic. It focuses on practical API design, relational data modeling, service-layer logic, route-level testing, and AI-assisted analysis for human review.
+
+- Implements CRUD-style API coverage for clients, sites, certifiers, regulations, rules, certifications, findings, and attachments.
+- Models inspection history around certifications, with findings, regulations, rules, and attachment context linked through relational queries.
+- Uses a service-layer structure with explicit error handling for missing records, conflicts, validation failures, and archived records.
+- Includes archive/restore support and `include_archived` list behavior for main domain records.
+- Includes support for AI-generated site analysis and Markdown reports, with schema validation, evidence-reference checks, and human-review-only boundaries.
+
 ## Project Status
 
 This project is an active portfolio MVP. It is designed for local demos,
