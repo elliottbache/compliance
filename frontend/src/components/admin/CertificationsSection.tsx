@@ -18,6 +18,7 @@ type CertificationCreatePayload = {
   site_id: number;
   certifier_id: number;
   regulation_id: number;
+  inspector_id: number | null;
   result: "Pass" | "Fail" | null;
   inspection_date: string | null;
   resolution_date: string | null;
@@ -27,6 +28,7 @@ type CertificationFormState = {
   site_id: string;
   certifier_id: string;
   regulation_id: string;
+  inspector_id: string;
   result: "" | "Pass" | "Fail";
   inspection_date: string;
   resolution_date: string;
@@ -36,6 +38,7 @@ const EMPTY_FORM: CertificationFormState = {
   site_id: "",
   certifier_id: "",
   regulation_id: "",
+  inspector_id: "",
   result: "",
   inspection_date: "",
   resolution_date: "",
@@ -54,6 +57,7 @@ function buildCreatePayload(
     site_id: Number(form.site_id),
     certifier_id: Number(form.certifier_id),
     regulation_id: Number(form.regulation_id),
+    inspector_id: form.inspector_id ? Number(form.inspector_id) : null,
     result: form.result || null,
     inspection_date: form.inspection_date || null,
     resolution_date: form.resolution_date || null,
@@ -257,6 +261,19 @@ export function CertificationsSection() {
             </label>
 
             <label>
+              Inspector ID
+              <input
+                className="input"
+                min="1"
+                type="number"
+                value={form.inspector_id}
+                onChange={(event) =>
+                  updateFormField("inspector_id", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
               Result
               <select
                 className="select"
@@ -328,6 +345,7 @@ export function CertificationsSection() {
               <th>Site ID</th>
               <th>Certifier ID</th>
               <th>Regulation ID</th>
+              <th>Inspector ID</th>
               <th>Result</th>
               <th>Inspection date</th>
               <th>Resolution date</th>
@@ -340,7 +358,7 @@ export function CertificationsSection() {
           <tbody>
             {certifications.length === 0 ? (
               <tr>
-                <td className="empty-table-cell" colSpan={10}>
+                <td className="empty-table-cell" colSpan={11}>
                   No certifications found.
                 </td>
               </tr>
@@ -354,6 +372,7 @@ export function CertificationsSection() {
                   <td>{certification.site_id}</td>
                   <td>{certification.certifier_id}</td>
                   <td>{certification.regulation_id}</td>
+                  <td>{certification.inspector_id ?? "—"}</td>
                   <td>{certification.result ?? "Pending"}</td>
                   <td>{formatDate(certification.inspection_date)}</td>
                   <td>{formatDate(certification.resolution_date)}</td>

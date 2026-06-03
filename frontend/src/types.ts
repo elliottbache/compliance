@@ -153,6 +153,7 @@ export type CertificationRecord = ArchivedFields & {
   site_id: number;
   certifier_id: number;
   regulation_id: number;
+  inspector_id: number | null;
   result: "Pass" | "Fail" | null;
   inspection_date: string | null;
   resolution_date: string | null;

@@ -13,6 +13,7 @@ from compliance.db.models import (
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
     CertificationConflictError,
+    CertificationInspectorNotFoundError,
     CertificationRegulationNotFoundError,
     CertificationSiteNotFoundError,
     _format_certification_attachments,
@@ -36,6 +37,7 @@ def _certification_create(**overrides) -> CertificationCreate:
         "certifier_id": 7,
         "regulation_id": 3,
         "site_id": 12,
+        "inspector_id": None,
         "result": "Pass",
         "inspection_date": date(2026, 4, 1),
         "resolution_date": None,
@@ -441,9 +443,20 @@ class TestPostNewCertification:
         assert added_certification.certifier_id == 7
         assert added_certification.regulation_id == 3
         assert added_certification.site_id == 12
+        assert added_certification.inspector_id is None
         assert added_certification.result == "Pass"
         assert added_certification.inspection_date == date(2026, 4, 1)
         assert added_certification.resolution_date is None
+
+    def test_sets_optional_inspector_id_when_provided(self) -> None:
+        session = MagicMock()
+        certification = _certification_create(inspector_id=9)
+
+        result = post_new_certification(session, certification)
+
+        added_certification = session.add.call_args.args[0]
+        assert result is added_certification
+        assert added_certification.inspector_id == 9
 
     def test_allows_certification_under_archived_site(
         self, sqlite_session, db_factory
@@ -515,6 +528,19 @@ class TestPostNewCertification:
 
         with pytest.raises(CertificationSiteNotFoundError):
             post_new_certification(session, _certification_create())
+
+        session.rollback.assert_called_once_with()
+
+    def test_raises_inspector_error_when_inspector_does_not_exist(
+        self, integrity_error_factory
+    ) -> None:
+        session = MagicMock()
+        session.commit.side_effect = integrity_error_factory(
+            "fk_certifications_inspector_id_users"
+        )
+
+        with pytest.raises(CertificationInspectorNotFoundError):
+            post_new_certification(session, _certification_create(inspector_id=9))
 
         session.rollback.assert_called_once_with()
 

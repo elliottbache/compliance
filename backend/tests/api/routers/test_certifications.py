@@ -845,6 +845,7 @@ class TestPostNewCertificationRoute:
             certifier_id=7,
             regulation_id=3,
             site_id=12,
+            inspector_id=9,
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
@@ -856,6 +857,7 @@ class TestPostNewCertificationRoute:
             certifier_id=7,
             regulation_id=3,
             site_id=12,
+            inspector_id=9,
             result="Pass",
             inspection_date=date(2026, 4, 1),
             resolution_date=None,
@@ -887,6 +889,7 @@ class TestPostNewCertificationRoute:
             certifier_id=7,
             regulation_id=3,
             site_id=12,
+            inspector_id=9,
             result="Pass",
         )
 
@@ -950,6 +953,30 @@ class TestPostNewCertificationRoute:
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site 12 does not exist."
+
+    def test_returns_404_when_inspector_does_not_exist(self, monkeypatch) -> None:
+        certification = certifications_router.CertificationCreate(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            inspector_id=9,
+            result="Pass",
+        )
+
+        def fake_post_new_certification(session, certification_info):
+            raise certifications_router.CertificationInspectorNotFoundError()
+
+        monkeypatch.setattr(
+            certifications_router,
+            "post_new_certification",
+            fake_post_new_certification,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.post_new_certification_route(object(), certification)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Inspector 9 does not exist."
 
     def test_returns_409_when_certification_conflicts(self, monkeypatch) -> None:
         certification = certifications_router.CertificationCreate(

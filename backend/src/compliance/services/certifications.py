@@ -49,6 +49,10 @@ class CertificationSiteNotFoundError(CertificationConflictError):
     """Raised when a certification references a missing site."""
 
 
+class CertificationInspectorNotFoundError(CertificationConflictError):
+    """Raised when a certification references a missing inspector."""
+
+
 def get_certifications(
     session: Session,
     *,
@@ -245,6 +249,7 @@ def post_new_certification(
         CertificationCertifierNotFoundError: If the certifier ID does not exist.
         CertificationRegulationNotFoundError: If the regulation ID does not exist.
         CertificationSiteNotFoundError: If the site ID does not exist.
+        CertificationInspectorNotFoundError: If the inspector ID does not exist.
         CertificationConflictError: If another integrity conflict prevents the insert.
     """
     certification_dict = certification.model_dump()
@@ -269,6 +274,11 @@ def post_new_certification(
 
         if constraint_name == "fk_certifications_site_id_sites":
             raise CertificationSiteNotFoundError(certification.site_id) from exc
+
+        if constraint_name == "fk_certifications_inspector_id_users":
+            raise CertificationInspectorNotFoundError(
+                certification.inspector_id
+            ) from exc
 
         raise CertificationConflictError() from exc
 

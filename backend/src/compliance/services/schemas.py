@@ -41,6 +41,7 @@ class CertificationCreate(BaseModel):
     certifier_id: int
     regulation_id: int
     site_id: int
+    inspector_id: int | None = None
     result: CertificationResult | None = None
     inspection_date: date | None = None
     resolution_date: date | None = None
