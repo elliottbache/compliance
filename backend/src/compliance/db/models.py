@@ -36,13 +36,13 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(80))
+    email: Mapped[str] = mapped_column(String(80), unique=True)
     hashed_password: Mapped[str]
     full_name: Mapped[str] = mapped_column(String(80))
     role: Mapped[Role] = mapped_column(
         SQLEnum(Role, name="role_enum"), default=Role.VIEWER
     )
-    is_active: Mapped[bool]
+    is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     user_certification_rel: Mapped[list["Certification"]] = relationship(
