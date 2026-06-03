@@ -45,6 +45,10 @@ class User(Base):
     is_active: Mapped[bool]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
+    user_certification_rel: Mapped[list["Certification"]] = relationship(
+        back_populates="certification_user_rel"
+    )
+
 
 class Client(Base):
     """Represents an organization that owns one or more compliance sites."""
@@ -186,6 +190,9 @@ class Certification(Base):
             back_populates="finding_attachment_certification_rel",
             overlaps="attachment_finding_attachment_rel,finding_finding_attachment_rel",
         )
+    )
+    certification_user_rel: Mapped[list["User"]] = relationship(
+        back_populates="user_certification_rel"
     )
 
 
