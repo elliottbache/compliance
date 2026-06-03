@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from enum import Enum as PyEnum
 
 from sqlalchemy import (
     CheckConstraint,
@@ -10,15 +11,39 @@ from sqlalchemy import (
     UniqueConstraint,
     and_,
 )
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, foreign, mapped_column, relationship
 
 from compliance.db.db_access import convention
+
+
+class Role(PyEnum):
+    ADMIN = "admin"
+    INSPECTOR = "inspector"
+    REVIEWER = "reviewer"
+    VIEWER = "viewer"
 
 
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy ORM models."""
 
     metadata = MetaData(naming_convention=convention)
+
+
+class User(Base):
+    """Represents a user with access to the database (could be a client or an inspector, for example)"""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(80))
+    hashed_password: Mapped[str]
+    full_name: Mapped[str] = mapped_column(String(80))
+    role: Mapped[Role] = mapped_column(
+        SQLEnum(Role, name="role_enum"), default=Role.VIEWER
+    )
+    is_active: Mapped[bool]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Client(Base):
@@ -139,6 +164,7 @@ class Certification(Base):
     resolution_date: Mapped[date | None]
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archive_reason: Mapped[str | None] = mapped_column(String(160))
+    inspector_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     certification_certifier_rel: Mapped["Certifier"] = relationship(
         back_populates="certifier_certification_rel"
