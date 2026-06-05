@@ -35,6 +35,7 @@ def get_certifications_route(
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     include_archived: Annotated[bool, Query()] = False,
+    inspector_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> list[CertificationOut]:
     """Return certifications with optional filters and pagination.
 
@@ -46,6 +47,7 @@ def get_certifications_route(
         offset: Number of certifications to skip before returning results.
         include_archived: When true, include archived certifications and
             archived parent site, regulation, and certifier records.
+        inspector_id: Optional inspector ID assigned to the certifications.
 
     Returns:
         Certification records serialized with the public API response schema.
@@ -61,6 +63,7 @@ def get_certifications_route(
         limit=limit,
         offset=offset,
         include_archived=include_archived,
+        inspector_id=inspector_id,
     )
     if certifications_list is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}")

@@ -61,6 +61,7 @@ def get_certifications(
     limit: int | None,
     offset: int,
     include_archived: bool = False,
+    inspector_id: int | None,
 ) -> list[CertificationOut] | None:
     """Retrieve certifications with optional site and open-only filters.
 
@@ -76,6 +77,8 @@ def get_certifications(
         include_archived: When true, include archived certifications and
             archived parent site, regulation, and certifier records in the
             results.
+        inspector_id: Optional inspector ID used to restrict results to one inspector. When
+            supplied, the inspector must exist.
 
     Returns:
         Certification records serialized with the public API schema for visible
@@ -105,6 +108,9 @@ def get_certifications(
 
     if open_only:
         stmt = stmt.where(Certification.resolution_date.is_(None))
+
+    if inspector_id is not None:
+        stmt = stmt.where(Certification.inspector_id == inspector_id)
 
     stmt = (
         stmt.order_by(

@@ -3,10 +3,35 @@
 from datetime import date
 from typing import Literal
 
+from compliance.db.models import Role
 from compliance.schemas import FindingHistory
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field
 
 CertificationResult = Literal["Pass", "Fail"]
+
+
+class UserCreate(BaseModel):
+    """Input shape for creating a user."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    full_name: str = Field(min_length=1, max_length=80)
+    email: EmailStr
+
+
+class UserOut(UserCreate):
+    """Output shape for a user."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
+    role: Role = Role.VIEWER
+    is_active: bool = True
+    created_at: AwareDatetime
+
+
+class UserInDB(UserOut):
+    hashed_password: str
 
 
 class SiteCreate(BaseModel):

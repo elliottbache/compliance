@@ -11,7 +11,14 @@ class TestGetCertificationsRoute:
         self, client, mock_db, monkeypatch, certifications_factory
     ):
         def fake_get_certifications(
-            session, *, site_id, open_only, limit, offset, include_archived=False
+            session,
+            *,
+            site_id,
+            open_only,
+            limit,
+            offset,
+            include_archived=False,
+            inspector_id=None,
         ):
             assert session is mock_db
             assert site_id is None
@@ -19,6 +26,7 @@ class TestGetCertificationsRoute:
             assert limit == 2
             assert offset == 1
             assert include_archived is True
+            assert inspector_id is None
             return [
                 certifications_router.CertificationOut.model_validate(certification)
                 for certification in certifications_factory(2, result="Pass")
@@ -37,6 +45,7 @@ class TestGetCertificationsRoute:
                 "certifier_id": 200,
                 "regulation_id": 300,
                 "site_id": 12,
+                "inspector_id": None,
                 "result": "Pass",
                 "inspection_date": "2023-10-15",
                 "resolution_date": "2023-10-20",
@@ -48,6 +57,7 @@ class TestGetCertificationsRoute:
                 "certifier_id": 200,
                 "regulation_id": 300,
                 "site_id": 12,
+                "inspector_id": None,
                 "result": "Pass",
                 "inspection_date": "2023-10-15",
                 "resolution_date": "2023-10-20",
@@ -62,10 +72,18 @@ class TestGetCertificationsRoute:
         archived_certification_id = 101
 
         def fake_get_certifications(
-            session, *, site_id, open_only, limit, offset, include_archived=False
+            session,
+            *,
+            site_id,
+            open_only,
+            limit,
+            offset,
+            include_archived=False,
+            inspector_id=None,
         ):
             assert session is mock_db
             assert include_archived is False
+            assert inspector_id is None
             return [
                 certifications_router.CertificationOut.model_validate(certification)
                 for certification in certifications_factory(1, result="Pass")
@@ -89,10 +107,18 @@ class TestGetCertificationsRoute:
         archived_certification_id = 101
 
         def fake_get_certifications(
-            session, *, site_id, open_only, limit, offset, include_archived=False
+            session,
+            *,
+            site_id,
+            open_only,
+            limit,
+            offset,
+            include_archived=False,
+            inspector_id=None,
         ):
             assert session is mock_db
             assert include_archived is True
+            assert inspector_id is None
             return [
                 certifications_router.CertificationOut.model_validate(certification)
                 for certification in certifications_factory(1, result="Pass")
@@ -131,13 +157,21 @@ class TestGetCertificationsRoute:
         ]
 
         def fake_get_certifications(
-            session, *, site_id, open_only, limit, offset, include_archived=False
+            session,
+            *,
+            site_id,
+            open_only,
+            limit,
+            offset,
+            include_archived=False,
+            inspector_id=None,
         ):
             assert session is fake_session
             assert site_id == 12
             assert open_only is True
             assert limit == 10
             assert offset == 5
+            assert inspector_id is None
             return expected_certifications
 
         monkeypatch.setattr(
@@ -145,16 +179,29 @@ class TestGetCertificationsRoute:
         )
 
         result = certifications_router.get_certifications_route(
-            fake_session, site_id=12, open_only=True, limit=10, offset=5
+            fake_session,
+            site_id=12,
+            open_only=True,
+            limit=10,
+            offset=5,
+            inspector_id=None,
         )
 
         assert result == expected_certifications
 
     def test_returns_404_when_site_filter_does_not_exist(self, monkeypatch) -> None:
         def fake_get_certifications(
-            session, *, site_id, open_only, limit, offset, include_archived=False
+            session,
+            *,
+            site_id,
+            open_only,
+            limit,
+            offset,
+            include_archived=False,
+            inspector_id=None,
         ):
             assert site_id == 999
+            assert inspector_id is None
             return None
 
         monkeypatch.setattr(
@@ -163,7 +210,12 @@ class TestGetCertificationsRoute:
 
         with pytest.raises(HTTPException) as exc_info:
             certifications_router.get_certifications_route(
-                object(), site_id=999, open_only=False, limit=None, offset=0
+                object(),
+                site_id=999,
+                open_only=False,
+                limit=None,
+                offset=0,
+                inspector_id=None,
             )
 
         assert exc_info.value.status_code == 404
@@ -194,6 +246,7 @@ class TestGetCertificationByIdRoute:
                 certifier_id=7,
                 regulation_id=3,
                 site_id=12,
+                inspector_id=None,
                 result="Pass",
                 inspection_date=date(2026, 4, 1),
                 resolution_date=None,
@@ -215,6 +268,7 @@ class TestGetCertificationByIdRoute:
             "certifier_id": 7,
             "regulation_id": 3,
             "site_id": 12,
+            "inspector_id": None,
             "result": "Pass",
             "inspection_date": "2026-04-01",
             "resolution_date": None,
@@ -791,6 +845,7 @@ class TestPostNewCertificationRoute:
             "certifier_id": 7,
             "regulation_id": 3,
             "site_id": 12,
+            "inspector_id": None,
             "result": "Pass",
             "inspection_date": "2026-04-01",
             "resolution_date": None,

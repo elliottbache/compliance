@@ -15,6 +15,7 @@ from compliance.api.routers import (
     regulations,
     rules,
     sites,
+    users,
 )
 from compliance.logging_utils import configure_logging
 
@@ -35,6 +36,7 @@ app.include_router(clients.router)
 app.include_router(certifiers.router)
 app.include_router(rules.router)
 app.include_router(regulations.router)
+app.include_router(users.router)
 
 app.add_middleware(
     CORSMiddleware,

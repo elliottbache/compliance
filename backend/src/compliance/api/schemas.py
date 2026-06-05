@@ -24,6 +24,8 @@ from compliance.services.schemas import (
     SiteCertificationsOut,
     SiteCreate,
     SiteOut,
+    UserCreate,
+    UserOut,
 )
 
 __all__ = [
@@ -50,4 +52,6 @@ __all__ = [
     "SiteCertificationsOut",
     "SiteCreate",
     "SiteOut",
+    "UserCreate",
+    "UserOut",
 ]

@@ -60,7 +60,12 @@ class TestGetCertifications:
         )
 
         result = get_certifications(
-            session, site_id=None, open_only=False, limit=10, offset=5
+            session,
+            site_id=None,
+            open_only=False,
+            limit=10,
+            offset=5,
+            inspector_id=None,
         )
 
         assert result == [
@@ -72,7 +77,14 @@ class TestGetCertifications:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        get_certifications(session, site_id=None, open_only=False, limit=None, offset=0)
+        get_certifications(
+            session,
+            site_id=None,
+            open_only=False,
+            limit=None,
+            offset=0,
+            inspector_id=None,
+        )
 
         stmt = session.execute.call_args.args[0]
         assert (
@@ -86,7 +98,12 @@ class TestGetCertifications:
         session.execute.return_value.scalars.return_value.all.return_value = []
 
         result = get_certifications(
-            session, site_id=12, open_only=False, limit=None, offset=0
+            session,
+            site_id=12,
+            open_only=False,
+            limit=None,
+            offset=0,
+            inspector_id=None,
         )
 
         stmt = session.execute.call_args.args[0]
@@ -99,7 +116,12 @@ class TestGetCertifications:
         session.get.return_value = None
 
         result = get_certifications(
-            session, site_id=999, open_only=False, limit=None, offset=0
+            session,
+            site_id=999,
+            open_only=False,
+            limit=None,
+            offset=0,
+            inspector_id=None,
         )
 
         assert result is None
@@ -110,7 +132,14 @@ class TestGetCertifications:
         session = MagicMock()
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        get_certifications(session, site_id=None, open_only=True, limit=None, offset=0)
+        get_certifications(
+            session,
+            site_id=None,
+            open_only=True,
+            limit=None,
+            offset=0,
+            inspector_id=None,
+        )
 
         stmt = session.execute.call_args.args[0]
         assert "certifications.resolution_date IS NULL" in str(stmt)
@@ -127,7 +156,12 @@ class TestGetCertifications:
         sqlite_session.commit()
 
         certifications = get_certifications(
-            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
+            sqlite_session,
+            site_id=None,
+            open_only=False,
+            limit=None,
+            offset=0,
+            inspector_id=None,
         )
 
         assert [certification.id for certification in certifications] == [42]
@@ -140,7 +174,12 @@ class TestGetCertifications:
         )
 
         certifications = get_certifications(
-            sqlite_session, site_id=None, open_only=False, limit=None, offset=0
+            sqlite_session,
+            site_id=None,
+            open_only=False,
+            limit=None,
+            offset=0,
+            inspector_id=None,
         )
 
         assert certifications == []
@@ -163,6 +202,7 @@ class TestGetCertifications:
             limit=None,
             offset=0,
             include_archived=True,
+            inspector_id=None,
         )
 
         returned_ids = {certification.id for certification in certifications}

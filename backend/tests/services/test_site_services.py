@@ -289,6 +289,7 @@ class TestGetSites:
             open_only=False,
             limit=None,
             offset=0,
+            inspector_id=None,
         )
 
         assert certifications == []
