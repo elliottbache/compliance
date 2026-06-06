@@ -11,6 +11,7 @@ from compliance.api.schemas import (
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
     CertificationConflictError,
+    CertificationInspectorInactiveError,
     CertificationInspectorNotFoundError,
     CertificationRegulationNotFoundError,
     CertificationSiteNotFoundError,
@@ -225,6 +226,12 @@ def post_new_certification_route(
         raise HTTPException(
             status_code=404,
             detail=f"Inspector {certification.inspector_id} does not exist.",
+        ) from err
+
+    except CertificationInspectorInactiveError as err:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Inspector {certification.inspector_id} is inactive.",
         ) from err
 
     except CertificationConflictError as err:

@@ -1033,6 +1033,30 @@ class TestPostNewCertificationRoute:
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Inspector 9 does not exist."
 
+    def test_returns_422_when_inspector_is_inactive(self, monkeypatch) -> None:
+        certification = certifications_router.CertificationCreate(
+            certifier_id=7,
+            regulation_id=3,
+            site_id=12,
+            inspector_id=9,
+            result="Pass",
+        )
+
+        def fake_post_new_certification(session, certification_info):
+            raise certifications_router.CertificationInspectorInactiveError()
+
+        monkeypatch.setattr(
+            certifications_router,
+            "post_new_certification",
+            fake_post_new_certification,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            certifications_router.post_new_certification_route(object(), certification)
+
+        assert exc_info.value.status_code == 422
+        assert exc_info.value.detail == "Inspector 9 is inactive."
+
     def test_returns_409_when_certification_conflicts(self, monkeypatch) -> None:
         certification = certifications_router.CertificationCreate(
             certifier_id=7,

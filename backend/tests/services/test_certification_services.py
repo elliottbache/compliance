@@ -13,6 +13,7 @@ from compliance.db.models import (
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
     CertificationConflictError,
+    CertificationInspectorInactiveError,
     CertificationInspectorNotFoundError,
     CertificationRegulationNotFoundError,
     CertificationSiteNotFoundError,
@@ -498,6 +499,40 @@ class TestPostNewCertification:
         assert result is added_certification
         assert added_certification.inspector_id == 9
 
+    def test_skips_inspector_lookup_when_inspector_id_is_none(self) -> None:
+        session = MagicMock()
+        certification = _certification_create(inspector_id=None)
+
+        post_new_certification(session, certification)
+
+        session.get.assert_not_called()
+        session.add.assert_called_once()
+        session.commit.assert_called_once_with()
+
+    def test_raises_inspector_not_found_when_inspector_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+        certification = _certification_create(inspector_id=9)
+
+        with pytest.raises(CertificationInspectorNotFoundError):
+            post_new_certification(session, certification)
+
+        session.get.assert_called_once()
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
+
+    def test_raises_inactive_inspector_error_when_inspector_is_inactive(self) -> None:
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(id=9, is_active=False)
+        certification = _certification_create(inspector_id=9)
+
+        with pytest.raises(CertificationInspectorInactiveError):
+            post_new_certification(session, certification)
+
+        session.get.assert_called_once()
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
+
     def test_allows_certification_under_archived_site(
         self, sqlite_session, db_factory
     ) -> None:
@@ -568,19 +603,6 @@ class TestPostNewCertification:
 
         with pytest.raises(CertificationSiteNotFoundError):
             post_new_certification(session, _certification_create())
-
-        session.rollback.assert_called_once_with()
-
-    def test_raises_inspector_error_when_inspector_does_not_exist(
-        self, integrity_error_factory
-    ) -> None:
-        session = MagicMock()
-        session.commit.side_effect = integrity_error_factory(
-            "fk_certifications_inspector_id_users"
-        )
-
-        with pytest.raises(CertificationInspectorNotFoundError):
-            post_new_certification(session, _certification_create(inspector_id=9))
 
         session.rollback.assert_called_once_with()
 

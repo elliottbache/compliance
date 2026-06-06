@@ -11,6 +11,7 @@ from compliance.db.models import (
     Regulation,
     Rule,
     Site,
+    User,
 )
 from compliance.services.attachments.formatting import format_attachment
 from compliance.services.lifecycle import (
@@ -51,6 +52,10 @@ class CertificationSiteNotFoundError(CertificationConflictError):
 
 class CertificationInspectorNotFoundError(CertificationConflictError):
     """Raised when a certification references a missing inspector."""
+
+
+class CertificationInspectorInactiveError(CertificationConflictError):
+    """Raised when a certification references an inactive inspector."""
 
 
 def get_certifications(
@@ -256,10 +261,19 @@ def post_new_certification(
         CertificationRegulationNotFoundError: If the regulation ID does not exist.
         CertificationSiteNotFoundError: If the site ID does not exist.
         CertificationInspectorNotFoundError: If the inspector ID does not exist.
+        CertificationInspectorInactiveError: If the inspector is inactive.
         CertificationConflictError: If another integrity conflict prevents the insert.
     """
     certification_dict = certification.model_dump()
     new_certification = Certification(**certification_dict)
+
+    if certification.inspector_id is not None:
+        inspector = session.get(User, certification.inspector_id)
+        if not inspector:
+            raise CertificationInspectorNotFoundError(certification.inspector_id)
+        if not inspector.is_active:
+            raise CertificationInspectorInactiveError(inspector.id)
+
     try:
         session.add(new_certification)
         session.commit()
