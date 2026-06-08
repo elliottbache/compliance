@@ -7,7 +7,6 @@ from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
     RuleRegulationNotFoundError,
-    get_rule_by_id,
     get_rules,
     post_new_rule,
     post_rule_archived_by_id,
@@ -114,58 +113,6 @@ class TestGetRules:
         assert result is None
         session.get.assert_called_once_with(Regulation, 999)
         session.execute.assert_not_called()
-
-
-class TestGetRuleById:
-    def test_gets_rule_by_id_from_session(self) -> None:
-        session = MagicMock()
-        expected_rule = MagicMock(spec=Rule)
-        session.execute.return_value.scalar_one_or_none.return_value = expected_rule
-
-        result = get_rule_by_id(session, 20)
-
-        stmt = session.execute.call_args.args[0]
-        assert "JOIN regulations" in str(stmt)
-        assert "rules.id = :id_1" in str(stmt)
-        assert result is expected_rule
-
-    def test_returns_none_when_rule_is_not_found(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalar_one_or_none.return_value = None
-
-        result = get_rule_by_id(session, 999)
-
-        session.execute.assert_called_once()
-        assert result is None
-
-    def test_includes_archived_rule_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            rule_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_rule_by_id(sqlite_session, 5)
-
-        assert result is not None
-        assert result.archive_reason == "closed"
-
-    def test_returns_none_when_archived_rule_excluded(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            rule_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_rule_by_id(sqlite_session, 5, include_archived=False)
-
-        assert result is None
 
 
 class TestPostNewRule:

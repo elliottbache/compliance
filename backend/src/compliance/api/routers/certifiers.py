@@ -9,7 +9,6 @@ from compliance.api.schemas import (
 from compliance.services.certifiers import (
     CertifierConflictError,
     CertifierOrganizationNameConflictError,
-    get_certifier_by_id,
     get_certifiers,
     post_certifier_archived_by_id,
     post_certifier_restored_by_id,
@@ -42,36 +41,6 @@ def get_certifiers_route(
         session, limit=limit, offset=offset, include_archived=include_archived
     )
     return [CertifierOut.model_validate(certifier) for certifier in certifiers]
-
-
-@router.get("/{certifier_id}")
-def get_certifiers_by_id_route(
-    session: SessionDep,
-    certifier_id: Annotated[int, Path(ge=1)],
-    include_archived: Annotated[bool, Query()] = True,
-) -> CertifierOut:
-    """Return one certifier by ID.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        certifier_id: Primary key for the certifier.
-        include_archived: When true, return archived certifiers.
-
-    Returns:
-        Certifier record serialized with the public API response schema.
-
-    Raises:
-        HTTPException: If no visible certifier exists for the requested ID.
-    """
-    result = get_certifier_by_id(
-        session, certifier_id, include_archived=include_archived
-    )
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail=f"Certifier {certifier_id} not found."
-        )
-
-    return CertifierOut.model_validate(result)
 
 
 @router.post("", status_code=201)

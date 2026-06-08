@@ -2,15 +2,10 @@ from compliance.services.sites.attachments import (
     _format_site_attachments,
     get_site_attachments,
 )
-from compliance.services.sites.certifications import (
-    format_site_certifications,
-    get_site_certifications,
-)
 from compliance.services.sites.crud import (
     SiteClientNotFoundError,
     SiteConflictError,
     SiteNotFoundError,
-    get_site_by_id,
     get_sites,
     post_new_site,
     post_site_archived_by_id,
@@ -29,10 +24,7 @@ __all__ = [
     "_build_finding_history_from_site_history",
     "_format_site_attachments",
     "_format_site_history",
-    "format_site_certifications",
     "get_site_attachments",
-    "get_site_by_id",
-    "get_site_certifications",
     "get_site_history",
     "get_sites",
     "post_new_site",

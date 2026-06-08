@@ -7,7 +7,6 @@ from compliance.services.clients import (
     ClientCompanyNameConflictError,
     ClientConflictError,
     ClientNifConflictError,
-    get_client_by_nif,
     get_clients,
     post_client_archived_by_nif,
     post_client_restored_by_nif,
@@ -85,52 +84,6 @@ class TestGetClients:
 
         returned_nifs = {client.nif for client in clients}
         assert returned_nifs == {"A1234567B", "B1234567C"}
-
-
-class TestGetClientByNif:
-    def test_returns_client_when_found(self, client_row_factory) -> None:
-        session = MagicMock()
-        client = client_row_factory()
-        session.get.return_value = client
-
-        result = get_client_by_nif(session, "A1234567B")
-
-        assert result is client
-        session.get.assert_called_once_with(Client, "A1234567B")
-
-    def test_returns_none_when_client_is_not_found(self) -> None:
-        session = MagicMock()
-        session.get.return_value = None
-
-        result = get_client_by_nif(session, "A1234567B")
-
-        assert result is None
-        session.get.assert_called_once_with(Client, "A1234567B")
-
-    def test_includes_archived_client_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            client_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-        result = get_client_by_nif(sqlite_session, "A1234567B")
-
-        assert result is not None
-        assert result.archived_at is not None
-
-    def test_returns_none_when_archived_client_excluded(
-        self, client_row_factory
-    ) -> None:
-        session = MagicMock()
-        client = client_row_factory(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = client
-
-        result = get_client_by_nif(session, "A1234567B", include_archived=False)
-
-        assert result is None
 
 
 class TestPostNewClient:

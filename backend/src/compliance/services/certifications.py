@@ -1,29 +1,21 @@
 import logging
-from collections.abc import Mapping, Sequence
 
 from compliance.db.models import (
-    Attachment,
     Certification,
     Certifier,
     Client,
-    Finding,
-    FindingAttachment,
     Regulation,
-    Rule,
     Site,
     User,
 )
-from compliance.services.attachments.formatting import format_attachment
 from compliance.services.lifecycle import (
     archive_record_by_id,
-    certification_parent_chain_is_visible,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
 )
 from compliance.services.schemas import (
     ArchiveRequest,
-    CertificationAttachmentsOut,
     CertificationCreate,
     CertificationOut,
 )
@@ -135,111 +127,6 @@ def get_certifications(
     ]
 
 
-def get_certification_by_id(
-    session: Session, certification_id: int, *, include_archived: bool = True
-) -> Certification | None:
-    """Return one certification when it and its required parents are visible."""
-    stmt = (
-        select(Certification)
-        .where(Certification.id == certification_id)
-        .join(Certification.certification_site_rel)
-        .join(Site.site_client_rel)
-        .join(Certification.certification_regulation_rel)
-        .join(Certification.certification_certifier_rel)
-    )
-    if not include_archived:
-        stmt = stmt.where(Certification.archived_at.is_(None))
-        stmt = stmt.where(Site.archived_at.is_(None))
-        stmt = stmt.where(Client.archived_at.is_(None))
-        stmt = stmt.where(Regulation.archived_at.is_(None))
-        stmt = stmt.where(Certifier.archived_at.is_(None))
-
-    return session.execute(stmt).scalar_one_or_none()
-
-
-def get_certification_attachments_by_id(
-    session: Session, certification_id: int, *, include_archived: bool = False
-) -> CertificationAttachmentsOut | None:
-    """Retrieve attachment records for one certification.
-
-    Checks that the certification exists before querying its attachments so a
-    missing certification can be distinguished from an existing certification
-    with no attachment records.
-
-    Args:
-        session: Database session used to check the certification and execute
-            the attachment query.
-        certification_id: Unique identifier of the certification whose
-            attachments should be retrieved.
-        include_archived: When true, include archived certification, attachment,
-            site, certifier, regulation, rule, and finding records. By default,
-            archived finding and rule rows are omitted from optional link
-            context without hiding otherwise visible attachments.
-
-    Returns:
-        A formatted attachment collection for the visible certification, an
-        empty attachment collection if no visible attachments remain, or
-        ``None`` if no matching visible certification exists.
-    """
-    # check if certification exists
-    certification = session.get(Certification, certification_id)
-    if certification is None or not record_is_visible(certification, include_archived):
-        return None
-
-    if not include_archived and not certification_parent_chain_is_visible(
-        session, certification
-    ):
-        return None
-
-    # get attachments for certification
-    finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
-        Finding.certification_id == FindingAttachment.certification_id
-    )
-    rule_join_condition = Rule.id == Finding.rule_id
-    if not include_archived:
-        finding_join_condition = finding_join_condition & Finding.archived_at.is_(None)
-        rule_join_condition = rule_join_condition & Rule.archived_at.is_(None)
-
-    stmt = (
-        select(
-            Attachment,
-            Certification,
-            Regulation,
-            FindingAttachment,
-            Finding,
-            Rule,
-        )
-        .where(Certification.id == certification_id)
-        .join(Attachment.attachment_certification_rel)
-        .join(Certification.certification_site_rel)
-        .join(Site.site_client_rel)
-        .join(Certification.certification_certifier_rel)
-        .join(Certification.certification_regulation_rel)
-        .outerjoin(
-            FindingAttachment,
-            (FindingAttachment.attachment_id == Attachment.id)
-            & (FindingAttachment.certification_id == Attachment.certification_id),
-        )
-        .outerjoin(Finding, finding_join_condition)
-        .outerjoin(Rule, rule_join_condition)
-        .order_by(Attachment.id, Finding.id)
-    )
-    if not include_archived:
-        stmt = stmt.where(Certification.archived_at.is_(None))
-        stmt = stmt.where(Site.archived_at.is_(None))
-        stmt = stmt.where(Client.archived_at.is_(None))
-        stmt = stmt.where(Certifier.archived_at.is_(None))
-        stmt = stmt.where(Attachment.archived_at.is_(None))
-        stmt = stmt.where(Regulation.archived_at.is_(None))
-
-    results = session.execute(stmt).mappings().all()
-    if results == []:
-        return CertificationAttachmentsOut.model_validate(
-            {"certification_id": certification_id, "attachments": []}
-        )
-    return _format_certification_attachments(results)
-
-
 def post_new_certification(
     session: Session, certification: CertificationCreate
 ) -> Certification:
@@ -338,58 +225,3 @@ def post_certification_restored_by_id(
         exists.
     """
     return restore_record_by_id(session, Certification, certification_id)
-
-
-def _format_certification_attachments(
-    certification_attachment_list: Sequence[Mapping],
-) -> CertificationAttachmentsOut:
-    """Aggregate attachment query rows into a certification-level response.
-
-    Groups rows by attachment and collects linked findings under each
-    attachment so repeated attachment rows do not produce duplicate attachment
-    records.
-
-    Args:
-        certification_attachment_list: Rows from the certification attachment
-            query containing attachment, certification, regulation, finding,
-            link, and rule objects.
-
-    Returns:
-        A certification attachment response containing unique attachments and
-        their finding links.
-
-    Raises:
-        StopIteration: If ``certification_attachment_list`` is empty.
-        ValueError: If the first attachment row is empty.
-    """
-
-    it = iter(certification_attachment_list)
-    try:
-        first_row = next(it)
-    except StopIteration:
-        raise StopIteration("certification_attachment_list is empty") from None
-
-    if not first_row:
-        raise ValueError(
-            f"First attachment row is empty: {certification_attachment_list}"
-        )
-
-    # 1. Group all rows by their Attachment ID
-    rows_by_attachment: dict[int, list[Mapping]] = {}
-    for row in certification_attachment_list:
-        aid = row["Attachment"].id
-        if aid not in rows_by_attachment:
-            rows_by_attachment[aid] = []
-        rows_by_attachment[aid].append(row)
-
-    # 2. Process each group using the single-attachment formatter
-    # We maintain the order of appearance by iterating over the original list
-    # or just use the grouped values.
-    formatted_attachments = [
-        format_attachment(rows) for rows in rows_by_attachment.values()
-    ]
-
-    return CertificationAttachmentsOut(
-        certification_id=first_row["Certification"].id,
-        attachments=formatted_attachments,
-    )

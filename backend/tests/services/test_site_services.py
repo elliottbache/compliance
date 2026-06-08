@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from compliance.db.models import (
-    Certification,
     Client,
     Site,
 )
@@ -18,7 +17,6 @@ from compliance.services.certifications import (
 from compliance.services.schemas import (
     ArchiveRequest,
     SiteAttachmentsOut,
-    SiteCertificationsOut,
     SiteCreate,
 )
 from compliance.services.sites import (
@@ -28,10 +26,7 @@ from compliance.services.sites import (
     _build_finding_history_from_site_history,
     _format_site_attachments,
     _format_site_history,
-    format_site_certifications,
     get_site_attachments,
-    get_site_by_id,
-    get_site_certifications,
     get_site_history,
     get_sites,
     post_new_site,
@@ -295,51 +290,6 @@ class TestGetSites:
         assert certifications == []
 
 
-class TestGetSiteById:
-    def test_gets_site_by_id_from_session(self, sqlite_session, db_factory) -> None:
-        db_factory()
-
-        result = get_site_by_id(sqlite_session, 12)
-
-        assert result.id == 12
-
-    def test_raises_when_site_is_not_found(self, sqlite_session, db_factory) -> None:
-        db_factory()
-
-        with pytest.raises(SiteNotFoundError):
-            get_site_by_id(sqlite_session, 999)
-
-    def test_includes_archived_site_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            site_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_site_by_id(sqlite_session, 12)
-
-        assert result is not None
-        assert result.archive_reason == "closed"
-
-    def test_returns_archived_site_when_requested(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            site_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_site_by_id(sqlite_session, 12, include_archived=True)
-
-        assert result.id == 12
-        assert result.archive_reason == "closed"
-
-
 class TestPostNewSite:
     def test_adds_and_commits_new_site(self) -> None:
         session = MagicMock()
@@ -386,108 +336,6 @@ class TestPostNewSite:
             post_new_site(session, site)
 
         session.rollback.assert_called_once_with()
-
-
-class TestGetSiteCertifications:
-    def test_returns_certifications_for_site(self) -> None:
-        session = MagicMock()
-        expected_certifications = [
-            MagicMock(spec=Certification),
-            MagicMock(spec=Certification),
-        ]
-        session.execute.return_value.scalars.return_value.all.return_value = (
-            expected_certifications
-        )
-
-        result = get_site_certifications(session, 12, limit=None, offset=0)
-
-        session.execute.assert_called_once()
-        assert result == expected_certifications
-
-    def test_returns_empty_list_when_site_has_no_certifications(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
-
-        result = get_site_certifications(session, 999, limit=None, offset=0)
-
-        session.execute.assert_called_once()
-        assert result == []
-
-    def test_orders_certifications_by_resolution_date_desc_then_id(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = [
-            MagicMock(spec=Certification)
-        ]
-
-        get_site_certifications(session, 12, limit=None, offset=0)
-
-        stmt = session.execute.call_args.args[0]
-        assert "ORDER BY certifications.resolution_date DESC, certifications.id" in str(
-            stmt
-        )
-
-    def test_applies_limit_and_offset_to_query(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = [
-            MagicMock(spec=Certification)
-        ]
-
-        get_site_certifications(session, 12, limit=10, offset=20)
-
-        stmt = session.execute.call_args.args[0]
-        statement_text = str(stmt)
-        assert "LIMIT" in statement_text
-        assert "OFFSET" in statement_text
-
-    def test_excludes_archived_certifications_by_default(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
-
-        get_site_certifications(session, 12, limit=None, offset=0)
-
-        stmt = session.execute.call_args.args[0]
-        assert "certifications.archived_at IS NULL" in str(stmt)
-        assert "sites.archived_at IS NULL" in str(stmt)
-
-    def test_raises_when_site_is_archived_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            site_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        with pytest.raises(SiteNotFoundError):
-            get_site_certifications(sqlite_session, 12, limit=None, offset=0)
-
-    def test_includes_archived_certifications_when_requested(self) -> None:
-        session = MagicMock()
-        session.execute.return_value.scalars.return_value.all.return_value = []
-
-        get_site_certifications(
-            session, 12, limit=None, offset=0, include_archived=True
-        )
-
-        stmt = session.execute.call_args.args[0]
-        assert "certifications.archived_at IS NULL" not in str(stmt)
-        assert "findings.archived_at IS NULL" not in str(stmt)
-        assert "rules.archived_at IS NULL" not in str(stmt)
-        assert "sites.archived_at IS NULL" not in str(stmt)
-
-
-class TestFormatSiteCertifications:
-    def test_wraps_certifications_in_site_response(
-        self, certification_row_factory
-    ) -> None:
-        certifications = [certification_row_factory()]
-
-        result = format_site_certifications(12, certifications)
-
-        assert result == SiteCertificationsOut.model_validate(
-            {"site_id": 12, "certifications": certifications}
-        )
 
 
 class TestGetSiteHistoryForSite:

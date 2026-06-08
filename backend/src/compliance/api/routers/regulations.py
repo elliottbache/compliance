@@ -9,7 +9,6 @@ from compliance.api.schemas import (
 from compliance.services.regulations import (
     RegulationConflictError,
     RegulationTitleConflictError,
-    get_regulation_by_id,
     get_regulations,
     post_new_regulation,
     post_regulation_archived_by_id,
@@ -59,37 +58,6 @@ def get_regulations_route(
         )
 
     return regulations_list
-
-
-@router.get("/{regulation_id}")
-def get_regulation_by_id_route(
-    session: SessionDep,
-    regulation_id: int,
-    include_archived: Annotated[bool, Query()] = True,
-) -> RegulationOut:
-    """Return one regulation by ID.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        regulation_id: Unique identifier for the regulation to retrieve.
-        include_archived: When true, return archived regulations.
-
-    Returns:
-        Regulation details serialized with the public API response schema.
-
-    Raises:
-        HTTPException: If no visible regulation exists for the requested ID.
-    """
-    regulation = get_regulation_by_id(
-        session, regulation_id, include_archived=include_archived
-    )
-    if regulation is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No regulation for this id found: {regulation_id}",
-        )
-
-    return RegulationOut.model_validate(regulation)
 
 
 @router.post("", status_code=201)

@@ -7,7 +7,6 @@ from compliance.api.deps import SessionDep
 from compliance.api.schemas import (
     ArchiveRequest,
     SiteAttachmentsOut,
-    SiteCertificationsOut,
     SiteCreate,
     SiteOut,
 )
@@ -20,10 +19,7 @@ from compliance.services.sites import (
     SiteClientNotFoundError,
     SiteConflictError,
     SiteNotFoundError,
-    format_site_certifications,
     get_site_attachments,
-    get_site_by_id,
-    get_site_certifications,
     get_site_history,
     get_sites,
     post_new_site,
@@ -69,40 +65,6 @@ def get_sites_route(
         raise HTTPException(status_code=404, detail=f"No client with this NIF: {nif}.")
 
     return [SiteOut.model_validate(site) for site in sites]
-
-
-@router.get("/{site_id}")
-def get_site_by_id_route(
-    session: SessionDep,
-    site_id: int,
-    include_archived: Annotated[bool, Query()] = True,
-) -> SiteOut:
-    """Return one site by ID.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        site_id: Unique identifier for the site to retrieve.
-        include_archived: When true, return archived sites and archived parent
-            clients.
-
-    Returns:
-        Site details serialized with the public API response schema.
-
-    Raises:
-        HTTPException: If no visible site exists for the requested ID.
-    """
-    try:
-        site = get_site_by_id(session, site_id, include_archived=include_archived)
-    except SiteNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"No site for this id found: {site_id}."
-        ) from err
-    except SiteClientNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"No client for this NIF found {site_id}."
-        ) from err
-
-    return SiteOut.model_validate(site)
 
 
 @router.get("/{site_id}/attachments")
@@ -151,56 +113,6 @@ def get_site_attachments_route(
         return SiteAttachmentsOut(site_id=site_id, attachments=list())
 
     return SiteAttachmentsOut.model_validate(site_attachments)
-
-
-@router.get("/{site_id}/certifications")
-def get_site_certifications_route(
-    session: SessionDep,
-    site_id: int,
-    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    include_archived: Annotated[bool, Query()] = False,
-) -> SiteCertificationsOut:
-    """Return certifications for one site.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        site_id: Unique identifier for the site whose certifications should be
-            retrieved.
-        limit: Maximum number of certifications to return. If omitted, all
-            matching certifications are returned.
-        offset: Number of matching certifications to skip before returning
-            results.
-        include_archived: When true, include archived site, parent client, and
-            certification records.
-
-    Returns:
-        Site certifications serialized with the public API response schema, or
-        an empty certification list when the site exists without certifications.
-
-    Raises:
-        HTTPException: If no visible site exists for the requested ID, or if
-            the site's parent client is not visible.
-    """
-
-    try:
-        results = get_site_certifications(
-            session,
-            site_id,
-            limit=limit,
-            offset=offset,
-            include_archived=include_archived,
-        )
-    except SiteNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"No site for this id found: {site_id}."
-        ) from err
-    except SiteClientNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"No client for this site found: {site_id}."
-        ) from err
-
-    return format_site_certifications(site_id, results)
 
 
 @router.get("/{site_id}/history")

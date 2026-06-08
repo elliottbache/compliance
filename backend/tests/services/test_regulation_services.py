@@ -6,7 +6,6 @@ from compliance.db.models import Certifier, Regulation
 from compliance.services.regulations import (
     RegulationConflictError,
     RegulationTitleConflictError,
-    get_regulation_by_id,
     get_regulations,
     post_new_regulation,
     post_regulation_archived_by_id,
@@ -115,56 +114,6 @@ class TestGetRegulations:
         assert result is None
         session.get.assert_called_once_with(Certifier, 999)
         session.execute.assert_not_called()
-
-
-class TestGetRegulationById:
-    def test_gets_regulation_by_id_from_session(self) -> None:
-        session = MagicMock()
-        expected_regulation = MagicMock(spec=Regulation)
-        session.get.return_value = expected_regulation
-
-        result = get_regulation_by_id(session, 3)
-
-        session.get.assert_called_once_with(Regulation, 3)
-        assert result is expected_regulation
-
-    def test_returns_none_when_regulation_is_not_found(self) -> None:
-        session = MagicMock()
-        session.get.return_value = None
-
-        result = get_regulation_by_id(session, 999)
-
-        session.get.assert_called_once_with(Regulation, 999)
-        assert result is None
-
-    def test_includes_archived_regulation_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            regulation_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_regulation_by_id(sqlite_session, 3)
-
-        assert result is not None
-        assert result.archive_reason == "closed"
-
-    def test_returns_none_when_archived_regulation_excluded(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            regulation_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_regulation_by_id(sqlite_session, 3, include_archived=False)
-
-        assert result is None
 
 
 class TestPostNewRegulation:
@@ -310,13 +259,6 @@ class TestPostRegulationArchiveRestoreIntegration:
         self, monkeypatch, sqlite_session, db_factory, assert_archive_restore_round_trip
     ) -> None:
         db_factory()
-        monkeypatch.setattr(
-            "compliance.services.regulations.get_regulation_by_id",
-            lambda session_arg, regulation_id, *, include_archived: session_arg.get(
-                Regulation, regulation_id
-            ),
-        )
-
         assert_archive_restore_round_trip(
             sqlite_session,
             3,

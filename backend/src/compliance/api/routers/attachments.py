@@ -16,7 +16,6 @@ from compliance.services.attachments import (
     AttachmentNotFoundError,
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
-    get_attachment_by_id,
     get_attachment_download,
     get_attachments,
     post_attachment_archived_by_id,
@@ -85,38 +84,6 @@ def get_attachments_route(
         ) from err
 
     return attachments
-
-
-@router.get("/{attachment_id}")
-def get_attachment_by_id_route(
-    session: SessionDep,
-    attachment_id: int,
-    include_archived: Annotated[bool, Query()] = True,
-) -> AttachmentWithContextOut:
-    """Return one attachment with certification, regulation, and finding context.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        attachment_id: Unique identifier for the attachment to retrieve.
-        include_archived: When true, return archived attachments and related
-            certification, site, regulation, finding, and rule context.
-
-    Returns:
-        Attachment details serialized with certification, regulation, and
-        linked finding context.
-
-    Raises:
-        HTTPException: If no visible attachment exists for the requested ID.
-    """
-    result = get_attachment_by_id(
-        session, attachment_id, include_archived=include_archived
-    )
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail=f"Attachment {attachment_id} not found."
-        )
-
-    return AttachmentWithContextOut.model_validate(result)
 
 
 @router.get("/{attachment_id}/download")

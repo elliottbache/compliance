@@ -4,7 +4,6 @@ from compliance.db.models import (
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
-    record_is_visible,
     restore_record_by_id,
 )
 from compliance.services.schemas import (
@@ -49,23 +48,6 @@ def get_clients(
 
     stmt = stmt.order_by(Client.company_name, Client.nif).limit(limit).offset(offset)
     return list(session.execute(stmt).scalars().all())
-
-
-def get_client_by_nif(
-    session: Session, nif: str, *, include_archived: bool = True
-) -> Client | None:
-    """Retrieve one client by NIF.
-
-    Args:
-        session: Database session used to retrieve the client.
-        nif: Unique fiscal identifier for the client.
-        include_archived: When true, return archived clients.
-
-    Returns:
-        Client ORM object, or ``None`` if no matching visible client exists.
-    """
-    client = session.get(Client, nif)
-    return client if record_is_visible(client, include_archived) else None
 
 
 def post_new_client(session: Session, client: ClientCreate) -> Client:

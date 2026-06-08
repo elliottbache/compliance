@@ -64,26 +64,6 @@ def get_sites(
     return list(session.execute(stmt).scalars().all())
 
 
-def get_site_by_id(
-    session: Session, site_id: int, *, include_archived: bool = True
-) -> Site:
-    """Return one site by primary key when it and its parent client are visible."""
-    site = session.get(Site, site_id)
-    if site is None or not record_is_visible(site, include_archived):
-        raise SiteNotFoundError(site)
-
-    client = session.get(Client, site.nif)
-    if not record_is_visible(client, include_archived):
-        raise SiteClientNotFoundError(client)
-
-    stmt = select(Site).where(Site.id == site_id).join(Site.site_client_rel)
-    if not include_archived:
-        stmt = stmt.where(Site.archived_at.is_(None))
-        stmt = stmt.where(Client.archived_at.is_(None))
-
-    return session.execute(stmt).scalar_one()
-
-
 def post_new_site(session: Session, site: SiteCreate) -> Site:
     """Persist a new site record.
 

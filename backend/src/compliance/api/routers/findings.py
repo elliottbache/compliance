@@ -13,7 +13,6 @@ from compliance.services.findings import (
     FindingMissingCertificationError,
     FindingMissingRuleError,
     FindingMissingSiteError,
-    get_finding_by_id,
     get_findings,
     post_finding_archived_by_id,
     post_finding_restored_by_id,
@@ -83,37 +82,6 @@ def get_findings_route(
         ) from err
 
     return findings
-
-
-@router.get("/{finding_id}")
-def get_finding_by_id_route(
-    session: SessionDep,
-    finding_id: int,
-    include_archived: Annotated[bool, Query()] = True,
-) -> FindingOut:
-    """Return one finding by ID.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        finding_id: Unique identifier for the finding to retrieve.
-        include_archived: When true, return archived findings and related
-            certification, site, regulation, rule, and attachment context.
-
-    Returns:
-        Finding details serialized with certification, regulation, rule, and
-        linked attachment context.
-
-    Raises:
-        HTTPException: If no visible finding exists for the requested ID.
-    """
-    finding = get_finding_by_id(session, finding_id, include_archived=include_archived)
-    if finding is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No finding for this id found: {finding_id}",
-        )
-
-    return finding
 
 
 @router.post("", status_code=201)

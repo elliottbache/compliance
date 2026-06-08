@@ -82,18 +82,6 @@ def get_rules(
     return [RuleOut.model_validate(rule) for rule in rules]
 
 
-def get_rule_by_id(
-    session: Session, rule_id: int, *, include_archived: bool = True
-) -> Rule | None:
-    """Return one rule when it and its parent regulation are visible."""
-    stmt = select(Rule).where(Rule.id == rule_id).join(Rule.rule_regulation_rel)
-    if not include_archived:
-        stmt = stmt.where(Rule.archived_at.is_(None))
-        stmt = stmt.where(Regulation.archived_at.is_(None))
-
-    return session.execute(stmt).scalar_one_or_none()
-
-
 def post_new_rule(session: Session, rule: RuleCreate) -> Rule:
     """Persist a new rule record.
 

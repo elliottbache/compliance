@@ -6,7 +6,6 @@ from compliance.db.models import Certifier
 from compliance.services.certifiers import (
     CertifierConflictError,
     CertifierOrganizationNameConflictError,
-    get_certifier_by_id,
     get_certifiers,
     post_certifier_archived_by_id,
     post_certifier_restored_by_id,
@@ -84,51 +83,6 @@ class TestGetCertifiers:
 
         returned_ids = {certifier.id for certifier in certifiers}
         assert returned_ids == {7, 11}
-
-
-class TestGetCertifierById:
-    def test_returns_certifier_when_found(self) -> None:
-        session = MagicMock()
-        certifier = _certifier()
-        session.get.return_value = certifier
-
-        result = get_certifier_by_id(session, 10)
-
-        assert result is certifier
-        session.get.assert_called_once_with(Certifier, 10)
-
-    def test_returns_none_when_certifier_is_not_found(self) -> None:
-        session = MagicMock()
-        session.get.return_value = None
-
-        result = get_certifier_by_id(session, 10)
-
-        assert result is None
-        session.get.assert_called_once_with(Certifier, 10)
-
-    def test_include_archived_certifier_by_default(
-        self, sqlite_session, db_factory
-    ) -> None:
-        db_factory(
-            certifier_overrides={
-                "archived_at": datetime.now(UTC),
-                "archive_reason": "closed",
-            },
-        )
-
-        result = get_certifier_by_id(sqlite_session, 7)
-
-        assert result is not None
-        assert result.archive_reason == "closed"
-
-    def test_returns_none_when_archived_certifier_excluded(self) -> None:
-        session = MagicMock()
-        certifier = _certifier(archived_at=datetime(2026, 5, 7))
-        session.get.return_value = certifier
-
-        result = get_certifier_by_id(session, 10, include_archived=False)
-
-        assert result is None
 
 
 class TestPostNewCertifier:

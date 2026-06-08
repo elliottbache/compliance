@@ -4,7 +4,6 @@ from compliance.db.models import (
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
-    record_is_visible,
     restore_record_by_id,
 )
 from compliance.services.schemas import (
@@ -49,23 +48,6 @@ def get_certifiers(
         .offset(offset)
     )
     return list(session.execute(stmt).scalars().all())
-
-
-def get_certifier_by_id(
-    session: Session, certifier_id: int, *, include_archived: bool = True
-) -> Certifier | None:
-    """Retrieve one certifier by ID.
-
-    Args:
-        session: Database session used to retrieve the certifier.
-        certifier_id: Primary key for the certifier.
-        include_archived: When true, return archived certifiers.
-
-    Returns:
-        Certifier ORM object, or ``None`` if no matching visible certifier exists.
-    """
-    certifier = session.get(Certifier, certifier_id)
-    return certifier if record_is_visible(certifier, include_archived) else None
 
 
 def post_new_certifier(session: Session, certifier: CertifierCreate) -> Certifier:

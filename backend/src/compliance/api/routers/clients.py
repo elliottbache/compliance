@@ -5,19 +5,16 @@ from compliance.api.schemas import (
     ArchiveRequest,
     ClientCreate,
     ClientOut,
-    SiteOut,
 )
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
     ClientConflictError,
     ClientNifConflictError,
-    get_client_by_nif,
     get_clients,
     post_client_archived_by_nif,
     post_client_restored_by_nif,
     post_new_client,
 )
-from compliance.services.sites import get_sites
 from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -45,66 +42,6 @@ def get_clients_route(
         session, limit=limit, offset=offset, include_archived=include_archived
     )
     return [ClientOut.model_validate(client) for client in clients]
-
-
-@router.get("/{nif}")
-def get_clients_by_nif_route(
-    session: SessionDep,
-    nif: Annotated[str, Path(min_length=9, max_length=9)],
-    include_archived: Annotated[bool, Query()] = True,
-) -> ClientOut:
-    """Return one client by NIF.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        nif: Unique fiscal identifier for the client.
-        include_archived: When true, return archived clients.
-
-    Returns:
-        Client record serialized with the public API response schema.
-
-    Raises:
-        HTTPException: If no visible client exists for the requested NIF.
-    """
-    result = get_client_by_nif(session, nif, include_archived=include_archived)
-    if result is None:
-        raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
-
-    return ClientOut.model_validate(result)
-
-
-@router.get("/{nif}/sites")
-def get_client_sites_route(
-    session: SessionDep,
-    nif: Annotated[str, Path(min_length=9, max_length=9)],
-    include_archived: Annotated[bool, Query()] = False,
-) -> list[SiteOut]:
-    """Return sites for one client by NIF.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        nif: Unique fiscal identifier for the client whose sites should be
-            retrieved.
-        include_archived: When true, include archived client and site records.
-
-    Returns:
-        Site records serialized with the public API response schema, or an
-        empty list when the client exists without sites.
-
-    Raises:
-        HTTPException: If no visible client exists for the requested NIF.
-    """
-    client = get_client_by_nif(session, nif, include_archived=include_archived)
-    if client is None:
-        raise HTTPException(status_code=404, detail=f"Client {nif} not found.")
-
-    sites = get_sites(
-        session, nif=nif, limit=None, offset=0, include_archived=include_archived
-    )
-    if sites is None:
-        return []
-
-    return [SiteOut.model_validate(site) for site in sites]
 
 
 @router.post("", status_code=201)

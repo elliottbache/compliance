@@ -84,14 +84,6 @@ def get_regulations(
     return [RegulationOut.model_validate(regulation) for regulation in regulations]
 
 
-def get_regulation_by_id(
-    session: Session, regulation_id: int, *, include_archived: bool = True
-) -> Regulation | None:
-    """Return one regulation by primary key when it is visible."""
-    regulation = session.get(Regulation, regulation_id)
-    return regulation if record_is_visible(regulation, include_archived) else None
-
-
 def post_new_regulation(session: Session, regulation: RegulationCreate) -> Regulation:
     """Persist a new regulation record.
 

@@ -10,7 +10,6 @@ from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
     RuleRegulationNotFoundError,
-    get_rule_by_id,
     get_rules,
     post_new_rule,
     post_rule_archived_by_id,
@@ -60,36 +59,6 @@ def get_rules_route(
         )
 
     return rules_list
-
-
-@router.get("/{rule_id}")
-def get_rule_by_id_route(
-    session: SessionDep,
-    rule_id: int,
-    include_archived: Annotated[bool, Query()] = True,
-) -> RuleOut:
-    """Return one rule by ID.
-
-    Args:
-        session: Database session provided by FastAPI dependency injection.
-        rule_id: Unique identifier for the rule to retrieve.
-        include_archived: When true, return archived rules and archived parent
-            regulations.
-
-    Returns:
-        Rule details serialized with the public API response schema.
-
-    Raises:
-        HTTPException: If no visible rule exists for the requested ID.
-    """
-    rule = get_rule_by_id(session, rule_id, include_archived=include_archived)
-    if rule is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No rule for this id found: {rule_id}",
-        )
-
-    return RuleOut.model_validate(rule)
 
 
 @router.post("", status_code=201)
