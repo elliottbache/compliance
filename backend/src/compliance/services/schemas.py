@@ -17,6 +17,8 @@ class UserCreate(BaseModel):
 
     full_name: str = Field(min_length=1, max_length=80)
     email: EmailStr
+    role: Role = Role.VIEWER
+    is_active: bool = True
 
 
 class UserOut(UserCreate):
@@ -25,8 +27,6 @@ class UserOut(UserCreate):
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
     id: int
-    role: Role = Role.VIEWER
-    is_active: bool = True
     created_at: AwareDatetime
 
 

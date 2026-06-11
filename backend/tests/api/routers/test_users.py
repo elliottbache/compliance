@@ -147,13 +147,20 @@ class TestPostNewUserRoute:
             assert session is mock_db
             assert user_record.full_name == "Alice Inspector"
             assert user_record.email == "alice@example.com"
-            return _user_record()
+            assert user_record.role == Role.ADMIN
+            assert user_record.is_active is False
+            return _user_record(role=Role.ADMIN, is_active=False)
 
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
         response = client.post(
             "/users",
-            json={"full_name": "Alice Inspector", "email": "alice@example.com"},
+            json={
+                "full_name": "Alice Inspector",
+                "email": "alice@example.com",
+                "role": "admin",
+                "is_active": False,
+            },
         )
 
         assert response.status_code == 201
@@ -161,8 +168,8 @@ class TestPostNewUserRoute:
             "id": 10,
             "full_name": "Alice Inspector",
             "email": "alice@example.com",
-            "role": "viewer",
-            "is_active": True,
+            "role": "admin",
+            "is_active": False,
             "created_at": "2026-06-05T10:00:00Z",
         }
 
@@ -217,12 +224,18 @@ class TestPostNewUserRoute:
         user = users_router.UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            role=Role.ADMIN,
+            is_active=False,
         )
-        expected_user = users_router.UserOut.model_validate(_user_record())
+        expected_user = users_router.UserOut.model_validate(
+            _user_record(role=Role.ADMIN, is_active=False)
+        )
 
         def fake_post_new_user(session, user_info):
             assert session is fake_session
             assert user_info is user
+            assert user_info.role == Role.ADMIN
+            assert user_info.is_active is False
             return expected_user
 
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)

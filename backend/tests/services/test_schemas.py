@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
 
 import pytest
-from compliance.services.schemas import ClientOut
+from compliance.db.models import Role
+from compliance.services.schemas import ClientOut, UserCreate, UserOut
 from pydantic import ValidationError
 
 
@@ -30,3 +31,37 @@ class TestClientOut:
         client = ClientOut(**_client_payload(archived_at=archived_at))
 
         assert client.archived_at == archived_at
+
+
+class TestUserCreate:
+    def test_defaults_role_and_active_status(self) -> None:
+        user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
+
+        assert user.role == Role.VIEWER
+        assert user.is_active is True
+
+    def test_accepts_role_and_active_status(self) -> None:
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            role=Role.ADMIN,
+            is_active=False,
+        )
+
+        assert user.role == Role.ADMIN
+        assert user.is_active is False
+
+
+class TestUserOut:
+    def test_inherits_user_create_fields(self) -> None:
+        user = UserOut(
+            id=10,
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            role=Role.REVIEWER,
+            is_active=False,
+            created_at=datetime(2026, 6, 5, 10, 0, tzinfo=UTC),
+        )
+
+        assert user.role == Role.REVIEWER
+        assert user.is_active is False

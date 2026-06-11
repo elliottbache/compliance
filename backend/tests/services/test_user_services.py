@@ -74,8 +74,6 @@ class TestPostNewUser:
 
         def _populate_defaults(added_user: User) -> None:
             added_user.id = 10
-            added_user.role = Role.VIEWER
-            added_user.is_active = True
 
         session.add.side_effect = _populate_defaults
         user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
@@ -93,6 +91,28 @@ class TestPostNewUser:
         assert added_user.role == Role.VIEWER
         assert added_user.is_active is True
         assert added_user.created_at.tzinfo is UTC
+
+    def test_uses_supplied_role_and_active_status(self) -> None:
+        session = MagicMock()
+
+        def _populate_id(added_user: User) -> None:
+            added_user.id = 10
+
+        session.add.side_effect = _populate_id
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            role=Role.ADMIN,
+            is_active=False,
+        )
+
+        result = post_new_user(session, user)
+
+        added_user = session.add.call_args.args[0]
+        assert added_user.role == Role.ADMIN
+        assert added_user.is_active is False
+        assert result.role == Role.ADMIN
+        assert result.is_active is False
 
     def test_rolls_back_and_raises_conflict_when_insert_conflicts(
         self, integrity_error_factory
