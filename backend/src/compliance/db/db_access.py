@@ -1,11 +1,12 @@
 from collections.abc import Generator
 from functools import cache
 from os import getenv
-from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import Engine, MetaData, Table, create_engine
 from sqlalchemy.orm import Session
+
+from compliance._helpers import ROOT_DIR
 
 convention = {
     "ix": "ix_%(column_0_label)s",
@@ -17,8 +18,7 @@ convention = {
 
 metadata = MetaData(naming_convention=convention)
 
-_ROOT_DIR = Path(__file__).resolve().parents[4]
-_DOTENV_PATH = _ROOT_DIR / "backend" / ".env"
+_DOTENV_PATH = ROOT_DIR / "backend" / ".env"
 
 
 def get_db() -> Generator[Session, None, None]:

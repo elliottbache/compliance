@@ -1,9 +1,12 @@
 import logging
+from pathlib import Path
 
 from compliance.llm.schemas import EvidenceRef, SiteAnalysis
 from compliance.schemas import SiteHistory
 
 logger = logging.getLogger(__name__)
+
+ROOT_DIR = Path(__file__).resolve().parents[3]
 
 
 def validate_llm_references(

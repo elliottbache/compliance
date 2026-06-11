@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -16,13 +15,14 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
 
+from compliance._helpers import ROOT_DIR
+
 _MAX_TOKENS = 5000
 _DEFAULT_PROMPT_VERSION = "v0.1"
 _DEFAULT_AI_MODEL = "claude-haiku-4-5-20251001"
 
 logger = logging.getLogger(__name__)
-_ROOT_DIR = Path(__file__).resolve().parents[4]
-_DOTENV_PATH = _ROOT_DIR / "backend" / ".env"
+_DOTENV_PATH = ROOT_DIR / "backend" / ".env"
 
 
 class LLMStopReasonError(RuntimeError):

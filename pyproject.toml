@@ -16,6 +16,7 @@ keywords = ["database", "compliance", "AI", "LLM"]
 
 dependencies = [
   "pydantic==2.10.6",
+  "pydantic-settings==2.14.0",
   "anthropic==0.96.0",
   "sqlalchemy==2.0.38",
   "psycopg2-binary==2.9.10",
@@ -23,7 +24,9 @@ dependencies = [
   "fastapi[standard]==0.129.2",
   "python-multipart==0.0.20",
   "alembic==1.18.4",
-  "tenacity==9.1.2"
+  "tenacity==9.1.2",
+  "pwdlib[argon2]==0.3.0",
+  "pyjwt==2.13.0",
 ]
 
 # Optional extras for dev tools
