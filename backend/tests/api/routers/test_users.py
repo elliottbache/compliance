@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 from compliance.api.routers import users as users_router
+from compliance.auth import authorization as authorization_module
 from compliance.db.models import Role
 from fastapi import HTTPException
 
@@ -18,6 +19,20 @@ def _user_record(**overrides):
     )
     user.__dict__.update(**overrides)
     return user
+
+
+@pytest.fixture
+def admin_user_override(main_module):
+    def _get_current_user():
+        return _user_record(role=Role.ADMIN)
+
+    main_module.app.dependency_overrides[authorization_module.get_current_user] = (
+        _get_current_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(
+        authorization_module.get_current_user, None
+    )
 
 
 class TestGetUsersRoute:
@@ -125,7 +140,9 @@ class TestGetUsersRoute:
 
 class TestPostNewUserRoute:
     # TestClient
-    def test_route_returns_user_json_when_created(self, client, mock_db, monkeypatch):
+    def test_route_returns_user_json_when_created(
+        self, client, mock_db, admin_user_override, monkeypatch
+    ):
         def fake_post_new_user(session, user_record):
             assert session is mock_db
             assert user_record.full_name == "Alice Inspector"
@@ -150,7 +167,7 @@ class TestPostNewUserRoute:
         }
 
     def test_route_returns_409_when_user_email_already_exists(
-        self, client, mock_db, monkeypatch
+        self, client, mock_db, admin_user_override, monkeypatch
     ):
         def fake_post_new_user(session, user_record):
             assert session is mock_db
@@ -168,7 +185,9 @@ class TestPostNewUserRoute:
             "detail": "User with email alice@example.com already exists."
         }
 
-    def test_route_returns_409_when_user_conflicts(self, client, mock_db, monkeypatch):
+    def test_route_returns_409_when_user_conflicts(
+        self, client, mock_db, admin_user_override, monkeypatch
+    ):
         def fake_post_new_user(session, user_record):
             assert session is mock_db
             raise users_router.UserConflictError()
@@ -185,7 +204,7 @@ class TestPostNewUserRoute:
             "detail": "User was not added because of a data conflict."
         }
 
-    def test_route_returns_422_when_user_is_invalid(self, client):
+    def test_route_returns_422_when_user_is_invalid(self, client, admin_user_override):
         response = client.post(
             "/users", json={"full_name": "", "email": "not-an-email"}
         )
@@ -208,7 +227,9 @@ class TestPostNewUserRoute:
 
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
-        result = users_router.post_new_user_route(fake_session, user)
+        result = users_router.post_new_user_route(
+            fake_session, user, current_user=_user_record(role=Role.ADMIN)
+        )
 
         assert result == expected_user
 
@@ -224,7 +245,9 @@ class TestPostNewUserRoute:
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
         with pytest.raises(HTTPException) as exc_info:
-            users_router.post_new_user_route(object(), user)
+            users_router.post_new_user_route(
+                object(), user, current_user=_user_record(role=Role.ADMIN)
+            )
 
         assert exc_info.value.status_code == 409
         assert (
@@ -243,7 +266,9 @@ class TestPostNewUserRoute:
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
         with pytest.raises(HTTPException) as exc_info:
-            users_router.post_new_user_route(object(), user)
+            users_router.post_new_user_route(
+                object(), user, current_user=_user_record(role=Role.ADMIN)
+            )
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "User was not added because of a data conflict."

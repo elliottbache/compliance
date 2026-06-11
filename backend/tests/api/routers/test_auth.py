@@ -13,7 +13,7 @@ def _form_data(username: str, password: str) -> SimpleNamespace:
 class TestPostAuthTokenRoute:
     def test_returns_bearer_token_for_active_user(self) -> None:
         session = object()
-        user = SimpleNamespace(id=42, is_active=True)
+        user = SimpleNamespace(id=42, email="alice@example.com", is_active=True)
 
         with (
             patch(
@@ -34,7 +34,7 @@ class TestPostAuthTokenRoute:
         mock_authenticate_user.assert_called_once_with(
             session, "alice@example.com", "correct-password"
         )
-        mock_create_access_token.assert_called_once_with("42")
+        mock_create_access_token.assert_called_once_with("alice@example.com")
 
     def test_raises_unauthorized_when_credentials_are_invalid(self) -> None:
         session = object()
@@ -57,7 +57,7 @@ class TestPostAuthTokenRoute:
 
     def test_raises_forbidden_when_user_is_inactive(self) -> None:
         session = object()
-        user = SimpleNamespace(id=42, is_active=False)
+        user = SimpleNamespace(id=42, email="alice@example.com", is_active=False)
 
         with (
             patch(

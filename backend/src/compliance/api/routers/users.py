@@ -5,6 +5,9 @@ from compliance.api.schemas import (
     UserCreate,
     UserOut,
 )
+from compliance.auth.authentication import oauth2_scheme
+from compliance.auth.authorization import require_role
+from compliance.db.models import User
 from compliance.services.users import (
     UserConflictError,
     UserEmailConflictError,
@@ -12,11 +15,8 @@ from compliance.services.users import (
     post_new_user,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 @router.get("")
@@ -45,7 +45,11 @@ def get_users_route(
 
 
 @router.post("", status_code=201)
-def post_new_user_route(session: SessionDep, user: UserCreate) -> UserOut:
+def post_new_user_route(
+    session: SessionDep,
+    user: UserCreate,
+    current_user: Annotated[User, Depends(require_role("admin"))],
+) -> UserOut:
     """Create a new user record.
 
     Args:

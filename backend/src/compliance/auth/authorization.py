@@ -1,31 +1,74 @@
-from pydantic import EmailStr
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from collections.abc import Callable
+from typing import Annotated
 
-from compliance.auth.passwords import hash_password, verify_password
-from compliance.db.models import User
+import jwt
+from fastapi import Depends, HTTPException, status
+from jwt.exceptions import InvalidTokenError
+
+from compliance.api.deps import SessionDep
+from compliance.auth.authentication import (
+    TokenData,
+    _get_token_settings,
+    get_user,
+    oauth2_scheme,
+)
+from compliance.db.models import Role
 from compliance.services.schemas import UserInDB
 
-_DUMMY_HASH = hash_password("dummy_password")
 
+def get_current_user(
+    session: SessionDep,
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserInDB:
+    secret_key, algorithm, _ = _get_token_settings()
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        username = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(email=username)
+    except InvalidTokenError as err:
+        raise credentials_exception from err
 
-def get_user(session: Session, email: EmailStr) -> UserInDB | None:
-    """Return a user by email, or None when no matching user exists."""
-    stmt = select(User).where(User.email == email)
-    user = session.execute(stmt).scalars().first()
-
-    return user if user is None else UserInDB.model_validate(user)
-
-
-def authenticate_user(
-    session: Session, email: EmailStr, password: str
-) -> UserInDB | None:
-    """Return the user when supplied credentials are valid."""
-    user = get_user(session, email)
-    if not user:
-        verify_password(password, _DUMMY_HASH)
-        return None
-    if not verify_password(password, user.hashed_password):
-        return None
+    user = get_user(session, token_data.email)
+    if user is None:
+        raise credentials_exception
 
     return user
+
+
+def get_active_user(
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+) -> UserInDB:
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return current_user
+
+
+def require_role(allowed_role: Role | str) -> Callable[..., UserInDB]:
+    allowed_role_value = (
+        allowed_role.value if isinstance(allowed_role, Role) else allowed_role
+    )
+
+    def dependency(
+        user: UserInDB = Depends(get_current_user),  # noqa: B008
+    ) -> UserInDB:
+        if user.role.value != allowed_role_value:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+
+    return dependency

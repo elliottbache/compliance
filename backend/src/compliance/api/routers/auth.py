@@ -1,8 +1,7 @@
 from typing import Annotated
 
 from compliance.api.deps import SessionDep
-from compliance.auth.authorization import authenticate_user
-from compliance.auth.tokens import Token, create_access_token
+from compliance.auth.authentication import Token, authenticate_user, create_access_token
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -29,6 +28,6 @@ def post_auth_token_route(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(str(user.id))
+    access_token = create_access_token(user.email)
 
     return Token(access_token=access_token, token_type=_AUTH_SCHEME)

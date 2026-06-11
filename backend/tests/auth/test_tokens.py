@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
-from compliance.auth import tokens
-from compliance.auth.tokens import (
+from compliance.auth import authentication
+from compliance.auth.authentication import (
     _get_token_settings,
     create_access_token,
     decode_access_token,
@@ -14,7 +14,7 @@ from fastapi import HTTPException
 @pytest.fixture(autouse=True)
 def no_dotenv(monkeypatch):
     monkeypatch.setattr(
-        "compliance.auth.tokens.load_dotenv", lambda *args, **kwargs: None
+        "compliance.auth.authentication.load_dotenv", lambda *args, **kwargs: None
     )
 
 
@@ -41,7 +41,7 @@ class TestGetTokenSettings:
         assert _get_token_settings() == (
             "12345678901234567890123456789012",
             "HS256",
-            tokens._DEFAULT_EXPIRE_MINUTES,
+            authentication._DEFAULT_EXPIRE_MINUTES,
         )
 
     def test_raises_when_secret_key_is_missing(self, monkeypatch) -> None:
@@ -60,19 +60,21 @@ class TestGetTokenSettings:
 
 class TestCreateAccessToken:
     def test_creates_signed_token_with_subject_and_expiration(self, token_env) -> None:
-        token = create_access_token("42", expires_delta=timedelta(minutes=5))
+        token = create_access_token(
+            "alice@example.com", expires_delta=timedelta(minutes=5)
+        )
 
         payload = jwt.decode(
             token,
             "12345678901234567890123456789012",
             algorithms=["HS256"],
         )
-        assert payload["sub"] == "42"
+        assert payload["sub"] == "alice@example.com"
         assert isinstance(payload["exp"], int)
 
     def test_uses_configured_default_expiration(self, token_env) -> None:
         before = datetime.now(UTC)
-        token = create_access_token("42")
+        token = create_access_token("alice@example.com")
         after = datetime.now(UTC)
 
         payload = jwt.decode(
@@ -88,11 +90,11 @@ class TestCreateAccessToken:
 
 class TestDecodeAccessToken:
     def test_returns_token_data_for_valid_token(self, token_env) -> None:
-        token = create_access_token("42")
+        token = create_access_token("alice@example.com")
 
         result = decode_access_token(token)
 
-        assert result.user_id == "42"
+        assert result.email == "alice@example.com"
 
     def test_raises_unauthorized_for_invalid_token(self, token_env) -> None:
         with pytest.raises(HTTPException) as exc_info:
