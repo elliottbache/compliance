@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from enum import Enum as PyEnum
+from enum import StrEnum as PyEnum
 
 from sqlalchemy import (
     CheckConstraint,

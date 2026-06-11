@@ -55,15 +55,11 @@ def get_active_user(
     return current_user
 
 
-def require_role(allowed_role: Role | str) -> Callable[..., UserInDB]:
-    allowed_role_value = (
-        allowed_role.value if isinstance(allowed_role, Role) else allowed_role
-    )
-
+def require_role(allowed_role: Role) -> Callable[..., UserInDB]:
     def dependency(
         user: UserInDB = Depends(get_current_user),  # noqa: B008
     ) -> UserInDB:
-        if user.role.value != allowed_role_value:
+        if user.role != allowed_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",
