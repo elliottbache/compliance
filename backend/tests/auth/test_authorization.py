@@ -171,21 +171,21 @@ class TestGetActiveUser:
 
 
 class TestRequireRole:
-    def test_allows_matching_role_from_string(self) -> None:
-        user = UserInDB.model_validate(_user_record(role=Role.ADMIN))
-        dependency = require_role("admin")
-
-        assert dependency(user) is user
-
-    def test_allows_matching_role_from_enum(self) -> None:
+    def test_allows_matching_role(self) -> None:
         user = UserInDB.model_validate(_user_record(role=Role.REVIEWER))
         dependency = require_role(Role.REVIEWER)
 
         assert dependency(user) is user
 
-    def test_raises_for_non_matching_role(self) -> None:
+    def test_allows_higher_role(self) -> None:
+        user = UserInDB.model_validate(_user_record(role=Role.ADMIN))
+        dependency = require_role(Role.REVIEWER)
+
+        assert dependency(user) is user
+
+    def test_raises_for_lower_role(self) -> None:
         user = UserInDB.model_validate(_user_record(role=Role.VIEWER))
-        dependency = require_role("admin")
+        dependency = require_role(Role.REVIEWER)
 
         with pytest.raises(HTTPException) as exc_info:
             dependency(user)

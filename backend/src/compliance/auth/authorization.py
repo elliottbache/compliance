@@ -15,6 +15,13 @@ from compliance.auth.authentication import (
 from compliance.db.models import Role
 from compliance.services.schemas import UserInDB
 
+_ROLE_RANK = {
+    Role.VIEWER: 0,
+    Role.REVIEWER: 1,
+    Role.INSPECTOR: 2,
+    Role.ADMIN: 3,
+}
+
 
 def get_current_user(
     session: SessionDep,
@@ -55,11 +62,13 @@ def get_active_user(
     return current_user
 
 
-def require_role(allowed_role: Role) -> Callable[..., UserInDB]:
+def require_role(minimum_role: Role) -> Callable[..., UserInDB]:
+    """Return a dependency that requires the given role or a higher role."""
+
     def dependency(
         user: UserInDB = Depends(get_current_user),  # noqa: B008
     ) -> UserInDB:
-        if user.role != allowed_role:
+        if _ROLE_RANK[user.role] < _ROLE_RANK[minimum_role]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",
