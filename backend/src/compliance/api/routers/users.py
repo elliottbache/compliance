@@ -11,14 +11,18 @@ from compliance.services.users import (
     get_users,
     post_new_user,
 )
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.security import OAuth2PasswordBearer
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 @router.get("")
 def get_users_route(
     session: SessionDep,
+    token: Annotated[str, Depends(oauth2_scheme)],
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     include_inactive: Annotated[bool, Query()] = False,

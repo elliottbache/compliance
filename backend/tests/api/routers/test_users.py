@@ -40,7 +40,10 @@ class TestGetUsersRoute:
 
         monkeypatch.setattr(users_router, "get_users", fake_get_users)
 
-        response = client.get("/users?limit=2&offset=1")
+        response = client.get(
+            "/users?limit=2&offset=1",
+            headers={"Authorization": "Bearer test-token"},
+        )
 
         assert response.status_code == 200
         assert response.json() == [
@@ -72,13 +75,19 @@ class TestGetUsersRoute:
 
         monkeypatch.setattr(users_router, "get_users", fake_get_users)
 
-        response = client.get("/users?include_inactive=true")
+        response = client.get(
+            "/users?include_inactive=true",
+            headers={"Authorization": "Bearer test-token"},
+        )
 
         assert response.status_code == 200
         assert response.json()[0]["is_active"] is False
 
     def test_route_returns_422_when_limit_is_invalid(self, client):
-        response = client.get("/users?limit=0")
+        response = client.get(
+            "/users?limit=0",
+            headers={"Authorization": "Bearer test-token"},
+        )
 
         assert response.status_code == 422
 
@@ -97,7 +106,9 @@ class TestGetUsersRoute:
 
         monkeypatch.setattr(users_router, "get_users", fake_get_users)
 
-        result = users_router.get_users_route(fake_session, limit=10, offset=5)
+        result = users_router.get_users_route(
+            fake_session, token="test-token", limit=10, offset=5  # noqa: S106
+        )
 
         assert result == expected_users
 
