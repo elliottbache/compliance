@@ -22,6 +22,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("")
 def get_users_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     token: Annotated[str, Depends(oauth2_scheme)],
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
