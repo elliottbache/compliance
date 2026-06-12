@@ -6,6 +6,8 @@ from compliance.api.schemas import (
     RuleCreate,
     RuleOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.rules import (
     RuleConflictError,
     RuleIndexConflictError,
@@ -15,7 +17,8 @@ from compliance.services.rules import (
     post_rule_archived_by_id,
     post_rule_restored_by_id,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
@@ -23,6 +26,7 @@ router = APIRouter(prefix="/rules", tags=["rules"])
 @router.get("")
 def get_rules_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     regulation_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
