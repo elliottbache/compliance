@@ -31,6 +31,10 @@ class FindingConflictError(Exception):
     """Raised when a finding cannot be created because of a data conflict."""
 
 
+class FindingPermissionError(Exception):
+    """Raised when a finding cannot be created because of insufficient permissions."""
+
+
 class FindingMissingError(Exception):
     """Raised when a finding cannot be created because of existing data."""
 
@@ -234,7 +238,9 @@ def get_finding_by_id(
     return findings[0] if findings else None
 
 
-def post_new_finding(session: Session, finding: FindingCreate) -> FindingOut:
+def post_new_finding(
+    session: Session, finding: FindingCreate, user_id: int
+) -> FindingOut:
     """Persist a new finding record and optional attachment links.
 
     Parent validation checks that the certification, rule, and linked
@@ -266,6 +272,12 @@ def post_new_finding(session: Session, finding: FindingCreate) -> FindingOut:
     if certification is None:
         raise FindingMissingCertificationError(
             f"Certification {finding.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise FindingPermissionError(
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
         )
 
     # check if rule exists

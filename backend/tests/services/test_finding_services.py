@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -14,14 +15,21 @@ from compliance.db.models import (
     Site,
 )
 from compliance.services.findings import (
+    FindingPermissionError,
     _build_finding_out,
     _format_findings,
     get_finding_by_id,
     get_findings,
     post_finding_archived_by_id,
     post_finding_restored_by_id,
+    post_new_finding,
 )
-from compliance.services.schemas import ArchiveRequest, FindingAttachmentOut, FindingOut
+from compliance.services.schemas import (
+    ArchiveRequest,
+    FindingAttachmentOut,
+    FindingCreate,
+    FindingOut,
+)
 
 
 def finding_row(**overrides):
@@ -539,6 +547,73 @@ class TestBuildFindingOut:
 
         with pytest.raises(KeyError, match="rule_description"):
             _build_finding_out(row)
+
+
+class TestPostNewFinding:
+    def test_creates_finding_when_certification_belongs_to_user(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(inspector_id=10),
+            SimpleNamespace(),
+        ]
+        session.execute.return_value.mappings.return_value.all.return_value = [
+            "created-row"
+        ]
+        expected = object()
+
+        monkeypatch.setattr(
+            "compliance.services.findings._format_findings",
+            lambda rows: [expected],
+        )
+
+        result = post_new_finding(
+            session,
+            FindingCreate(
+                certification_id=100,
+                rule_id=5,
+                finding="Missing document",
+            ),
+            user_id=10,
+        )
+
+        assert result is expected
+        assert session.get.call_args_list == [
+            ((Certification, 100),),
+            ((Rule, 5),),
+        ]
+        added_finding = session.add.call_args.args[0]
+        assert isinstance(added_finding, Finding)
+        assert added_finding.certification_id == 100
+        assert added_finding.rule_id == 5
+        assert added_finding.finding == "Missing document"
+        session.commit.assert_called_once_with()
+
+    def test_raises_when_certification_belongs_to_another_inspector(self) -> None:
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(inspector_id=11)
+
+        with pytest.raises(
+            FindingPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_new_finding(
+                session,
+                FindingCreate(
+                    certification_id=100,
+                    rule_id=5,
+                    finding="Missing document",
+                ),
+                user_id=10,
+            )
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
 
 
 class TestPostFindingArchivedById:

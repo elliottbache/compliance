@@ -15,6 +15,7 @@ from compliance.services.findings import (
     FindingMissingCertificationError,
     FindingMissingRuleError,
     FindingMissingSiteError,
+    FindingPermissionError,
     get_findings,
     post_finding_archived_by_id,
     post_finding_restored_by_id,
@@ -89,7 +90,11 @@ def get_findings_route(
 
 
 @router.post("", status_code=201)
-def post_new_finding_route(session: SessionDep, finding: FindingCreate) -> FindingOut:
+def post_new_finding_route(
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    finding: FindingCreate,
+) -> FindingOut:
     """Create a new finding record.
 
     Args:
@@ -105,7 +110,7 @@ def post_new_finding_route(session: SessionDep, finding: FindingCreate) -> Findi
             another integrity conflict prevents creation.
     """
     try:
-        new_finding = post_new_finding(session, finding)
+        new_finding = post_new_finding(session, finding, _authorized_user.id)
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
@@ -117,6 +122,12 @@ def post_new_finding_route(session: SessionDep, finding: FindingCreate) -> Findi
         raise HTTPException(
             status_code=404,
             detail=f"Certification {finding.certification_id} does not exist.",
+        ) from err
+
+    except FindingPermissionError as err:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Certification is assigned to another inspector.  You are logged in as inspector {_authorized_user.id}.",
         ) from err
 
     except FindingMissingRuleError as err:

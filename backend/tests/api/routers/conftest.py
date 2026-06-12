@@ -86,6 +86,18 @@ def viewer_user_override(main_module, user_record_factory):
 
 
 @pytest.fixture
+def inspector_user_override(main_module, user_record_factory):
+    def _get_active_user():
+        return user_record_factory(role=Role.INSPECTOR)
+
+    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
+        _get_active_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
+
+
+@pytest.fixture
 def assert_archived_response():
     def _assert_archived_response(payload, reason=None):
         assert payload["archived_at"] is not None

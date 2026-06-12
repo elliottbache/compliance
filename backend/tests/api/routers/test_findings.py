@@ -297,17 +297,19 @@ class TestGetFindingsRouteUnit:
         assert route.response_model == list[findings_router.FindingOut]
 
 
+@pytest.mark.usefixtures("inspector_user_override")
 class TestPostNewFindingRouteClient:
     def test_route_returns_created_finding_json(
         self, client, mock_db, monkeypatch, finding_factory
     ):
         expected_finding = finding_factory()
 
-        def fake_post_new_finding(session, finding):
+        def fake_post_new_finding(session, finding, user_id):
             assert session is mock_db
             assert finding.certification_id == 100
             assert finding.rule_id == 5
             assert finding.finding == "Missing document"
+            assert user_id == 10
             return expected_finding
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
@@ -352,7 +354,9 @@ class TestPostNewFindingRouteClient:
 
 class TestPostNewFindingRouteUnit:
 
-    def test_returns_created_finding(self, monkeypatch, finding_factory) -> None:
+    def test_returns_created_finding(
+        self, monkeypatch, finding_factory, user_record_factory
+    ) -> None:
         fake_session = object()
         finding = findings_router.FindingCreate(
             certification_id=100,
@@ -360,26 +364,34 @@ class TestPostNewFindingRouteUnit:
             finding="Missing document",
         )
         expected_finding = finding_factory()
+        authorized_user = user_record_factory()
 
-        def fake_post_new_finding(session, finding_info):
+        def fake_post_new_finding(session, finding_info, user_id):
             assert finding_info is finding
             assert session is fake_session
+            assert user_id == authorized_user.id
             return expected_finding
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
-        result = findings_router.post_new_finding_route(fake_session, finding)
+        result = findings_router.post_new_finding_route(
+            fake_session,
+            _authorized_user=authorized_user,
+            finding=finding,
+        )
 
         assert result == findings_router.FindingOut.model_validate(expected_finding)
 
-    def test_returns_404_when_certification_does_not_exist(self, monkeypatch) -> None:
+    def test_returns_404_when_certification_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
         finding = findings_router.FindingCreate(
             certification_id=100,
             rule_id=5,
             finding="Missing document",
         )
 
-        def fake_post_new_finding(session, finding_info):
+        def fake_post_new_finding(session, finding_info, user_id):
             raise findings_router.FindingMissingCertificationError(
                 finding_info.certification_id
             )
@@ -387,43 +399,88 @@ class TestPostNewFindingRouteUnit:
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(object(), finding)
+            findings_router.post_new_finding_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding=finding,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification 100 does not exist."
 
-    def test_returns_404_when_rule_does_not_exist(self, monkeypatch) -> None:
+    def test_returns_403_when_certification_belongs_to_another_inspector(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        finding = findings_router.FindingCreate(
+            certification_id=100,
+            rule_id=5,
+            finding="Missing document",
+        )
+        authorized_user = user_record_factory(id=10)
+
+        def fake_post_new_finding(session, finding_info, user_id):
+            assert user_id == authorized_user.id
+            raise findings_router.FindingPermissionError()
+
+        monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_new_finding_route(
+                object(),
+                _authorized_user=authorized_user,
+                finding=finding,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == (
+            "Certification is assigned to another inspector.  "
+            "You are logged in as inspector 10."
+        )
+
+    def test_returns_404_when_rule_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
         finding = findings_router.FindingCreate(
             certification_id=100,
             rule_id=5,
             finding="Missing document",
         )
 
-        def fake_post_new_finding(session, finding_info):
+        def fake_post_new_finding(session, finding_info, user_id):
             raise findings_router.FindingMissingRuleError(finding_info.rule_id)
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(object(), finding)
+            findings_router.post_new_finding_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding=finding,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Rule 5 does not exist."
 
-    def test_returns_409_when_finding_conflicts(self, monkeypatch) -> None:
+    def test_returns_409_when_finding_conflicts(
+        self, monkeypatch, user_record_factory
+    ) -> None:
         finding = findings_router.FindingCreate(
             certification_id=100,
             rule_id=5,
             finding="Missing document",
         )
 
-        def fake_post_new_finding(session, finding_info):
+        def fake_post_new_finding(session, finding_info, user_id):
             raise findings_router.FindingConflictError()
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_new_finding_route(object(), finding)
+            findings_router.post_new_finding_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding=finding,
+            )
 
         assert exc_info.value.status_code == 409
         assert "Finding was not added" in exc_info.value.detail
