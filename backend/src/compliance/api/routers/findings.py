@@ -6,6 +6,8 @@ from compliance.api.schemas import (
     FindingCreate,
     FindingOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.findings import (
     FindingAttachmentCertificationMismatchError,
     FindingConflictError,
@@ -18,7 +20,8 @@ from compliance.services.findings import (
     post_finding_restored_by_id,
     post_new_finding,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 router = APIRouter(prefix="/findings", tags=["findings"])
 
@@ -26,6 +29,7 @@ router = APIRouter(prefix="/findings", tags=["findings"])
 @router.get("")
 def get_findings_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     site_id: Annotated[int | None, Query(gt=0)] = None,
     certification_id: Annotated[int | None, Query(gt=0)] = None,
     rule_id: Annotated[int | None, Query(gt=0)] = None,
