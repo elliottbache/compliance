@@ -6,6 +6,8 @@ from compliance.api.schemas import (
     ClientCreate,
     ClientOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.clients import (
     ClientCompanyNameConflictError,
     ClientConflictError,
@@ -15,7 +17,8 @@ from compliance.services.clients import (
     post_client_restored_by_nif,
     post_new_client,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -23,6 +26,7 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 @router.get("")
 def get_clients_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     include_archived: Annotated[bool, Query()] = False,

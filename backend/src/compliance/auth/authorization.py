@@ -61,7 +61,7 @@ def require_role(minimum_role: Role) -> Callable[..., UserOut]:
     """Return a dependency that requires the given role or a higher role."""
 
     def dependency(
-        user: UserOut = Depends(get_current_user),  # noqa: B008
+        user: UserOut = Depends(get_active_user),  # noqa: B008
     ) -> UserOut:
         if _ROLE_RANK[user.role] < _ROLE_RANK[minimum_role]:
             raise HTTPException(
@@ -72,3 +72,40 @@ def require_role(minimum_role: Role) -> Callable[..., UserOut]:
         return user
 
     return dependency
+
+
+"""def require_read_access(
+    current_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
+) -> UserOut:
+    return current_user
+
+
+def require_report_draft_access(
+    current_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
+) -> UserOut:
+    return current_user
+
+
+def require_admin(
+    current_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+) -> UserOut:
+    return current_user
+
+
+def require_findings_attachments_access() -> Callable[..., UserOut]:
+
+    def dependency(
+        current_active_user: Annotated[
+            UserOut, Depends(require_role(Role.INSPECTOR))
+        ],  # noqa: B008
+    ) -> UserOut:
+
+        if certification.inspector_id != current_active_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Certification not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+
+    return dependency"""
