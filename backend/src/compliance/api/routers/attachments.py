@@ -7,6 +7,8 @@ from compliance.api.schemas import (
     AttachmentOut,
     AttachmentWithContextOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.attachments import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
@@ -23,7 +25,8 @@ from compliance.services.attachments import (
     post_attachment_upload,
     post_new_attachment,
 )
-from fastapi import APIRouter, Form, HTTPException, Path, Query, UploadFile
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, UploadFile
 from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
@@ -32,6 +35,7 @@ router = APIRouter(prefix="/attachments", tags=["attachments"])
 @router.get("")
 def get_attachments_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     site_id: Annotated[int | None, Query(gt=0)] = None,
     certification_id: Annotated[int | None, Query(gt=0)] = None,
     rule_id: Annotated[int | None, Query(gt=0)] = None,
