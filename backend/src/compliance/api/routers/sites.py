@@ -10,8 +10,11 @@ from compliance.api.schemas import (
     SiteCreate,
     SiteOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
+from compliance.services.schemas import UserOut
 from compliance.services.site_analysis import (
     summarize_previous_visits,
 )
@@ -26,7 +29,7 @@ from compliance.services.sites import (
     post_site_archived_by_id,
     post_site_restored_by_id,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -36,6 +39,7 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 @router.get("")
 def get_sites_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     nif: Annotated[str | None, Query(min_length=9, max_length=9)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
