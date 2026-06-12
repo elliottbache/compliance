@@ -5,6 +5,8 @@ from compliance.db.models import Role
 from compliance.services.schemas import ClientOut, UserCreate, UserOut
 from pydantic import ValidationError
 
+TEST_PASSWORD = "correct-password"  # noqa: S105
+
 
 def _client_payload(**overrides):
     payload = {
@@ -35,15 +37,21 @@ class TestClientOut:
 
 class TestUserCreate:
     def test_defaults_role_and_active_status(self) -> None:
-        user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            password=TEST_PASSWORD,
+        )
 
         assert user.role == Role.VIEWER
         assert user.is_active is True
+        assert user.password == TEST_PASSWORD
 
     def test_accepts_role_and_active_status(self) -> None:
         user = UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            password=TEST_PASSWORD,
             role=Role.ADMIN,
             is_active=False,
         )
@@ -53,7 +61,7 @@ class TestUserCreate:
 
 
 class TestUserOut:
-    def test_inherits_user_create_fields(self) -> None:
+    def test_contains_public_user_fields(self) -> None:
         user = UserOut(
             id=10,
             full_name="Alice Inspector",
@@ -65,3 +73,4 @@ class TestUserOut:
 
         assert user.role == Role.REVIEWER
         assert user.is_active is False
+        assert not hasattr(user, "password")

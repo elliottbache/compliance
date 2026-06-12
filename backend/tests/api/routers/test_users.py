@@ -4,6 +4,8 @@ from compliance.auth import authorization as authorization_module
 from compliance.db.models import Role
 from fastapi import HTTPException
 
+TEST_PASSWORD = "correct-password"  # noqa: S105
+
 
 @pytest.fixture
 def admin_user_override(main_module, user_record_factory):
@@ -134,6 +136,7 @@ class TestPostNewUserRouteClient:
             assert session is mock_db
             assert user_record.full_name == "Alice Inspector"
             assert user_record.email == "alice@example.com"
+            assert user_record.password == TEST_PASSWORD
             assert user_record.role == Role.ADMIN
             assert user_record.is_active is False
             return user_record_factory(role=Role.ADMIN, is_active=False)
@@ -145,6 +148,7 @@ class TestPostNewUserRouteClient:
             json={
                 "full_name": "Alice Inspector",
                 "email": "alice@example.com",
+                "password": TEST_PASSWORD,
                 "role": "admin",
                 "is_active": False,
             },
@@ -171,7 +175,11 @@ class TestPostNewUserRouteClient:
 
         response = client.post(
             "/users",
-            json={"full_name": "Alice Inspector", "email": "alice@example.com"},
+            json={
+                "full_name": "Alice Inspector",
+                "email": "alice@example.com",
+                "password": TEST_PASSWORD,
+            },
         )
 
         assert response.status_code == 409
@@ -190,7 +198,11 @@ class TestPostNewUserRouteClient:
 
         response = client.post(
             "/users",
-            json={"full_name": "Alice Inspector", "email": "alice@example.com"},
+            json={
+                "full_name": "Alice Inspector",
+                "email": "alice@example.com",
+                "password": TEST_PASSWORD,
+            },
         )
 
         assert response.status_code == 409
@@ -212,6 +224,7 @@ class TestPostNewUserRouteUnit:
         user = users_router.UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            password=TEST_PASSWORD,
             role=Role.ADMIN,
             is_active=False,
         )
@@ -222,6 +235,7 @@ class TestPostNewUserRouteUnit:
         def fake_post_new_user(session, user_info):
             assert session is fake_session
             assert user_info is user
+            assert user_info.password == TEST_PASSWORD
             assert user_info.role == Role.ADMIN
             assert user_info.is_active is False
             return expected_user
@@ -240,6 +254,7 @@ class TestPostNewUserRouteUnit:
         user = users_router.UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            password=TEST_PASSWORD,
         )
 
         def fake_post_new_user(session, user_info):
@@ -263,6 +278,7 @@ class TestPostNewUserRouteUnit:
         user = users_router.UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            password=TEST_PASSWORD,
         )
 
         def fake_post_new_user(session, user_info):

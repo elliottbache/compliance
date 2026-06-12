@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from compliance.db.models import Role, User
@@ -10,6 +10,8 @@ from compliance.services.users import (
     get_users,
     post_new_user,
 )
+
+TEST_PASSWORD = "correct-password"  # noqa: S105
 
 
 def _user(**overrides) -> User:
@@ -76,21 +78,32 @@ class TestPostNewUser:
             added_user.id = 10
 
         session.add.side_effect = _populate_defaults
-        user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            password=TEST_PASSWORD,
+        )
 
-        result = post_new_user(session, user)
+        with patch(
+            "compliance.services.users._hash_password",
+            return_value="hashed-password",
+        ) as mock_hash_password:
+            result = post_new_user(session, user)
 
         session.add.assert_called_once()
         added_user = session.add.call_args.args[0]
+        mock_hash_password.assert_called_once_with(TEST_PASSWORD)
 
         assert result.id == added_user.id
         assert isinstance(added_user, User)
         assert added_user.full_name == "Alice Inspector"
         assert added_user.email == "alice@example.com"
-        assert added_user.hashed_password == "dummy_hash"  # noqa: S105
+        assert not hasattr(added_user, "password")
+        assert added_user.hashed_password == "hashed-password"  # noqa: S105
         assert added_user.role == Role.VIEWER
         assert added_user.is_active is True
         assert added_user.created_at.tzinfo is UTC
+        assert not hasattr(result, "password")
 
     def test_uses_supplied_role_and_active_status(self) -> None:
         session = MagicMock()
@@ -102,6 +115,7 @@ class TestPostNewUser:
         user = UserCreate(
             full_name="Alice Inspector",
             email="alice@example.com",
+            password=TEST_PASSWORD,
             role=Role.ADMIN,
             is_active=False,
         )
@@ -119,7 +133,11 @@ class TestPostNewUser:
     ) -> None:
         session = MagicMock()
         session.commit.side_effect = integrity_error_factory()
-        user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            password=TEST_PASSWORD,
+        )
 
         with pytest.raises(UserConflictError):
             post_new_user(session, user)
@@ -133,7 +151,11 @@ class TestPostNewUser:
     ) -> None:
         session = MagicMock()
         session.commit.side_effect = integrity_error_factory("uq_users_email")
-        user = UserCreate(full_name="Alice Inspector", email="alice@example.com")
+        user = UserCreate(
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            password=TEST_PASSWORD,
+        )
 
         with pytest.raises(UserEmailConflictError):
             post_new_user(session, user)

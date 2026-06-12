@@ -4,6 +4,7 @@ from compliance.api.schemas import (
     UserCreate,
     UserOut,
 )
+from compliance.auth.authentication import _hash_password
 from compliance.db.models import (
     User,
 )
@@ -61,10 +62,9 @@ def post_new_user(session: Session, user: UserCreate) -> UserOut:
         UserConflictError: If another integrity conflict prevents the
             insert.
     """
-    user_dict = user.model_dump()
+    user_dict = user.model_dump(exclude={"password"})
     user_dict["created_at"] = datetime.now(UTC)
-    # DO NOT FORGET TO CHANGE THIS!!!
-    user_dict["hashed_password"] = "dummy_hash"  # noqa: S105
+    user_dict["hashed_password"] = _hash_password(user.password)
     new_user = User(**user_dict)
 
     try:

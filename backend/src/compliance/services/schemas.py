@@ -10,8 +10,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field
 CertificationResult = Literal["Pass", "Fail"]
 
 
-class UserCreate(BaseModel):
-    """Input shape for creating a user."""
+class UserBase(BaseModel):
+    """Shared non-sensitive fields for user schemas."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
 
@@ -21,7 +21,13 @@ class UserCreate(BaseModel):
     is_active: bool = True
 
 
-class UserOut(UserCreate):
+class UserCreate(UserBase):
+    """Input shape for creating a user."""
+
+    password: str = Field(min_length=1, max_length=80)
+
+
+class UserOut(UserBase):
     """Output shape for a user."""
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
