@@ -215,7 +215,11 @@ def post_site_restored_by_id_route(
 
 
 @router.post("/{site_id}/analysis")
-def create_site_analysis_route(session: SessionDep, site_id: int) -> SiteAnalysis:
+def create_site_analysis_route(
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
+    site_id: int,
+) -> SiteAnalysis:
     """Generate an AI analysis for one site's certification history.
 
     Args:
