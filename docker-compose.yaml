@@ -27,6 +27,9 @@ services:
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       AI_MODE: ${AI_MODE:-mock}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SECRET_KEY: ${SECRET_KEY:-replace_with_a_long_random_secret_for_local_auth}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
     depends_on:
       postgres:
         condition: service_healthy
