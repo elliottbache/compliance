@@ -122,6 +122,7 @@ def get_site_attachments_route(
 @router.get("/{site_id}/history")
 def get_site_history_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     site_id: int,
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteHistory:
