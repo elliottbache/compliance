@@ -2,10 +2,24 @@ from datetime import UTC, datetime
 
 import pytest
 from compliance.api.routers import sites as sites_router
+from compliance.auth import authorization as authorization_module
 from fastapi import HTTPException
 from httpx import Request
 
 
+@pytest.fixture
+def viewer_user_override(main_module, user_record_factory):
+    def _get_active_user():
+        return user_record_factory()
+
+    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
+        _get_active_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
+
+
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetSitesRouteClient:
     # TestClient
     def test_route_returns_site_json(self, client, mock_db, monkeypatch, site_factory):
@@ -164,6 +178,7 @@ class TestGetSitesRouteUnit:
         assert route.response_model == list[sites_router.SiteOut]
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetSiteHistoryRouteClient:
     # TestClient
     def test_route_returns_site_history_json_when_found(
@@ -268,7 +283,11 @@ class TestGetSiteHistoryRouteUnit:
             fake_get_site_history,
         )
 
-        result = sites_router.get_site_history_route(fake_session, 12)
+        result = sites_router.get_site_history_route(
+            fake_session,
+            _authorized_user=object(),
+            site_id=12,
+        )
 
         assert result == site_history
 
@@ -283,7 +302,11 @@ class TestGetSiteHistoryRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.get_site_history_route(object(), 999)
+            sites_router.get_site_history_route(
+                object(),
+                _authorized_user=object(),
+                site_id=999,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No site history found for this id: 999"
@@ -917,6 +940,7 @@ class TestCreateSiteAnalysis:
         )
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetSiteAttachmentsRouteClient:
     def test_route_returns_site_attachments_json_when_found(
         self, main_module, client, mock_db, monkeypatch, id_record_factory
@@ -1027,7 +1051,11 @@ class TestGetSiteAttachmentsRouteUnit:
             fake_get_site_attachments,
         )
 
-        result = sites_router.get_site_attachments_route(fake_session, 12)
+        result = sites_router.get_site_attachments_route(
+            fake_session,
+            _authorized_user=object(),
+            site_id=12,
+        )
 
         assert result == site_attachments
 
@@ -1043,7 +1071,11 @@ class TestGetSiteAttachmentsRouteUnit:
             fake_get_site_attachments,
         )
 
-        result = sites_router.get_site_attachments_route(object(), 999)
+        result = sites_router.get_site_attachments_route(
+            object(),
+            _authorized_user=object(),
+            site_id=999,
+        )
 
         assert result == sites_router.SiteAttachmentsOut(site_id=999, attachments=[])
 
@@ -1058,7 +1090,11 @@ class TestGetSiteAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.get_site_attachments_route(object(), 999)
+            sites_router.get_site_attachments_route(
+                object(),
+                _authorized_user=object(),
+                site_id=999,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No site for this id found: 999."
@@ -1074,7 +1110,11 @@ class TestGetSiteAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.get_site_attachments_route(object(), 999)
+            sites_router.get_site_attachments_route(
+                object(),
+                _authorized_user=object(),
+                site_id=999,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "No client for this site found: 999."
