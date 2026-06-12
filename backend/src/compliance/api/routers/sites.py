@@ -74,6 +74,7 @@ def get_sites_route(
 @router.get("/{site_id}/attachments")
 def get_site_attachments_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     site_id: Annotated[int, Path(ge=1)],
     include_archived: Annotated[bool, Query()] = False,
 ) -> SiteAttachmentsOut:
