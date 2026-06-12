@@ -125,7 +125,11 @@ class TestGetSitesRouteUnit:
         monkeypatch.setattr(sites_router, "get_sites", fake_get_sites)
 
         result = sites_router.get_sites_route(
-            fake_session, nif="A1234567B", limit=10, offset=5
+            fake_session,
+            _authorized_user=object(),
+            nif="A1234567B",
+            limit=10,
+            offset=5,
         )
 
         assert result == expected_sites
@@ -139,7 +143,11 @@ class TestGetSitesRouteUnit:
 
         with pytest.raises(HTTPException) as exc_info:
             sites_router.get_sites_route(
-                object(), nif="A1234567B", limit=None, offset=0
+                object(),
+                _authorized_user=object(),
+                nif="A1234567B",
+                limit=None,
+                offset=0,
             )
 
         assert exc_info.value.status_code == 404

@@ -180,6 +180,7 @@ class TestGetFindingsRouteUnit:
 
         result = findings_router.get_findings_route(
             fake_session,
+            _authorized_user=object(),
             site_id=12,
             certification_id=100,
             rule_id=5,
@@ -205,7 +206,9 @@ class TestGetFindingsRouteUnit:
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.get_findings_route(object(), site_id=999)
+            findings_router.get_findings_route(
+                object(), _authorized_user=object(), site_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing site 999."
@@ -228,7 +231,9 @@ class TestGetFindingsRouteUnit:
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.get_findings_route(object(), certification_id=999)
+            findings_router.get_findings_route(
+                object(), _authorized_user=object(), certification_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing certification 999."
@@ -249,7 +254,9 @@ class TestGetFindingsRouteUnit:
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.get_findings_route(object(), rule_id=999)
+            findings_router.get_findings_route(
+                object(), _authorized_user=object(), rule_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing rule 999."
@@ -272,7 +279,9 @@ class TestGetFindingsRouteUnit:
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.get_findings_route(object(), attachment_id=999)
+            findings_router.get_findings_route(
+                object(), _authorized_user=object(), attachment_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing attachment 999."

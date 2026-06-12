@@ -134,7 +134,11 @@ class TestGetRegulationsRouteUnit:
         monkeypatch.setattr(regulations_router, "get_regulations", fake_get_regulations)
 
         result = regulations_router.get_regulations_route(
-            fake_session, certifier_id=7, limit=10, offset=5
+            fake_session,
+            _authorized_user=object(),
+            certifier_id=7,
+            limit=10,
+            offset=5,
         )
 
         assert result == expected_regulations
@@ -152,7 +156,11 @@ class TestGetRegulationsRouteUnit:
 
         with pytest.raises(HTTPException) as exc_info:
             regulations_router.get_regulations_route(
-                object(), certifier_id=999, limit=None, offset=0
+                object(),
+                _authorized_user=object(),
+                certifier_id=999,
+                limit=None,
+                offset=0,
             )
 
         assert exc_info.value.status_code == 404

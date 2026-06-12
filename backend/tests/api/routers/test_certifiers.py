@@ -112,7 +112,10 @@ class TestGetCertifiersRouteUnit:
         monkeypatch.setattr(certifiers_router, "get_certifiers", fake_get_certifiers)
 
         result = certifiers_router.get_certifiers_route(
-            fake_session, limit=10, offset=5
+            fake_session,
+            _authorized_user=object(),
+            limit=10,
+            offset=5,
         )
 
         assert result == expected_certifiers

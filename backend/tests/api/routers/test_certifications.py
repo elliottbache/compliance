@@ -183,6 +183,7 @@ class TestGetCertificationsRouteUnit:
 
         result = certifications_router.get_certifications_route(
             fake_session,
+            _authorized_user=object(),
             site_id=12,
             open_only=True,
             limit=10,
@@ -214,6 +215,7 @@ class TestGetCertificationsRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             certifications_router.get_certifications_route(
                 object(),
+                _authorized_user=object(),
                 site_id=999,
                 open_only=False,
                 limit=None,

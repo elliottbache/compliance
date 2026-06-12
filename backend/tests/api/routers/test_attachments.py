@@ -204,6 +204,7 @@ class TestGetAttachmentsRouteUnit:
 
         result = attachments_router.get_attachments_route(
             fake_session,
+            _authorized_user=object(),
             site_id=71,
             certification_id=100,
             rule_id=5,
@@ -230,7 +231,9 @@ class TestGetAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachments_route(object(), site_id=999)
+            attachments_router.get_attachments_route(
+                object(), _authorized_user=object(), site_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing site 999."
@@ -257,7 +260,9 @@ class TestGetAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachments_route(object(), certification_id=999)
+            attachments_router.get_attachments_route(
+                object(), _authorized_user=object(), certification_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing certification 999."
@@ -280,7 +285,9 @@ class TestGetAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachments_route(object(), rule_id=999)
+            attachments_router.get_attachments_route(
+                object(), _authorized_user=object(), rule_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing rule 999."
@@ -303,7 +310,9 @@ class TestGetAttachmentsRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachments_route(object(), finding_id=999)
+            attachments_router.get_attachments_route(
+                object(), _authorized_user=object(), finding_id=999
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Missing finding 999."
