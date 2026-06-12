@@ -49,7 +49,9 @@ def get_certifiers_route(
 
 @router.post("", status_code=201)
 def post_new_certifier_route(
-    session: SessionDep, certifier: CertifierCreate
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    certifier: CertifierCreate,
 ) -> CertifierOut:
     """Create a new certifier record.
 

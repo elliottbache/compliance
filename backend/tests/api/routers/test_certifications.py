@@ -6,6 +6,7 @@ from compliance.api.routers import certifications as certifications_router
 from fastapi import HTTPException
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetCertificationsRouteClient:
     def test_route_returns_certifications_json(
         self, client, mock_db, monkeypatch, certifications_factory
@@ -237,6 +238,7 @@ class TestGetCertificationsRouteUnit:
         assert route.response_model == list[certifications_router.CertificationOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewCertificationRouteClient:
     def test_route_returns_created_certification_json(
         self, client, mock_db, monkeypatch
@@ -374,7 +376,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         result = certifications_router.post_new_certification_route(
-            fake_session, certification
+            fake_session,
+            _authorized_user=object(),
+            certification=certification,
         )
 
         assert result == certifications_router.CertificationOut.model_validate(
@@ -400,7 +404,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certifier 7 does not exist."
@@ -423,7 +431,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Regulation 3 does not exist."
@@ -446,7 +458,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site 12 does not exist."
@@ -470,7 +486,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Inspector 9 does not exist."
@@ -494,7 +514,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 422
         assert exc_info.value.detail == "Inspector 9 is inactive."
@@ -517,7 +541,11 @@ class TestPostNewCertificationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_new_certification_route(object(), certification)
+            certifications_router.post_new_certification_route(
+                object(),
+                _authorized_user=object(),
+                certification=certification,
+            )
 
         assert exc_info.value.status_code == 409
         assert "Certification was not added" in exc_info.value.detail

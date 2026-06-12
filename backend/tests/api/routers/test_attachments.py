@@ -28,6 +28,7 @@ def attachment_out_factory(**overrides):
     return attachments_router.AttachmentOut.model_validate(data)
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetAttachmentsRouteClient:
     def test_route_returns_attachments_json(self, client, mock_db, monkeypatch):
         def fake_get_attachments(
@@ -347,7 +348,11 @@ class TestGetAttachmentDownloadRoute:
             fake_get_attachment_download,
         )
 
-        response = attachments_router.get_attachment_download_route(fake_session, 50)
+        response = attachments_router.get_attachment_download_route(
+            fake_session,
+            _authorized_user=object(),
+            attachment_id=50,
+        )
 
         assert response.path == stored_file
         assert response.media_type == "application/octet-stream"
@@ -368,7 +373,11 @@ class TestGetAttachmentDownloadRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachment_download_route(object(), 999)
+            attachments_router.get_attachment_download_route(
+                object(),
+                _authorized_user=object(),
+                attachment_id=999,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Attachment with ID 999 not found."
@@ -386,7 +395,11 @@ class TestGetAttachmentDownloadRoute:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.get_attachment_download_route(object(), 50)
+            attachments_router.get_attachment_download_route(
+                object(),
+                _authorized_user=object(),
+                attachment_id=50,
+            )
 
         assert exc_info.value.status_code == 404
         assert "Attachment file does not exist or not found:" in exc_info.value.detail

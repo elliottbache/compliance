@@ -5,6 +5,7 @@ from compliance.api.routers import certifiers as certifiers_router
 from fastapi import HTTPException
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetCertifiersRouteClient:
     # TestClient
     def test_route_returns_certifier_json(
@@ -131,6 +132,7 @@ class TestGetCertifiersRouteUnit:
         assert route.response_model == list[certifiers_router.CertifierOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewCertifierRouteClient:
     # TestClient
     def test_route_returns_certifier_json_when_created(
@@ -207,7 +209,11 @@ class TestPostNewCertifierRouteUnit:
             certifiers_router, "post_new_certifier", fake_post_new_certifier
         )
 
-        result = certifiers_router.post_new_certifier_route(fake_session, certifier)
+        result = certifiers_router.post_new_certifier_route(
+            fake_session,
+            _authorized_user=object(),
+            certifier=certifier,
+        )
 
         assert result == expected_certifier
 
@@ -224,7 +230,11 @@ class TestPostNewCertifierRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_new_certifier_route(object(), certifier)
+            certifiers_router.post_new_certifier_route(
+                object(),
+                _authorized_user=object(),
+                certifier=certifier,
+            )
 
         assert exc_info.value.status_code == 409
         assert (
@@ -247,7 +257,11 @@ class TestPostNewCertifierRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_new_certifier_route(object(), certifier)
+            certifiers_router.post_new_certifier_route(
+                object(),
+                _authorized_user=object(),
+                certifier=certifier,
+            )
 
         assert exc_info.value.status_code == 409
         assert (

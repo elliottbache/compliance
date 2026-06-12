@@ -49,7 +49,11 @@ def get_clients_route(
 
 
 @router.post("", status_code=201)
-def post_new_client_route(session: SessionDep, client: ClientCreate) -> ClientOut:
+def post_new_client_route(
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    client: ClientCreate,
+) -> ClientOut:
     """Create a new client record.
 
     Args:

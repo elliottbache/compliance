@@ -2,20 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 from compliance.api.routers import clients as clients_router
-from compliance.auth import authorization as authorization_module
 from fastapi import HTTPException
-
-
-@pytest.fixture
-def viewer_user_override(main_module, user_record_factory):
-    def _get_active_user():
-        return user_record_factory()
-
-    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
-        _get_active_user
-    )
-    yield
-    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
 
 
 @pytest.mark.usefixtures("viewer_user_override")
@@ -173,6 +160,7 @@ class TestGetClientsRouteUnit:
         assert route.response_model == list[clients_router.ClientOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewClientRouteClient:
     # TestClient
     def test_route_returns_client_json_when_found(
@@ -244,7 +232,11 @@ class TestPostNewClientRouteUnit:
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
-        result = clients_router.post_new_client_route(fake_session, client)
+        result = clients_router.post_new_client_route(
+            fake_session,
+            _authorized_user=object(),
+            client=client,
+        )
 
         assert result == expected_client
 
@@ -265,7 +257,11 @@ class TestPostNewClientRouteUnit:
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(object(), client)
+            clients_router.post_new_client_route(
+                object(),
+                _authorized_user=object(),
+                client=client,
+            )
 
         assert exc_info.value.status_code == 409
         assert (
@@ -289,7 +285,11 @@ class TestPostNewClientRouteUnit:
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(object(), client)
+            clients_router.post_new_client_route(
+                object(),
+                _authorized_user=object(),
+                client=client,
+            )
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "Client with NIF A1234567B already exists."
@@ -311,7 +311,11 @@ class TestPostNewClientRouteUnit:
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_new_client_route(object(), client)
+            clients_router.post_new_client_route(
+                object(),
+                _authorized_user=object(),
+                client=client,
+            )
 
         assert exc_info.value.status_code == 409
         assert (

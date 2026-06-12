@@ -5,6 +5,7 @@ from compliance.api.routers import regulations as regulations_router
 from fastapi import HTTPException
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetRegulationsRouteClient:
     def test_route_returns_regulations_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
@@ -177,6 +178,7 @@ class TestGetRegulationsRouteUnit:
         assert route.response_model == list[regulations_router.RegulationOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewRegulationRouteClient:
     def test_route_returns_created_regulation_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
@@ -269,7 +271,11 @@ class TestPostNewRegulationRouteUnit:
             regulations_router, "post_new_regulation", fake_post_new_regulation
         )
 
-        result = regulations_router.post_new_regulation_route(fake_session, regulation)
+        result = regulations_router.post_new_regulation_route(
+            fake_session,
+            _authorized_user=object(),
+            regulation=regulation,
+        )
 
         assert result == regulations_router.RegulationOut.model_validate(
             created_regulation
@@ -292,7 +298,11 @@ class TestPostNewRegulationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_new_regulation_route(object(), regulation)
+            regulations_router.post_new_regulation_route(
+                object(),
+                _authorized_user=object(),
+                regulation=regulation,
+            )
 
         assert exc_info.value.status_code == 409
         assert (
@@ -315,7 +325,11 @@ class TestPostNewRegulationRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_new_regulation_route(object(), regulation)
+            regulations_router.post_new_regulation_route(
+                object(),
+                _authorized_user=object(),
+                regulation=regulation,
+            )
 
         assert exc_info.value.status_code == 409
         assert "Regulation was not added" in exc_info.value.detail

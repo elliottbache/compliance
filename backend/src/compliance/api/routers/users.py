@@ -49,7 +49,7 @@ def get_users_route(
 def post_new_user_route(
     session: SessionDep,
     user: UserCreate,
-    current_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
 ) -> UserOut:
     """Create a new user record.
 

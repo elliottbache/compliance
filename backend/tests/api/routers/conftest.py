@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from compliance.api.schemas import FindingOut
+from compliance.auth import authorization as authorization_module
 from compliance.db.db_access import get_db
 from compliance.db.models import Role
 from compliance.llm.schemas import (
@@ -58,6 +59,30 @@ def user_record_factory():
         return user
 
     return _user_record
+
+
+@pytest.fixture
+def admin_user_override(main_module, user_record_factory):
+    def _get_active_user():
+        return user_record_factory(role=Role.ADMIN)
+
+    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
+        _get_active_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
+
+
+@pytest.fixture
+def viewer_user_override(main_module, user_record_factory):
+    def _get_active_user():
+        return user_record_factory(role=Role.VIEWER)
+
+    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
+        _get_active_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
 
 
 @pytest.fixture

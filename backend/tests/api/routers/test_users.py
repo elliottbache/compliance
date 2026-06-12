@@ -1,26 +1,12 @@
 import pytest
 from compliance.api.routers import users as users_router
-from compliance.auth import authorization as authorization_module
 from compliance.db.models import Role
 from fastapi import HTTPException
 
 TEST_PASSWORD = "correct-password"  # noqa: S105
 
 
-@pytest.fixture
-def admin_user_override(main_module, user_record_factory):
-    def _get_current_user():
-        return user_record_factory(role=Role.ADMIN)
-
-    main_module.app.dependency_overrides[authorization_module.get_current_user] = (
-        _get_current_user
-    )
-    yield
-    main_module.app.dependency_overrides.pop(
-        authorization_module.get_current_user, None
-    )
-
-
+@pytest.mark.usefixtures("admin_user_override")
 class TestGetUsersRouteClient:
     # TestClient
     def test_route_returns_user_json(
@@ -111,7 +97,11 @@ class TestGetUsersRouteUnit:
         monkeypatch.setattr(users_router, "get_users", fake_get_users)
 
         result = users_router.get_users_route(
-            fake_session, token="test-token", limit=10, offset=5  # noqa: S106
+            fake_session,
+            _authorized_user=object(),
+            token="test-token",  # noqa: S106
+            limit=10,
+            offset=5,
         )
 
         assert result == expected_users
@@ -127,6 +117,7 @@ class TestGetUsersRouteUnit:
         assert route.response_model == list[users_router.UserOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewUserRouteClient:
     # TestClient
     def test_route_returns_user_json_when_created(
@@ -243,7 +234,9 @@ class TestPostNewUserRouteUnit:
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
         result = users_router.post_new_user_route(
-            fake_session, user, current_user=user_record_factory(role=Role.ADMIN)
+            fake_session,
+            user=user,
+            _authorized_user=user_record_factory(role=Role.ADMIN),
         )
 
         assert result == expected_user
@@ -264,7 +257,9 @@ class TestPostNewUserRouteUnit:
 
         with pytest.raises(HTTPException) as exc_info:
             users_router.post_new_user_route(
-                object(), user, current_user=user_record_factory(role=Role.ADMIN)
+                object(),
+                user=user,
+                _authorized_user=user_record_factory(role=Role.ADMIN),
             )
 
         assert exc_info.value.status_code == 409
@@ -288,7 +283,9 @@ class TestPostNewUserRouteUnit:
 
         with pytest.raises(HTTPException) as exc_info:
             users_router.post_new_user_route(
-                object(), user, current_user=user_record_factory(role=Role.ADMIN)
+                object(),
+                user=user,
+                _authorized_user=user_record_factory(role=Role.ADMIN),
             )
 
         assert exc_info.value.status_code == 409

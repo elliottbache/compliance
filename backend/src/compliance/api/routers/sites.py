@@ -155,7 +155,11 @@ def get_site_history_route(
 
 
 @router.post("", status_code=201)
-def post_new_site_route(session: SessionDep, site: SiteCreate) -> SiteOut:
+def post_new_site_route(
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    site: SiteCreate,
+) -> SiteOut:
     """Create a new site record.
 
     Args:

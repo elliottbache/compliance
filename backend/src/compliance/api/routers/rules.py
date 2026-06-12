@@ -66,7 +66,11 @@ def get_rules_route(
 
 
 @router.post("", status_code=201)
-def post_new_rule_route(session: SessionDep, rule: RuleCreate) -> RuleOut:
+def post_new_rule_route(
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    rule: RuleCreate,
+) -> RuleOut:
     """Create a new rule record.
 
     Args:

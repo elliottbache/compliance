@@ -2,21 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 from compliance.api.routers import sites as sites_router
-from compliance.auth import authorization as authorization_module
 from fastapi import HTTPException
 from httpx import Request
-
-
-@pytest.fixture
-def viewer_user_override(main_module, user_record_factory):
-    def _get_active_user():
-        return user_record_factory()
-
-    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
-        _get_active_user
-    )
-    yield
-    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
 
 
 @pytest.mark.usefixtures("viewer_user_override")
@@ -321,6 +308,7 @@ class TestGetSiteHistoryRouteUnit:
         assert route.response_model is sites_router.SiteHistory
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewSiteRouteClient:
     # TestClient
     def test_route_returns_created_site_json(
@@ -424,7 +412,11 @@ class TestPostNewSiteRouteUnit:
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
-        result = sites_router.post_new_site_route(fake_session, site)
+        result = sites_router.post_new_site_route(
+            fake_session,
+            _authorized_user=object(),
+            site=site,
+        )
 
         assert result == sites_router.SiteOut.model_validate(created_site)
 
@@ -445,7 +437,11 @@ class TestPostNewSiteRouteUnit:
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.post_new_site_route(object(), site)
+            sites_router.post_new_site_route(
+                object(),
+                _authorized_user=object(),
+                site=site,
+            )
 
         assert exc_info.value.status_code == 409
         assert "Site was not added" in exc_info.value.detail
@@ -467,7 +463,11 @@ class TestPostNewSiteRouteUnit:
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.post_new_site_route(object(), site)
+            sites_router.post_new_site_route(
+                object(),
+                _authorized_user=object(),
+                site=site,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client A1234567B does not exist."
@@ -713,6 +713,7 @@ class TestPostSiteRestoredByIdRouteUnit:
         assert exc_info.value.detail == "Site does not exist: 12."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestCreateSiteAnalysisRouteClient:
     def test_route_returns_site_analysis_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_analysis_factory
@@ -783,7 +784,11 @@ class TestCreateSiteAnalysisRouteUnit:
             fake_create_site_analysis,
         )
 
-        result = sites_router.create_site_analysis_route(fake_session, 101)
+        result = sites_router.create_site_analysis_route(
+            fake_session,
+            _authorized_user=object(),
+            site_id=101,
+        )
 
         assert result == site_analysis
 

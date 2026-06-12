@@ -5,6 +5,7 @@ from compliance.api.routers import rules as rules_router
 from fastapi import HTTPException
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetRulesRouteClient:
     def test_route_returns_rules_json(
         self, client, mock_db, monkeypatch, rule_record_factory
@@ -174,6 +175,7 @@ class TestGetRulesRouteUnit:
         assert route.response_model == list[rules_router.RuleOut]
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostNewRuleRouteClient:
     def test_route_returns_created_rule_json(
         self, client, mock_db, monkeypatch, rule_record_factory
@@ -262,7 +264,11 @@ class TestPostNewRuleRouteUnit:
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
-        result = rules_router.post_new_rule_route(fake_session, rule)
+        result = rules_router.post_new_rule_route(
+            fake_session,
+            _authorized_user=object(),
+            rule=rule,
+        )
 
         assert result == rules_router.RuleOut.model_validate(created_rule)
 
@@ -280,7 +286,11 @@ class TestPostNewRuleRouteUnit:
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(object(), rule)
+            rules_router.post_new_rule_route(
+                object(),
+                _authorized_user=object(),
+                rule=rule,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Regulation 3 does not exist."
@@ -299,7 +309,11 @@ class TestPostNewRuleRouteUnit:
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(object(), rule)
+            rules_router.post_new_rule_route(
+                object(),
+                _authorized_user=object(),
+                rule=rule,
+            )
 
         assert exc_info.value.status_code == 409
         assert (
@@ -321,7 +335,11 @@ class TestPostNewRuleRouteUnit:
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_new_rule_route(object(), rule)
+            rules_router.post_new_rule_route(
+                object(),
+                _authorized_user=object(),
+                rule=rule,
+            )
 
         assert exc_info.value.status_code == 409
         assert "Rule was not added" in exc_info.value.detail

@@ -73,7 +73,9 @@ def get_certifications_route(
 
 @router.post("", status_code=201)
 def post_new_certification_route(
-    session: SessionDep, certification: CertificationCreate
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    certification: CertificationCreate,
 ) -> CertificationOut:
     """Create a new certification record.
 

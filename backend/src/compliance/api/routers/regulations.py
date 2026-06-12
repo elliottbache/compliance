@@ -66,7 +66,9 @@ def get_regulations_route(
 
 @router.post("", status_code=201)
 def post_new_regulation_route(
-    session: SessionDep, regulation: RegulationCreate
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    regulation: RegulationCreate,
 ) -> RegulationOut:
     """Create a new regulation record.
 

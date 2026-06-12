@@ -5,6 +5,7 @@ from compliance.api.routers import findings as findings_router
 from fastapi import HTTPException
 
 
+@pytest.mark.usefixtures("viewer_user_override")
 class TestGetFindingsRouteClient:
     def test_route_returns_findings_json(
         self, main_module, client, mock_db, monkeypatch, finding_factory
