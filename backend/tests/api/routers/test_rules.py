@@ -5,7 +5,7 @@ from compliance.api.routers import rules as rules_router
 from fastapi import HTTPException
 
 
-class TestGetRulesRoute:
+class TestGetRulesRouteClient:
     def test_route_returns_rules_json(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
@@ -110,6 +110,9 @@ class TestGetRulesRoute:
 
         assert response.status_code == 422
 
+
+class TestGetRulesRouteUnit:
+
     def test_returns_rules(self, monkeypatch, rule_record_factory) -> None:
         fake_session = object()
         expected_rules = [
@@ -163,7 +166,7 @@ class TestGetRulesRoute:
         assert route.response_model == list[rules_router.RuleOut]
 
 
-class TestPostNewRuleRoute:
+class TestPostNewRuleRouteClient:
     def test_route_returns_created_rule_json(
         self, client, mock_db, monkeypatch, rule_record_factory
     ):
@@ -230,6 +233,9 @@ class TestPostNewRuleRoute:
         )
 
         assert response.status_code == 422
+
+
+class TestPostNewRuleRouteUnit:
 
     def test_returns_created_rule(self, monkeypatch, rule_record_factory) -> None:
         fake_session = object()
@@ -326,7 +332,7 @@ class TestPostNewRuleRoute:
         assert route.status_code == 201
 
 
-class TestPostRuleArchivedByIdRoute:
+class TestPostRuleArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_rule(
         self,
@@ -407,6 +413,9 @@ class TestPostRuleArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostRuleArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = rules_router.RuleOut(
@@ -452,7 +461,7 @@ class TestPostRuleArchivedByIdRoute:
         assert exc_info.value.detail == "Rule does not exist: 21."
 
 
-class TestPostRuleRestoredByIdRoute:
+class TestPostRuleRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_rule(
         self,
@@ -520,6 +529,9 @@ class TestPostRuleRestoredByIdRoute:
         response = client.post("/rules/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostRuleRestoredByIdRouteUnit:
 
     def test_returns_restored_rule(self, monkeypatch) -> None:
         fake_session = object()

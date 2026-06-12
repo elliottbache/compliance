@@ -6,7 +6,7 @@ from compliance.api.routers import certifications as certifications_router
 from fastapi import HTTPException
 
 
-class TestGetCertificationsRoute:
+class TestGetCertificationsRouteClient:
     def test_route_returns_certifications_json(
         self, client, mock_db, monkeypatch, certifications_factory
     ):
@@ -149,6 +149,9 @@ class TestGetCertificationsRoute:
 
         assert response.status_code == 422
 
+
+class TestGetCertificationsRouteUnit:
+
     def test_returns_certifications(self, monkeypatch, certifications_factory) -> None:
         fake_session = object()
         expected_certifications = [
@@ -232,7 +235,7 @@ class TestGetCertificationsRoute:
         assert route.response_model == list[certifications_router.CertificationOut]
 
 
-class TestPostNewCertificationRoute:
+class TestPostNewCertificationRouteClient:
     def test_route_returns_created_certification_json(
         self, client, mock_db, monkeypatch
     ):
@@ -327,6 +330,9 @@ class TestPostNewCertificationRoute:
         )
 
         assert response.status_code == 422
+
+
+class TestPostNewCertificationRouteUnit:
 
     def test_returns_created_certification(self, monkeypatch) -> None:
         fake_session = object()
@@ -528,7 +534,7 @@ class TestPostNewCertificationRoute:
         assert route.status_code == 201
 
 
-class TestPostCertificationArchivedByIdRoute:
+class TestPostCertificationArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_certification(
         self,
@@ -627,6 +633,9 @@ class TestPostCertificationArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostCertificationArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = certifications_router.CertificationOut(
@@ -680,7 +689,7 @@ class TestPostCertificationArchivedByIdRoute:
         assert exc_info.value.detail == "Certification does not exist: 100."
 
 
-class TestPostCertificationRestoredByIdRoute:
+class TestPostCertificationRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_certification(
         self,
@@ -758,6 +767,9 @@ class TestPostCertificationRestoredByIdRoute:
         response = client.post("/certifications/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostCertificationRestoredByIdRouteUnit:
 
     def test_returns_restored_certification(self, monkeypatch) -> None:
         fake_session = object()

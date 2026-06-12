@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from httpx import Request
 
 
-class TestGetSitesRoute:
+class TestGetSitesRouteClient:
     # TestClient
     def test_route_returns_site_json(self, client, mock_db, monkeypatch, site_factory):
         def fake_get_sites(session, *, nif, limit, offset, include_archived=False):
@@ -108,7 +108,8 @@ class TestGetSitesRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestGetSitesRouteUnit:
     def test_returns_sites(self, monkeypatch, site_factory) -> None:
         fake_session = object()
         sites = [site_factory()]
@@ -155,7 +156,7 @@ class TestGetSitesRoute:
         assert route.response_model == list[sites_router.SiteOut]
 
 
-class TestGetSiteHistoryRoute:
+class TestGetSiteHistoryRouteClient:
     # TestClient
     def test_route_returns_site_history_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_history_factory
@@ -237,7 +238,8 @@ class TestGetSiteHistoryRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestGetSiteHistoryRouteUnit:
     def test_returns_site_history_when_found(self, monkeypatch) -> None:
         fake_session = object()
         site_history = sites_router.SiteHistory(
@@ -288,7 +290,7 @@ class TestGetSiteHistoryRoute:
         assert route.response_model is sites_router.SiteHistory
 
 
-class TestPostNewSiteRoute:
+class TestPostNewSiteRouteClient:
     # TestClient
     def test_route_returns_created_site_json(
         self, client, mock_db, monkeypatch, site_factory
@@ -369,7 +371,8 @@ class TestPostNewSiteRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestPostNewSiteRouteUnit:
     def test_returns_created_site(self, monkeypatch, site_factory) -> None:
         fake_session = object()
         site = sites_router.SiteCreate(
@@ -452,7 +455,7 @@ class TestPostNewSiteRoute:
         assert route.status_code == 201
 
 
-class TestPostSiteArchivedByIdRoute:
+class TestPostSiteArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_site(
         self, client, mock_db, monkeypatch, site_factory, assert_archived_response
@@ -519,6 +522,9 @@ class TestPostSiteArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostSiteArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = sites_router.SiteOut(
@@ -567,7 +573,7 @@ class TestPostSiteArchivedByIdRoute:
         assert exc_info.value.detail == "Site does not exist: 12."
 
 
-class TestPostSiteRestoredByIdRoute:
+class TestPostSiteRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_site(
         self, client, mock_db, monkeypatch, site_factory, assert_restored_response
@@ -626,6 +632,9 @@ class TestPostSiteRestoredByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostSiteRestoredByIdRouteUnit:
+
     def test_returns_restored_site(self, monkeypatch) -> None:
         fake_session = object()
         expected = sites_router.SiteOut(
@@ -673,7 +682,7 @@ class TestPostSiteRestoredByIdRoute:
         assert exc_info.value.detail == "Site does not exist: 12."
 
 
-class TestCreateSiteAnalysisRoute:
+class TestCreateSiteAnalysisRouteClient:
     def test_route_returns_site_analysis_json_when_found(
         self, main_module, client, mock_db, monkeypatch, site_analysis_factory
     ):
@@ -722,6 +731,9 @@ class TestCreateSiteAnalysisRoute:
         response = client.post("/sites/not-an-int/analysis")
 
         assert response.status_code == 422
+
+
+class TestCreateSiteAnalysisRouteUnit:
 
     def test_delegates_to_create_site_analysis(
         self, main_module, monkeypatch, site_analysis_factory
@@ -897,7 +909,7 @@ class TestCreateSiteAnalysis:
         )
 
 
-class TestGetSiteAttachmentsRoute:
+class TestGetSiteAttachmentsRouteClient:
     def test_route_returns_site_attachments_json_when_found(
         self, main_module, client, mock_db, monkeypatch, id_record_factory
     ):
@@ -983,6 +995,9 @@ class TestGetSiteAttachmentsRoute:
         response = client.get("/sites/not-an-int/attachments")
 
         assert response.status_code == 422
+
+
+class TestGetSiteAttachmentsRouteUnit:
 
     def test_returns_site_attachments_when_found(
         self, main_module, monkeypatch

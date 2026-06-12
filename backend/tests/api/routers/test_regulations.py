@@ -5,7 +5,7 @@ from compliance.api.routers import regulations as regulations_router
 from fastapi import HTTPException
 
 
-class TestGetRegulationsRoute:
+class TestGetRegulationsRouteClient:
     def test_route_returns_regulations_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
@@ -111,6 +111,9 @@ class TestGetRegulationsRoute:
 
         assert response.status_code == 422
 
+
+class TestGetRegulationsRouteUnit:
+
     def test_returns_regulations(self, monkeypatch, regulation_record_factory) -> None:
         fake_session = object()
         expected_regulations = [
@@ -166,7 +169,7 @@ class TestGetRegulationsRoute:
         assert route.response_model == list[regulations_router.RegulationOut]
 
 
-class TestPostNewRegulationRoute:
+class TestPostNewRegulationRouteClient:
     def test_route_returns_created_regulation_json(
         self, client, mock_db, monkeypatch, regulation_record_factory
     ):
@@ -234,6 +237,9 @@ class TestPostNewRegulationRoute:
         )
 
         assert response.status_code == 422
+
+
+class TestPostNewRegulationRouteUnit:
 
     def test_returns_created_regulation(
         self, monkeypatch, regulation_record_factory
@@ -320,7 +326,7 @@ class TestPostNewRegulationRoute:
         assert route.status_code == 201
 
 
-class TestPostRegulationArchivedByIdRoute:
+class TestPostRegulationArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_regulation(
         self,
@@ -413,6 +419,9 @@ class TestPostRegulationArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostRegulationArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = regulations_router.RegulationOut(
@@ -463,7 +472,7 @@ class TestPostRegulationArchivedByIdRoute:
         assert exc_info.value.detail == "Regulation does not exist: 5."
 
 
-class TestPostRegulationRestoredByIdRoute:
+class TestPostRegulationRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_regulation(
         self,
@@ -537,6 +546,9 @@ class TestPostRegulationRestoredByIdRoute:
         response = client.post("/regulations/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostRegulationRestoredByIdRouteUnit:
 
     def test_returns_restored_regulation(self, monkeypatch) -> None:
         fake_session = object()

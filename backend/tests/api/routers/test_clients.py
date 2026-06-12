@@ -2,10 +2,24 @@ from datetime import UTC, datetime
 
 import pytest
 from compliance.api.routers import clients as clients_router
+from compliance.auth import authorization as authorization_module
 from fastapi import HTTPException
 
 
-class TestGetClientsRoute:
+@pytest.fixture
+def viewer_user_override(main_module, user_record_factory):
+    def _get_active_user():
+        return user_record_factory()
+
+    main_module.app.dependency_overrides[authorization_module.get_active_user] = (
+        _get_active_user
+    )
+    yield
+    main_module.app.dependency_overrides.pop(authorization_module.get_active_user, None)
+
+
+@pytest.mark.usefixtures("viewer_user_override")
+class TestGetClientsRouteClient:
     # TestClient
     def test_route_returns_client_json(
         self, client, mock_db, monkeypatch, client_record_factory
@@ -121,7 +135,8 @@ class TestGetClientsRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestGetClientsRouteUnit:
     def test_returns_clients(self, monkeypatch, client_record_factory) -> None:
         fake_session = object()
         clients = [client_record_factory()]
@@ -138,7 +153,12 @@ class TestGetClientsRoute:
 
         monkeypatch.setattr(clients_router, "get_clients", fake_get_clients)
 
-        result = clients_router.get_clients_route(fake_session, limit=10, offset=5)
+        result = clients_router.get_clients_route(
+            fake_session,
+            _authorized_user=object(),
+            limit=10,
+            offset=5,
+        )
 
         assert result == expected_clients
 
@@ -153,7 +173,7 @@ class TestGetClientsRoute:
         assert route.response_model == list[clients_router.ClientOut]
 
 
-class TestPostNewClientRoute:
+class TestPostNewClientRouteClient:
     # TestClient
     def test_route_returns_client_json_when_found(
         self, main_module, client, mock_db, monkeypatch, client_record_factory
@@ -202,7 +222,8 @@ class TestPostNewClientRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestPostNewClientRouteUnit:
     def test_returns_created_client(self, main_module, monkeypatch) -> None:
         fake_session = object()
         client = clients_router.ClientCreate(
@@ -312,7 +333,7 @@ class TestPostNewClientRoute:
         assert route.status_code == 201
 
 
-class TestPostClientArchivedByNifRoute:
+class TestPostClientArchivedByNifRouteClient:
     # TestClient
     def test_route_archives_active_client(
         self,
@@ -402,6 +423,9 @@ class TestPostClientArchivedByNifRoute:
 
         assert response.status_code == 422
 
+
+class TestPostClientArchivedByNifRouteUnit:
+
     def test_returns_archived_client(self, monkeypatch, client_record_factory) -> None:
         fake_session = object()
         archive_request = clients_router.ArchiveRequest(
@@ -476,7 +500,7 @@ class TestPostClientArchivedByNifRoute:
         assert exc_info.value.detail == "Client does not exist: A1234567B."
 
 
-class TestPostClientRestoredByNifRoute:
+class TestPostClientRestoredByNifRouteClient:
     # TestClient
     def test_route_restores_archived_client(
         self,
@@ -553,6 +577,9 @@ class TestPostClientRestoredByNifRoute:
         response = client.post("/clients/invalid/restore")
 
         assert response.status_code == 422
+
+
+class TestPostClientRestoredByNifRouteUnit:
 
     def test_returns_restored_client(self, monkeypatch) -> None:
         fake_session = object()

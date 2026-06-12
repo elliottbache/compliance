@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,24 +12,10 @@ from compliance.services.schemas import UserInDB, UserOut
 from fastapi import HTTPException
 
 
-def _user_record(**overrides) -> SimpleNamespace:
-    user = SimpleNamespace(
-        id=42,
-        full_name="Alice Inspector",
-        email="alice@example.com",
-        role=Role.VIEWER,
-        is_active=True,
-        created_at=datetime(2026, 6, 11, 9, 0, tzinfo=UTC),
-        hashed_password="stored-hash",  # noqa: S106
-    )
-    user.__dict__.update(overrides)
-    return user
-
-
 class TestGetCurrentUser:
-    def test_returns_user_from_valid_bearer_token(self) -> None:
+    def test_returns_user_from_valid_bearer_token(self, user_record_factory) -> None:
         session = object()
-        user = _user_record(email="admin@example.com", role=Role.ADMIN)
+        user = user_record_factory(email="admin@example.com", role=Role.ADMIN)
 
         with (
             patch("compliance.auth.authorization.decode_access_token") as mock_decode,
@@ -65,13 +50,13 @@ class TestGetCurrentUser:
 
 
 class TestGetActiveUser:
-    def test_returns_active_user(self) -> None:
-        user = UserOut.model_validate(_user_record(is_active=True))
+    def test_returns_active_user(self, user_record_factory) -> None:
+        user = UserOut.model_validate(user_record_factory(is_active=True))
 
         assert get_active_user(user) is user
 
-    def test_raises_for_inactive_user(self) -> None:
-        user = UserOut.model_validate(_user_record(is_active=False))
+    def test_raises_for_inactive_user(self, user_record_factory) -> None:
+        user = UserOut.model_validate(user_record_factory(is_active=False))
 
         with pytest.raises(HTTPException) as exc_info:
             get_active_user(user)
@@ -80,20 +65,20 @@ class TestGetActiveUser:
 
 
 class TestRequireRole:
-    def test_allows_matching_role(self) -> None:
-        user = UserOut.model_validate(_user_record(role=Role.REVIEWER))
+    def test_allows_matching_role(self, user_record_factory) -> None:
+        user = UserOut.model_validate(user_record_factory(role=Role.REVIEWER))
         dependency = require_role(Role.REVIEWER)
 
         assert dependency(user) is user
 
-    def test_allows_higher_role(self) -> None:
-        user = UserOut.model_validate(_user_record(role=Role.ADMIN))
+    def test_allows_higher_role(self, user_record_factory) -> None:
+        user = UserOut.model_validate(user_record_factory(role=Role.ADMIN))
         dependency = require_role(Role.REVIEWER)
 
         assert dependency(user) is user
 
-    def test_raises_for_lower_role(self) -> None:
-        user = UserOut.model_validate(_user_record(role=Role.VIEWER))
+    def test_raises_for_lower_role(self, user_record_factory) -> None:
+        user = UserOut.model_validate(user_record_factory(role=Role.VIEWER))
         dependency = require_role(Role.REVIEWER)
 
         with pytest.raises(HTTPException) as exc_info:

@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import jwt
@@ -14,23 +13,8 @@ from compliance.auth.authentication import (
     create_access_token,
     decode_access_token,
 )
-from compliance.db.models import Role
 from compliance.services.schemas import UserInDB, UserOut
 from fastapi import HTTPException
-
-
-def _user_record(**overrides) -> SimpleNamespace:
-    user = SimpleNamespace(
-        id=42,
-        full_name="Alice Inspector",
-        email="alice@example.com",
-        role=Role.VIEWER,
-        is_active=True,
-        created_at=datetime(2026, 6, 11, 9, 0, tzinfo=UTC),
-        hashed_password="stored-hash",  # noqa: S106
-    )
-    user.__dict__.update(overrides)
-    return user
 
 
 @pytest.fixture(autouse=True)
@@ -48,9 +32,11 @@ def token_env(monkeypatch):
 
 
 class TestGetUserInDB:
-    def test_returns_validated_user_when_email_exists(self) -> None:
+    def test_returns_validated_user_when_email_exists(
+        self, user_record_factory
+    ) -> None:
         session = MagicMock()
-        user = _user_record()
+        user = user_record_factory()
         session.execute.return_value.scalars.return_value.first.return_value = user
 
         result = _get_user_in_db(session, "alice@example.com")
@@ -72,9 +58,11 @@ class TestGetUserInDB:
 
 
 class TestAuthenticateUser:
-    def test_returns_public_user_when_password_matches(self) -> None:
+    def test_returns_public_user_when_password_matches(
+        self, user_record_factory
+    ) -> None:
         session = object()
-        user = UserInDB.model_validate(_user_record())
+        user = UserInDB.model_validate(user_record_factory())
 
         with (
             patch(
@@ -114,9 +102,11 @@ class TestAuthenticateUser:
         assert result is None
         mock_verify_password.assert_called_once()
 
-    def test_returns_none_when_password_does_not_match(self) -> None:
+    def test_returns_none_when_password_does_not_match(
+        self, user_record_factory
+    ) -> None:
         session = object()
-        user = UserInDB.model_validate(_user_record())
+        user = UserInDB.model_validate(user_record_factory())
 
         with (
             patch(

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from compliance.api.schemas import FindingOut
 from compliance.db.db_access import get_db
+from compliance.db.models import Role
 from compliance.llm.schemas import (
     EvidenceRef,
     HumanReviewItem,
@@ -40,6 +41,23 @@ def id_record_factory():
         return SimpleNamespace(id=record_id)
 
     return _id_record
+
+
+@pytest.fixture
+def user_record_factory():
+    def _user_record(**overrides):
+        user = SimpleNamespace(
+            id=10,
+            full_name="Alice Inspector",
+            email="alice@example.com",
+            role=Role.VIEWER,
+            is_active=True,
+            created_at=datetime(2026, 6, 5, 10, 0, tzinfo=UTC),
+        )
+        user.__dict__.update(**overrides)
+        return user
+
+    return _user_record
 
 
 @pytest.fixture

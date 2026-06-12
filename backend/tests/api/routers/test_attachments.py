@@ -28,7 +28,7 @@ def attachment_out_factory(**overrides):
     return attachments_router.AttachmentOut.model_validate(data)
 
 
-class TestGetAttachmentsRoute:
+class TestGetAttachmentsRouteClient:
     def test_route_returns_attachments_json(self, client, mock_db, monkeypatch):
         def fake_get_attachments(
             session,
@@ -173,6 +173,9 @@ class TestGetAttachmentsRoute:
         response = client.get("/attachments?site_id=not-an-int")
 
         assert response.status_code == 422
+
+
+class TestGetAttachmentsRouteUnit:
 
     def test_returns_attachments_from_service(self, monkeypatch) -> None:
         fake_session = object()
@@ -380,7 +383,7 @@ class TestGetAttachmentDownloadRoute:
         assert "Attachment file does not exist or not found:" in exc_info.value.detail
 
 
-class TestPostNewAttachmentRoute:
+class TestPostNewAttachmentRouteClient:
     def test_route_returns_attachment_json_when_created(
         self, client, mock_db, monkeypatch, attachment_create_factory
     ):
@@ -497,6 +500,9 @@ class TestPostNewAttachmentRoute:
 
         assert response.status_code == 422
 
+
+class TestPostNewAttachmentRouteUnit:
+
     def test_returns_404_when_certification_is_not_found(
         self, main_module, monkeypatch, attachment_create_factory
     ) -> None:
@@ -596,7 +602,7 @@ class TestPostNewAttachmentRoute:
         assert exc_info.value.detail == "Attachment could not be created."
 
 
-class TestPostAttachmentUploadRoute:
+class TestPostAttachmentUploadRouteClient:
     def test_route_uploads_attachment_file(self, client, mock_db, monkeypatch):
         def fake_post_attachment_upload(
             session,
@@ -677,6 +683,9 @@ class TestPostAttachmentUploadRoute:
 
         assert response.status_code == 404
         assert response.json() == {"detail": "Attachment with ID 999 not found."}
+
+
+class TestPostAttachmentUploadRouteUnit:
 
     def test_returns_none_when_upload_succeeds(self, monkeypatch) -> None:
         fake_file = SimpleNamespace(
@@ -791,7 +800,7 @@ class TestPostAttachmentUploadRoute:
         assert fake_file.file.closed
 
 
-class TestPostAttachmentArchivedByIdRoute:
+class TestPostAttachmentArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_attachment(
         self,
@@ -884,6 +893,9 @@ class TestPostAttachmentArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostAttachmentArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = attachments_router.AttachmentWithContextOut(
@@ -940,7 +952,7 @@ class TestPostAttachmentArchivedByIdRoute:
         assert exc_info.value.detail == "Attachment does not exist: 50."
 
 
-class TestPostAttachmentRestoredByIdRoute:
+class TestPostAttachmentRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_attachment(
         self,
@@ -1014,6 +1026,9 @@ class TestPostAttachmentRestoredByIdRoute:
         response = client.post("/attachments/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostAttachmentRestoredByIdRouteUnit:
 
     def test_returns_restored_attachment(self, monkeypatch) -> None:
         fake_session = object()

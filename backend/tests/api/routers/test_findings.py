@@ -5,7 +5,7 @@ from compliance.api.routers import findings as findings_router
 from fastapi import HTTPException
 
 
-class TestGetFindingsRoute:
+class TestGetFindingsRouteClient:
     def test_route_returns_findings_json(
         self, main_module, client, mock_db, monkeypatch, finding_factory
     ):
@@ -149,6 +149,9 @@ class TestGetFindingsRoute:
 
         assert response.status_code == 422
 
+
+class TestGetFindingsRouteUnit:
+
     def test_returns_findings_from_service(
         self, main_module, monkeypatch, finding_factory
     ) -> None:
@@ -284,7 +287,7 @@ class TestGetFindingsRoute:
         assert route.response_model == list[findings_router.FindingOut]
 
 
-class TestPostNewFindingRoute:
+class TestPostNewFindingRouteClient:
     def test_route_returns_created_finding_json(
         self, client, mock_db, monkeypatch, finding_factory
     ):
@@ -335,6 +338,9 @@ class TestPostNewFindingRoute:
         )
 
         assert response.status_code == 422
+
+
+class TestPostNewFindingRouteUnit:
 
     def test_returns_created_finding(self, monkeypatch, finding_factory) -> None:
         fake_session = object()
@@ -426,7 +432,7 @@ class TestPostNewFindingRoute:
         assert route.status_code == 201
 
 
-class TestPostFindingArchivedByIdRoute:
+class TestPostFindingArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_finding(
         self, client, mock_db, monkeypatch, finding_factory, assert_archived_response
@@ -499,6 +505,9 @@ class TestPostFindingArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostFindingArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = findings_router.FindingOut(
@@ -550,7 +559,7 @@ class TestPostFindingArchivedByIdRoute:
         assert exc_info.value.detail == "Finding does not exist: 1."
 
 
-class TestPostFindingRestoredByIdRoute:
+class TestPostFindingRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_finding(
         self, client, mock_db, monkeypatch, finding_factory, assert_restored_response
@@ -614,6 +623,9 @@ class TestPostFindingRestoredByIdRoute:
         response = client.post("/findings/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostFindingRestoredByIdRouteUnit:
 
     def test_returns_restored_finding(self, monkeypatch) -> None:
         fake_session = object()

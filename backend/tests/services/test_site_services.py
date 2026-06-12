@@ -95,48 +95,6 @@ def db_access_mocks():
     }
 
 
-@pytest.fixture
-def attachment_out_factory():
-    def _build(**overrides):
-        row = {
-            "Attachment": SimpleNamespace(
-                id=50,
-                file_name="evidence",
-                file_path="dummy/evidence.pdf",
-                description="Inspection evidence",
-                uploaded_at=datetime(2026, 4, 3, 9, 30, tzinfo=UTC),
-                archived_at=None,
-                archive_reason=None,
-                certification_id=100,
-            ),
-            "Certification": SimpleNamespace(
-                site_id=71,
-                id=100,
-                regulation_id=5,
-                inspection_date=date(2026, 4, 1),
-            ),
-            "Regulation": SimpleNamespace(
-                id=5,
-                title="USDA Organic",
-            ),
-            "Finding": SimpleNamespace(
-                id=1,
-                finding="Missing document",
-            ),
-            "FindingAttachment": MagicMock(),
-            "Rule": SimpleNamespace(
-                id=10,
-                rule_index="7 CFR 205.201",
-                title="Organic plan",
-                description="Producer must maintain an organic system plan.",
-            ),
-        }
-        row.update(overrides)
-        return row
-
-    return _build
-
-
 def _site_create(**overrides) -> SiteCreate:
     data = {
         "nif": "A1234567B",

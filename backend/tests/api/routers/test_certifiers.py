@@ -5,7 +5,7 @@ from compliance.api.routers import certifiers as certifiers_router
 from fastapi import HTTPException
 
 
-class TestGetCertifiersRoute:
+class TestGetCertifiersRouteClient:
     # TestClient
     def test_route_returns_certifier_json(
         self, client, mock_db, monkeypatch, certifier_record_factory
@@ -93,7 +93,8 @@ class TestGetCertifiersRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestGetCertifiersRouteUnit:
     def test_returns_certifiers(self, monkeypatch, certifier_record_factory) -> None:
         fake_session = object()
         certifiers = [certifier_record_factory()]
@@ -127,7 +128,7 @@ class TestGetCertifiersRoute:
         assert route.response_model == list[certifiers_router.CertifierOut]
 
 
-class TestPostNewCertifierRoute:
+class TestPostNewCertifierRouteClient:
     # TestClient
     def test_route_returns_certifier_json_when_created(
         self, client, mock_db, monkeypatch, certifier_record_factory
@@ -180,7 +181,8 @@ class TestPostNewCertifierRoute:
 
         assert response.status_code == 422
 
-    # unittests
+
+class TestPostNewCertifierRouteUnit:
     def test_returns_created_certifier(self, monkeypatch) -> None:
         fake_session = object()
         certifier = certifiers_router.CertifierCreate(
@@ -264,7 +266,7 @@ class TestPostNewCertifierRoute:
         assert route.status_code == 201
 
 
-class TestPostCertifierArchivedByIdRoute:
+class TestPostCertifierArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_certifier(
         self,
@@ -357,6 +359,9 @@ class TestPostCertifierArchivedByIdRoute:
 
         assert response.status_code == 422
 
+
+class TestPostCertifierArchivedByIdRouteUnit:
+
     def test_defaults_missing_archive_request(self, monkeypatch) -> None:
         fake_session = object()
         expected = certifiers_router.CertifierOut(
@@ -403,7 +408,7 @@ class TestPostCertifierArchivedByIdRoute:
         assert exc_info.value.detail == "Certifier does not exist: 10."
 
 
-class TestPostCertifierRestoredByIdRoute:
+class TestPostCertifierRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_certifier(
         self,
@@ -477,6 +482,9 @@ class TestPostCertifierRestoredByIdRoute:
         response = client.post("/certifiers/not-an-id/restore")
 
         assert response.status_code == 422
+
+
+class TestPostCertifierRestoredByIdRouteUnit:
 
     def test_returns_restored_certifier(self, monkeypatch) -> None:
         fake_session = object()
