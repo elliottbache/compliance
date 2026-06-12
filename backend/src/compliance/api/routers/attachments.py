@@ -92,7 +92,9 @@ def get_attachments_route(
 
 @router.get("/{attachment_id}/download")
 def get_attachment_download_route(
-    session: SessionDep, attachment_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
+    attachment_id: Annotated[int, Path(ge=1)],
 ) -> FileResponse:
     """Download the stored file for one attachment.
 
