@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from compliance._helpers import ROOT_DIR
 from compliance.db.models import User
-from compliance.services.schemas import UserInDB
+from compliance.services.schemas import UserInDB, UserOut
 
 _DEFAULT_EXPIRE_MINUTES = 30
 _DOTENV_PATH = ROOT_DIR / "backend" / ".env"
@@ -38,9 +38,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 def authenticate_user(
     session: Session, email: EmailStr, password: str
-) -> UserInDB | None:
-    """Return the user when supplied credentials are valid."""
-    user = get_user(session, email)
+) -> UserOut | None:
+    """Return public user details when supplied credentials are valid."""
+    user = _get_user_in_db(session, email)
     dummy_hash = _hash_password("dummy_password")
     if not user:
         _verify_password(password, dummy_hash)
@@ -48,15 +48,20 @@ def authenticate_user(
     if not _verify_password(password, user.hashed_password):
         return None
 
-    return user
+    return _to_user_out(user)
 
 
-def get_user(session: Session, email: EmailStr) -> UserInDB | None:
-    """Return a user by email, or None when no matching user exists."""
+def _get_user_in_db(session: Session, email: EmailStr) -> UserInDB | None:
+    """Return credential-bearing user data for internal authentication checks."""
     stmt = select(User).where(User.email == email)
     user = session.execute(stmt).scalars().first()
 
     return user if user is None else UserInDB.model_validate(user)
+
+
+def _to_user_out(user: UserInDB) -> UserOut:
+    """Return public user data with credential fields removed."""
+    return UserOut.model_validate(user.model_dump(exclude={"hashed_password"}))
 
 
 def _verify_password(plain_password: str, hashed_password: str) -> bool:

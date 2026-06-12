@@ -1,19 +1,17 @@
 from collections.abc import Callable
 from typing import Annotated
 
-import jwt
 from fastapi import Depends, HTTPException, status
-from jwt.exceptions import InvalidTokenError
 
 from compliance.api.deps import SessionDep
 from compliance.auth.authentication import (
-    TokenData,
-    _get_token_settings,
-    get_user,
+    _get_user_in_db,
+    _to_user_out,
+    decode_access_token,
     oauth2_scheme,
 )
 from compliance.db.models import Role
-from compliance.services.schemas import UserInDB
+from compliance.services.schemas import UserOut
 
 _ROLE_RANK = {
     Role.VIEWER: 0,
@@ -26,32 +24,29 @@ _ROLE_RANK = {
 def get_current_user(
     session: SessionDep,
     token: Annotated[str, Depends(oauth2_scheme)],
-) -> UserInDB:
-    secret_key, algorithm, _ = _get_token_settings()
+) -> UserOut:
+    """Return public user details for the bearer token subject."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-        username = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = TokenData(email=username)
-    except InvalidTokenError as err:
+        token_data = decode_access_token(token)
+    except HTTPException as err:
         raise credentials_exception from err
 
-    user = get_user(session, token_data.email)
+    user = _get_user_in_db(session, token_data.email)
     if user is None:
         raise credentials_exception
 
-    return user
+    return _to_user_out(user)
 
 
 def get_active_user(
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-) -> UserInDB:
+    current_user: Annotated[UserOut, Depends(get_current_user)],
+) -> UserOut:
+    """Return the current user when the account is active."""
     if not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -62,12 +57,12 @@ def get_active_user(
     return current_user
 
 
-def require_role(minimum_role: Role) -> Callable[..., UserInDB]:
+def require_role(minimum_role: Role) -> Callable[..., UserOut]:
     """Return a dependency that requires the given role or a higher role."""
 
     def dependency(
-        user: UserInDB = Depends(get_current_user),  # noqa: B008
-    ) -> UserInDB:
+        user: UserOut = Depends(get_current_user),  # noqa: B008
+    ) -> UserOut:
         if _ROLE_RANK[user.role] < _ROLE_RANK[minimum_role]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

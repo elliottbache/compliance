@@ -8,7 +8,6 @@ from compliance.api.schemas import (
 from compliance.auth.authentication import oauth2_scheme
 from compliance.auth.authorization import require_role
 from compliance.db.models import Role
-from compliance.services.schemas import UserInDB
 from compliance.services.users import (
     UserConflictError,
     UserEmailConflictError,
@@ -49,7 +48,7 @@ def get_users_route(
 def post_new_user_route(
     session: SessionDep,
     user: UserCreate,
-    current_user: Annotated[UserInDB, Depends(require_role(Role.ADMIN))],
+    current_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
 ) -> UserOut:
     """Create a new user record.
 
