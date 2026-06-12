@@ -282,6 +282,39 @@ p {
   white-space: pre-wrap;
 }
 
+.auth-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(31 41 51 / 0.42);
+  padding: 16px;
+}
+
+.auth-dialog {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 360px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 20px 45px rgb(31 41 51 / 0.18);
+  padding: 18px;
+}
+
+.auth-dialog label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.auth-dialog-actions {
+  justify-content: flex-end;
+}
+
 .muted {
   color: var(--text-muted);
 }

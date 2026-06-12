@@ -6,6 +6,7 @@ import type {
 } from "../types";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const AUTH_TOKEN_STORAGE_KEY = "compliance.authToken";
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL
@@ -29,6 +30,18 @@ type QueryValue = string | number | boolean | null | undefined;
 
 type QueryParams = Record<string, QueryValue>;
 
+type TokenResponse = {
+  access_token: string;
+  token_type: string;
+};
+
+export type AuthCredentials = {
+  email: string;
+  password: string;
+};
+
+type AuthCredentialsProvider = () => Promise<AuthCredentials | null>;
+
 export const ADMIN_RESOURCE_PATHS = {
   sites: "/sites",
   clients: "/clients",
@@ -45,6 +58,18 @@ export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PATHS;
 function buildUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
+}
+
+function getStoredAuthToken(): string | null {
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+function storeAuthToken(token: string): void {
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+}
+
+function clearAuthToken(): void {
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 function encodeRecordId(recordId: RecordId): string {
@@ -79,6 +104,16 @@ function buildQueryString(params: QueryParams = {}): string {
 
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : "";
+}
+
+function addAuthHeader(headers: Headers): Headers {
+  const token = getStoredAuthToken();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  return headers;
 }
 
 function stringifyDetail(detail: unknown): string {
@@ -125,13 +160,90 @@ export async function assertOk(response: Response): Promise<void> {
   throw new ApiError(response.status, detail, response.statusText);
 }
 
+let authRequest: Promise<boolean> | null = null;
+let authCredentialsProvider: AuthCredentialsProvider | null = null;
+
+export function setAuthCredentialsProvider(
+  provider: AuthCredentialsProvider | null,
+): void {
+  authCredentialsProvider = provider;
+}
+
+async function postAuthToken(email: string, password: string): Promise<TokenResponse> {
+  const formData = new URLSearchParams();
+  formData.set("username", email);
+  formData.set("password", password);
+
+  const response = await fetch(buildUrl("/auth/token"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formData,
+  });
+
+  await assertOk(response);
+  return response.json() as Promise<TokenResponse>;
+}
+
+async function requestAuthToken(): Promise<boolean> {
+  if (!authRequest) {
+    authRequest = (async () => {
+      const credentials = await authCredentialsProvider?.();
+      if (!credentials) {
+        return false;
+      }
+
+      const token = await postAuthToken(credentials.email, credentials.password);
+      storeAuthToken(token.access_token);
+      return true;
+    })().finally(() => {
+      authRequest = null;
+    });
+  }
+
+  return authRequest;
+}
+
+async function fetchWithAuthRetry(
+  path: string,
+  options: RequestInit,
+): Promise<Response> {
+  const { headers, ...restOptions } = options;
+  const requestHeaders = addAuthHeader(new Headers(headers));
+
+  let response = await fetch(buildUrl(path), {
+    ...restOptions,
+    headers: requestHeaders,
+  });
+
+  if (response.status !== 401) {
+    return response;
+  }
+
+  clearAuthToken();
+  const hasToken = await requestAuthToken();
+  if (!hasToken) {
+    return response;
+  }
+
+  const retryHeaders = addAuthHeader(new Headers(headers));
+  response = await fetch(buildUrl(path), {
+    ...restOptions,
+    headers: retryHeaders,
+  });
+
+  return response;
+}
+
 export async function fetchJson<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const { headers, ...restOptions } = options;
 
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithAuthRetry(path, {
     ...restOptions,
     headers: mergeHeaders(
       {
@@ -208,11 +320,9 @@ export async function uploadAttachmentFile(
   formData.set("id", String(attachmentId));
   formData.set("file", file);
 
-  const response = await fetch(buildUrl("/attachments/upload"), {
+  const response = await fetchWithAuthRetry("/attachments/upload", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-    },
+    headers: addAuthHeader(new Headers({ Accept: "application/json" })),
     body: formData,
   });
 

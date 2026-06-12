@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import {
+  type AuthCredentials,
   createSiteAnalysis,
   getSiteAttachments,
   getSiteHistory,
+  setAuthCredentialsProvider,
 } from "./api/complianceApi";
 import { SiteSearchPanel } from "./components/SiteSearchPanel";
 import { SiteHistoryPanel } from "./components/SiteHistoryPanel";
@@ -27,6 +30,88 @@ const workflowItems = [
   "Run AI analysis",
   "Generate Markdown report",
 ];
+
+type PendingAuthRequest = {
+  resolve: (credentials: AuthCredentials | null) => void;
+};
+
+type AuthDialogProps = {
+  request: PendingAuthRequest | null;
+  onCancel: () => void;
+  onSubmit: (credentials: AuthCredentials) => void;
+};
+
+function AuthDialog({ request, onCancel, onSubmit }: AuthDialogProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    if (request) {
+      setEmail("");
+      setPassword("");
+    }
+  }, [request]);
+
+  if (!request) {
+    return null;
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    onSubmit({ email: email.trim(), password });
+  }
+
+  return (
+    <div className="auth-backdrop">
+      <form
+        aria-labelledby="auth-dialog-title"
+        aria-modal="true"
+        className="auth-dialog"
+        role="dialog"
+        onSubmit={handleSubmit}
+      >
+        <div>
+          <p className="eyebrow">Authentication</p>
+          <h2 id="auth-dialog-title">Sign in</h2>
+        </div>
+
+        <label>
+          Email
+          <input
+            autoComplete="username"
+            autoFocus
+            required
+            className="input"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </label>
+
+        <label>
+          Password
+          <input
+            autoComplete="current-password"
+            required
+            className="input"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+
+        <div className="button-row auth-dialog-actions">
+          <button className="button button-primary" type="submit">
+            Sign in
+          </button>
+          <button className="button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function parseSiteId(siteId: string): number {
   const parsed = Number(siteId);
@@ -56,6 +141,9 @@ function downloadTextFile(text: string, filename: string): void {
 }
 
 function App() {
+  const [authRequest, setAuthRequest] = useState<PendingAuthRequest | null>(
+    null,
+  );
   const [siteId, setSiteId] = useState("1");
   const [history, setHistory] = useState<SiteHistory | null>(null);
   const [attachments, setAttachments] = useState<SiteAttachmentsOut | null>(
@@ -65,6 +153,27 @@ function App() {
   const [markdown, setMarkdown] = useState("");
   const [error, setError] = useState<ApiErrorMessage>(null);
   const [loading, setLoading] = useState<LoadingState>(null);
+
+  useEffect(() => {
+    setAuthCredentialsProvider(
+      () =>
+        new Promise((resolve) => {
+          setAuthRequest({ resolve });
+        }),
+    );
+
+    return () => setAuthCredentialsProvider(null);
+  }, []);
+
+  function handleAuthCancel(): void {
+    authRequest?.resolve(null);
+    setAuthRequest(null);
+  }
+
+  function handleAuthSubmit(credentials: AuthCredentials): void {
+    authRequest?.resolve(credentials);
+    setAuthRequest(null);
+  }
 
   async function runAction(
     actionName: NonNullable<LoadingState>,
@@ -139,6 +248,12 @@ function App() {
 
   return (
     <main className="app-shell">
+      <AuthDialog
+        request={authRequest}
+        onCancel={handleAuthCancel}
+        onSubmit={handleAuthSubmit}
+      />
+
       <header className="app-header">
         <div>
           <p className="eyebrow">Compliance MVP</p>
