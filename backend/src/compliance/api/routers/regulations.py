@@ -6,6 +6,8 @@ from compliance.api.schemas import (
     RegulationCreate,
     RegulationOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.regulations import (
     RegulationConflictError,
     RegulationTitleConflictError,
@@ -14,7 +16,8 @@ from compliance.services.regulations import (
     post_regulation_archived_by_id,
     post_regulation_restored_by_id,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 router = APIRouter(prefix="/regulations", tags=["regulations"])
 
@@ -22,6 +25,7 @@ router = APIRouter(prefix="/regulations", tags=["regulations"])
 @router.get("")
 def get_regulations_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     certifier_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
