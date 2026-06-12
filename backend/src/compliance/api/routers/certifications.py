@@ -6,6 +6,8 @@ from compliance.api.schemas import (
     CertificationCreate,
     CertificationOut,
 )
+from compliance.auth.authorization import require_role
+from compliance.db.models import Role
 from compliance.services.certifications import (
     CertificationCertifierNotFoundError,
     CertificationConflictError,
@@ -18,7 +20,8 @@ from compliance.services.certifications import (
     post_certification_restored_by_id,
     post_new_certification,
 )
-from fastapi import APIRouter, HTTPException, Path, Query
+from compliance.services.schemas import UserOut
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 router = APIRouter(prefix="/certifications", tags=["certifications"])
 
@@ -26,6 +29,7 @@ router = APIRouter(prefix="/certifications", tags=["certifications"])
 @router.get("")
 def get_certifications_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     site_id: Annotated[int | None, Query(gt=0)] = None,
     open_only: Annotated[bool, Query()] = False,
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
