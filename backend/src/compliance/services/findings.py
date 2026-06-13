@@ -350,7 +350,7 @@ def post_new_finding(
 
 
 def post_finding_archived_by_id(
-    session: Session, finding_id: int, *, archive_request: ArchiveRequest
+    session: Session, finding_id: int, *, archive_request: ArchiveRequest, user_id: int
 ) -> FindingOut | None:
     """Archive a finding by ID.
 
@@ -363,13 +363,33 @@ def post_finding_archived_by_id(
         The archived finding with context, or ``None`` if no matching finding
         exists.
     """
+    finding = session.get(Finding, finding_id)
+    if finding is None:
+        return None
+
+    # check if certification exists
+    certification = session.get(Certification, finding.certification_id)
+    if certification is None:
+        raise FindingMissingCertificationError(
+            f"Certification {finding.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise FindingPermissionError(
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+        )
+
     finding = archive_record_by_id(session, Finding, finding_id, archive_request)
     if finding is None:
         return None
+
     return get_finding_by_id(session, finding_id, include_archived=True)
 
 
-def post_finding_restored_by_id(session: Session, finding_id: int) -> FindingOut | None:
+def post_finding_restored_by_id(
+    session: Session, finding_id: int, *, user_id: int
+) -> FindingOut | None:
     """Restore an archived finding by ID.
 
     Args:
@@ -383,6 +403,20 @@ def post_finding_restored_by_id(session: Session, finding_id: int) -> FindingOut
     finding = restore_record_by_id(session, Finding, finding_id)
     if finding is None:
         return None
+
+    # check if certification exists
+    certification = session.get(Certification, finding.certification_id)
+    if certification is None:
+        raise FindingMissingCertificationError(
+            f"Certification {finding.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise FindingPermissionError(
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+        )
+
     return get_finding_by_id(session, finding_id, include_archived=True)
 
 

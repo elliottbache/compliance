@@ -15,6 +15,7 @@ from compliance.db.models import (
     Site,
 )
 from compliance.services.findings import (
+    FindingMissingCertificationError,
     FindingPermissionError,
     _build_finding_out,
     _format_findings,
@@ -626,6 +627,8 @@ class TestPostFindingArchivedById:
             archived_at=None,
             archive_reason=None,
         )
+        certification = SimpleNamespace(inspector_id=10)
+        session.get.side_effect = [finding, certification]
         expected = object()
 
         def fake_archive_record_by_id(session_arg, model, finding_id, archive_request):
@@ -661,7 +664,55 @@ class TestPostFindingArchivedById:
 
         assert result is expected
         assert_archived_record(finding, "resolved")
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
         session.commit.assert_called_once_with()
+
+    def test_archive_raises_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            None,
+        ]
+
+        with pytest.raises(
+            FindingMissingCertificationError,
+            match=re.escape("Certification 100 does not exist."),
+        ):
+            post_finding_archived_by_id(
+                session,
+                1,
+                archive_request=ArchiveRequest(),
+                user_id=10,
+            )
+
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
+        session.commit.assert_not_called()
+
+    def test_archive_raises_when_certification_belongs_to_another_inspector(
+        self,
+    ) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            SimpleNamespace(inspector_id=11),
+        ]
+
+        with pytest.raises(
+            FindingPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_finding_archived_by_id(
+                session,
+                1,
+                archive_request=ArchiveRequest(),
+                user_id=10,
+            )
+
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
+        session.commit.assert_not_called()
 
     def test_returns_none_when_finding_does_not_exist(self) -> None:
         session = MagicMock()
@@ -686,6 +737,8 @@ class TestPostFindingRestoredById:
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="resolved",
         )
+        certification = SimpleNamespace(inspector_id=10)
+        session.get.return_value = certification
         expected = object()
 
         def fake_restore_record_by_id(session_arg, model, finding_id):
@@ -710,7 +763,53 @@ class TestPostFindingRestoredById:
 
         assert result is expected
         assert_restored_record(finding)
+        session.get.assert_called_once_with(Certification, 100)
         session.commit.assert_called_once_with()
+
+    def test_restore_raises_when_certification_does_not_exist(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        finding = SimpleNamespace(certification_id=100)
+        session.get.return_value = None
+
+        monkeypatch.setattr(
+            "compliance.services.findings.restore_record_by_id",
+            lambda session_arg, model, finding_id: finding,
+        )
+
+        with pytest.raises(
+            FindingMissingCertificationError,
+            match=re.escape("Certification 100 does not exist."),
+        ):
+            post_finding_restored_by_id(session, 1, user_id=10)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.commit.assert_not_called()
+
+    def test_restore_raises_when_certification_belongs_to_another_inspector(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        finding = SimpleNamespace(certification_id=100)
+        session.get.return_value = SimpleNamespace(inspector_id=11)
+
+        monkeypatch.setattr(
+            "compliance.services.findings.restore_record_by_id",
+            lambda session_arg, model, finding_id: finding,
+        )
+
+        with pytest.raises(
+            FindingPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_finding_restored_by_id(session, 1, user_id=10)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.commit.assert_not_called()
 
     def test_returns_none_when_finding_does_not_exist(self) -> None:
         session = MagicMock()

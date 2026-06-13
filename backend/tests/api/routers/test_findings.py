@@ -508,6 +508,7 @@ class TestPostNewFindingRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("inspector_user_override")
 class TestPostFindingArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_finding(
@@ -515,10 +516,13 @@ class TestPostFindingArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
             assert session is mock_db
             assert finding_id == 1
             assert archive_request.archive_reason == "duplicate"
+            assert user_id == 10
             return finding_factory(archived_at=archived_at, archive_reason="duplicate")
 
         monkeypatch.setattr(
@@ -539,9 +543,12 @@ class TestPostFindingArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
             assert session is mock_db
             assert finding_id == 1
+            assert user_id == 10
             return finding_factory(archived_at=archived_at, archive_reason="old reason")
 
         monkeypatch.setattr(
@@ -560,9 +567,12 @@ class TestPostFindingArchivedByIdRouteClient:
     def test_route_returns_404_when_finding_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
             assert session is mock_db
             assert finding_id == 1
+            assert user_id == 10
             return None
 
         monkeypatch.setattr(
@@ -584,8 +594,11 @@ class TestPostFindingArchivedByIdRouteClient:
 
 class TestPostFindingArchivedByIdRouteUnit:
 
-    def test_defaults_missing_archive_request(self, monkeypatch) -> None:
+    def test_defaults_missing_archive_request(
+        self, monkeypatch, user_record_factory
+    ) -> None:
         fake_session = object()
+        authorized_user = user_record_factory(id=10)
         expected = findings_router.FindingOut(
             finding_id=1,
             finding="Missing document",
@@ -602,10 +615,13 @@ class TestPostFindingArchivedByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
             assert session is fake_session
             assert finding_id == 1
             assert archive_request == findings_router.ArchiveRequest()
+            assert user_id == authorized_user.id
             return expected
 
         monkeypatch.setattr(
@@ -614,12 +630,20 @@ class TestPostFindingArchivedByIdRouteUnit:
             fake_post_finding_archived_by_id,
         )
 
-        result = findings_router.post_finding_archived_by_id_route(fake_session, 1)
+        result = findings_router.post_finding_archived_by_id_route(
+            fake_session,
+            _authorized_user=authorized_user,
+            finding_id=1,
+        )
 
         assert result == expected
 
-    def test_returns_404_when_finding_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_finding_archived_by_id(session, finding_id, *, archive_request):
+    def test_returns_404_when_finding_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
             return None
 
         monkeypatch.setattr(
@@ -629,20 +653,82 @@ class TestPostFindingArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_finding_archived_by_id_route(object(), 1)
+            findings_router.post_finding_archived_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding_id=1,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Finding does not exist: 1."
 
+    def test_returns_404_when_certification_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
+            raise findings_router.FindingMissingCertificationError(
+                "Certification 100 does not exist."
+            )
 
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_archived_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding_id=1,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certification 100 does not exist."
+
+    def test_returns_403_when_certification_belongs_to_another_inspector(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_archived_by_id(
+            session, finding_id, *, archive_request, user_id
+        ):
+            raise findings_router.FindingPermissionError(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            )
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_archived_by_id",
+            fake_post_finding_archived_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_archived_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(id=10),
+                finding_id=1,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == (
+            "Certification 100 is assigned to inspector 11.  "
+            "You are logged in as inspector 10."
+        )
+
+
+@pytest.mark.usefixtures("inspector_user_override")
 class TestPostFindingRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_finding(
         self, client, mock_db, monkeypatch, finding_factory, assert_restored_response
     ):
-        def fake_post_finding_restored_by_id(session, finding_id):
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
             assert session is mock_db
             assert finding_id == 1
+            assert user_id == 10
             return finding_factory(archived_at=None, archive_reason=None)
 
         monkeypatch.setattr(
@@ -660,9 +746,10 @@ class TestPostFindingRestoredByIdRouteClient:
     def test_route_restore_active_finding_returns_200(
         self, client, mock_db, monkeypatch, finding_factory, assert_restored_response
     ):
-        def fake_post_finding_restored_by_id(session, finding_id):
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
             assert session is mock_db
             assert finding_id == 1
+            assert user_id == 10
             return finding_factory(archived_at=None, archive_reason=None)
 
         monkeypatch.setattr(
@@ -679,9 +766,10 @@ class TestPostFindingRestoredByIdRouteClient:
     def test_route_returns_404_when_finding_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_finding_restored_by_id(session, finding_id):
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
             assert session is mock_db
             assert finding_id == 1
+            assert user_id == 10
             return None
 
         monkeypatch.setattr(
@@ -703,8 +791,9 @@ class TestPostFindingRestoredByIdRouteClient:
 
 class TestPostFindingRestoredByIdRouteUnit:
 
-    def test_returns_restored_finding(self, monkeypatch) -> None:
+    def test_returns_restored_finding(self, monkeypatch, user_record_factory) -> None:
         fake_session = object()
+        authorized_user = user_record_factory(id=10)
         expected = findings_router.FindingOut(
             finding_id=1,
             finding="Missing document",
@@ -721,9 +810,10 @@ class TestPostFindingRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_finding_restored_by_id(session, finding_id):
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
             assert session is fake_session
             assert finding_id == 1
+            assert user_id == authorized_user.id
             return expected
 
         monkeypatch.setattr(
@@ -732,12 +822,18 @@ class TestPostFindingRestoredByIdRouteUnit:
             fake_post_finding_restored_by_id,
         )
 
-        result = findings_router.post_finding_restored_by_id_route(fake_session, 1)
+        result = findings_router.post_finding_restored_by_id_route(
+            fake_session,
+            _authorized_user=authorized_user,
+            finding_id=1,
+        )
 
         assert result == expected
 
-    def test_returns_404_when_finding_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_finding_restored_by_id(session, finding_id):
+    def test_returns_404_when_finding_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
             return None
 
         monkeypatch.setattr(
@@ -747,7 +843,63 @@ class TestPostFindingRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            findings_router.post_finding_restored_by_id_route(object(), 1)
+            findings_router.post_finding_restored_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding_id=1,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Finding does not exist: 1."
+
+    def test_returns_404_when_certification_does_not_exist(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
+            raise findings_router.FindingMissingCertificationError(
+                "Certification 100 does not exist."
+            )
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_restored_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                finding_id=1,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Certification 100 does not exist."
+
+    def test_returns_403_when_certification_belongs_to_another_inspector(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        def fake_post_finding_restored_by_id(session, finding_id, *, user_id):
+            raise findings_router.FindingPermissionError(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            )
+
+        monkeypatch.setattr(
+            findings_router,
+            "post_finding_restored_by_id",
+            fake_post_finding_restored_by_id,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            findings_router.post_finding_restored_by_id_route(
+                object(),
+                _authorized_user=user_record_factory(id=10),
+                finding_id=1,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == (
+            "Certification 100 is assigned to inspector 11.  "
+            "You are logged in as inspector 10."
+        )

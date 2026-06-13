@@ -150,15 +150,33 @@ def post_new_finding_route(
 @router.post("/{finding_id}/archive", status_code=200)
 def post_finding_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> FindingOut:
     """Archive one finding by ID."""
     archive_request = archive_request or ArchiveRequest()
 
-    finding = post_finding_archived_by_id(
-        session, finding_id, archive_request=archive_request
-    )
+    try:
+        finding = post_finding_archived_by_id(
+            session,
+            finding_id,
+            archive_request=archive_request,
+            user_id=_authorized_user.id,
+        )
+
+    except FindingMissingCertificationError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=str(err),
+        ) from err
+
+    except FindingPermissionError as err:
+        raise HTTPException(
+            status_code=403,
+            detail=str(err),
+        ) from err
+
     if finding is None:
         raise HTTPException(
             status_code=404, detail=f"Finding does not exist: {finding_id}."
@@ -169,10 +187,28 @@ def post_finding_archived_by_id_route(
 
 @router.post("/{finding_id}/restore", status_code=200)
 def post_finding_restored_by_id_route(
-    session: SessionDep, finding_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    finding_id: Annotated[int, Path(ge=1)],
 ) -> FindingOut:
     """Restore one archived finding by ID."""
-    finding = post_finding_restored_by_id(session, finding_id)
+    try:
+        finding = post_finding_restored_by_id(
+            session, finding_id, user_id=_authorized_user.id
+        )
+
+    except FindingMissingCertificationError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=str(err),
+        ) from err
+
+    except FindingPermissionError as err:
+        raise HTTPException(
+            status_code=403,
+            detail=str(err),
+        ) from err
+
     if finding is None:
         raise HTTPException(
             status_code=404, detail=f"Finding does not exist: {finding_id}."
