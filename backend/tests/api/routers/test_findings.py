@@ -380,7 +380,7 @@ class TestPostNewFindingRouteUnit:
 
         result = findings_router.post_new_finding_route(
             fake_session,
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             finding=finding,
         )
 
@@ -405,7 +405,7 @@ class TestPostNewFindingRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_new_finding_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding=finding,
             )
 
@@ -434,7 +434,7 @@ class TestPostNewFindingRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_new_finding_route(
                 object(),
-                _authorized_user=authorized_user,
+                authorized_user=authorized_user,
                 finding=finding,
             )
 
@@ -461,7 +461,7 @@ class TestPostNewFindingRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_new_finding_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding=finding,
             )
 
@@ -487,7 +487,7 @@ class TestPostNewFindingRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_new_finding_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding=finding,
             )
 
@@ -632,7 +632,7 @@ class TestPostFindingArchivedByIdRouteUnit:
 
         result = findings_router.post_finding_archived_by_id_route(
             fake_session,
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             finding_id=1,
         )
 
@@ -655,7 +655,7 @@ class TestPostFindingArchivedByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_archived_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding_id=1,
             )
 
@@ -681,7 +681,7 @@ class TestPostFindingArchivedByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_archived_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding_id=1,
             )
 
@@ -708,7 +708,7 @@ class TestPostFindingArchivedByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_archived_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(id=10),
+                authorized_user=user_record_factory(id=10),
                 finding_id=1,
             )
 
@@ -824,7 +824,7 @@ class TestPostFindingRestoredByIdRouteUnit:
 
         result = findings_router.post_finding_restored_by_id_route(
             fake_session,
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             finding_id=1,
         )
 
@@ -845,7 +845,7 @@ class TestPostFindingRestoredByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_restored_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding_id=1,
             )
 
@@ -869,7 +869,7 @@ class TestPostFindingRestoredByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_restored_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 finding_id=1,
             )
 
@@ -894,7 +894,7 @@ class TestPostFindingRestoredByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             findings_router.post_finding_restored_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(id=10),
+                authorized_user=user_record_factory(id=10),
                 finding_id=1,
             )
 

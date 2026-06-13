@@ -88,7 +88,7 @@ def get_findings_route(
 @router.post("", status_code=201)
 def post_new_finding_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding: FindingCreate,
 ) -> FindingOut:
     """Create a new finding record.
@@ -106,7 +106,7 @@ def post_new_finding_route(
             another integrity conflict prevents creation.
     """
     try:
-        new_finding = post_new_finding(session, finding, _authorized_user.id)
+        new_finding = post_new_finding(session, finding, authorized_user.id)
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
@@ -150,7 +150,7 @@ def post_new_finding_route(
 @router.post("/{finding_id}/archive", status_code=200)
 def post_finding_archived_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> FindingOut:
@@ -162,7 +162,7 @@ def post_finding_archived_by_id_route(
             session,
             finding_id,
             archive_request=archive_request,
-            user_id=_authorized_user.id,
+            user_id=authorized_user.id,
         )
 
     except FindingMissingCertificationError as err:
@@ -188,13 +188,13 @@ def post_finding_archived_by_id_route(
 @router.post("/{finding_id}/restore", status_code=200)
 def post_finding_restored_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding_id: Annotated[int, Path(ge=1)],
 ) -> FindingOut:
     """Restore one archived finding by ID."""
     try:
         finding = post_finding_restored_by_id(
-            session, finding_id, user_id=_authorized_user.id
+            session, finding_id, user_id=authorized_user.id
         )
 
     except FindingMissingCertificationError as err:

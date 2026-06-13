@@ -578,7 +578,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -609,7 +609,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                _authorized_user=authorized_user,
+                authorized_user=authorized_user,
                 attachment=attachment,
             )
 
@@ -640,7 +640,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -668,7 +668,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -698,7 +698,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -835,7 +835,7 @@ class TestPostAttachmentUploadRouteUnit:
 
         result = attachments_router.post_attachment_upload_route(
             object(),
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             file=fake_file,
             id=50,
         )
@@ -868,7 +868,7 @@ class TestPostAttachmentUploadRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_upload_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 file=fake_file,
                 id=50,
             )
@@ -905,7 +905,7 @@ class TestPostAttachmentUploadRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_upload_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 file=fake_file,
                 id=50,
             )
@@ -938,7 +938,7 @@ class TestPostAttachmentUploadRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_upload_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 file=fake_file,
                 id=50,
             )
@@ -1085,7 +1085,7 @@ class TestPostAttachmentArchivedByIdRouteUnit:
 
         result = attachments_router.post_attachment_archived_by_id_route(
             fake_session,
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             attachment_id=50,
         )
 
@@ -1108,7 +1108,7 @@ class TestPostAttachmentArchivedByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_archived_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment_id=50,
             )
 
@@ -1232,7 +1232,7 @@ class TestPostAttachmentRestoredByIdRouteUnit:
 
         result = attachments_router.post_attachment_restored_by_id_route(
             fake_session,
-            _authorized_user=authorized_user,
+            authorized_user=authorized_user,
             attachment_id=50,
         )
 
@@ -1253,7 +1253,7 @@ class TestPostAttachmentRestoredByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_restored_by_id_route(
                 object(),
-                _authorized_user=user_record_factory(),
+                authorized_user=user_record_factory(),
                 attachment_id=50,
             )
 
