@@ -695,6 +695,7 @@ class TestPostAttachmentUpload:
             file_type="application/pdf",
             file_name="evidence.pdf",
             file_stream=BytesIO(b"hello world"),
+            user_id=None,
         )
 
         stored_path = tmp_path / Path(result.file_path).name
@@ -718,6 +719,7 @@ class TestPostAttachmentUpload:
             file_type="application/pdf",
             file_name="uploaded-name.pdf",
             file_stream=BytesIO(b"hello world"),
+            user_id=None,
         )
 
         assert Path(result.file_path).suffix == ".pdf"
@@ -737,6 +739,7 @@ class TestPostAttachmentUpload:
             file_type="application/pdf",
             file_name="uploaded-name.pdf",
             file_stream=BytesIO(b"hello world"),
+            user_id=None,
         )
 
         assert result.file_name == "evidence"
@@ -754,6 +757,7 @@ class TestPostAttachmentUpload:
                 file_type="application/x-msdownload",
                 file_name="evidence.exe",
                 file_stream=BytesIO(b"data"),
+                user_id=10,
             )
 
         session.get.assert_not_called()
@@ -770,6 +774,7 @@ class TestPostAttachmentUpload:
                 file_type="application/pdf",
                 file_name="evidence.pdf",
                 file_stream=BytesIO(b"data"),
+                user_id=10,
             )
 
         session.get.assert_called_once_with(Attachment, 999)
@@ -778,7 +783,10 @@ class TestPostAttachmentUpload:
         self, monkeypatch, tmp_path
     ) -> None:
         session = MagicMock()
-        session.get.return_value = SimpleNamespace(id=50)
+        session.get.side_effect = [
+            SimpleNamespace(id=50, certification_id=100),
+            SimpleNamespace(inspector_id=10),
+        ]
         session.commit.side_effect = IntegrityError(
             statement="SQL to create attachment",
             params=("attachment",),
@@ -796,6 +804,7 @@ class TestPostAttachmentUpload:
                 file_type="text/plain",
                 file_name="evidence.txt",
                 file_stream=BytesIO(b"data"),
+                user_id=10,
             )
 
         assert list(tmp_path.iterdir()) == []
@@ -844,9 +853,27 @@ class TestPostAttachmentArchivedById:
         self, monkeypatch, assert_archived_record
     ) -> None:
         session = MagicMock()
-        attachment = SimpleNamespace(archived_at=None, archive_reason=None)
-        session.get.return_value = attachment
+        attachment = SimpleNamespace(
+            certification_id=100,
+            archived_at=None,
+            archive_reason=None,
+        )
+        session.get.side_effect = [
+            attachment,
+            SimpleNamespace(inspector_id=10),
+        ]
         expected = object()
+
+        def fake_archive_record_by_id(
+            session_arg, model, attachment_id, archive_request
+        ):
+            assert session_arg is session
+            assert model is Attachment
+            assert attachment_id == 50
+            attachment.archived_at = datetime.now(UTC)
+            attachment.archive_reason = archive_request.archive_reason
+            session.commit()
+            return attachment
 
         def fake_get_attachment_by_id(session_arg, attachment_id, *, include_archived):
             assert session_arg is session
@@ -855,25 +882,88 @@ class TestPostAttachmentArchivedById:
             return expected
 
         monkeypatch.setattr(
+            "compliance.services.attachments.crud.archive_record_by_id",
+            fake_archive_record_by_id,
+        )
+        monkeypatch.setattr(
             "compliance.services.attachments.crud.get_attachment_by_id",
             fake_get_attachment_by_id,
         )
 
         result = post_attachment_archived_by_id(
-            session, 50, archive_request=ArchiveRequest(archive_reason="old file")
+            session,
+            50,
+            archive_request=ArchiveRequest(archive_reason="old file"),
+            user_id=10,
         )
 
         assert result is expected
         assert_archived_record(attachment, "old file")
-        session.get.assert_called_once_with(Attachment, 50)
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
         session.commit.assert_called_once_with()
+
+    def test_archive_raises_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            None,
+        ]
+
+        with pytest.raises(
+            AttachmentCertificationNotFoundError,
+            match=re.escape("Certification 100 does not exist."),
+        ):
+            post_attachment_archived_by_id(
+                session,
+                50,
+                archive_request=ArchiveRequest(),
+                user_id=10,
+            )
+
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
+        session.commit.assert_not_called()
+
+    def test_archive_raises_when_certification_belongs_to_another_inspector(
+        self,
+    ) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            SimpleNamespace(inspector_id=11),
+        ]
+
+        with pytest.raises(
+            AttachmentPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_attachment_archived_by_id(
+                session,
+                50,
+                archive_request=ArchiveRequest(),
+                user_id=10,
+            )
+
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
+        session.commit.assert_not_called()
 
     def test_returns_none_when_attachment_does_not_exist(self) -> None:
         session = MagicMock()
         session.get.return_value = None
 
         result = post_attachment_archived_by_id(
-            session, 50, archive_request=ArchiveRequest()
+            session, 50, archive_request=ArchiveRequest(), user_id=10
         )
 
         assert result is None
@@ -887,29 +977,92 @@ class TestPostAttachmentRestoredById:
     ) -> None:
         session = MagicMock()
         attachment = SimpleNamespace(
+            certification_id=100,
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="old file",
         )
-        session.get.return_value = attachment
+        session.get.side_effect = [
+            attachment,
+            SimpleNamespace(inspector_id=10),
+        ]
         expected = object()
 
+        def fake_restore_record_by_id(session_arg, model, attachment_id):
+            assert session_arg is session
+            assert model is Attachment
+            assert attachment_id == 50
+            attachment.archived_at = None
+            attachment.archive_reason = None
+            session.commit()
+            return attachment
+
+        monkeypatch.setattr(
+            "compliance.services.attachments.crud.restore_record_by_id",
+            fake_restore_record_by_id,
+        )
         monkeypatch.setattr(
             "compliance.services.attachments.crud.get_attachment_by_id",
             lambda session_arg, attachment_id, *, include_archived: expected,
         )
 
-        result = post_attachment_restored_by_id(session, 50)
+        result = post_attachment_restored_by_id(session, 50, user_id=10)
 
         assert result is expected
         assert_restored_record(attachment)
-        session.get.assert_called_once_with(Attachment, 50)
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
         session.commit.assert_called_once_with()
+
+    def test_restore_raises_when_certification_does_not_exist(self) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            None,
+        ]
+
+        with pytest.raises(
+            AttachmentCertificationNotFoundError,
+            match=re.escape("Certification 100 does not exist."),
+        ):
+            post_attachment_restored_by_id(session, 50, user_id=10)
+
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
+        session.commit.assert_not_called()
+
+    def test_restore_raises_when_certification_belongs_to_another_inspector(
+        self,
+    ) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(certification_id=100),
+            SimpleNamespace(inspector_id=11),
+        ]
+
+        with pytest.raises(
+            AttachmentPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_attachment_restored_by_id(session, 50, user_id=10)
+
+        assert session.get.call_args_list == [
+            ((Attachment, 50),),
+            ((Certification, 100),),
+        ]
+        session.commit.assert_not_called()
 
     def test_returns_none_when_attachment_does_not_exist(self) -> None:
         session = MagicMock()
         session.get.return_value = None
 
-        result = post_attachment_restored_by_id(session, 50)
+        result = post_attachment_restored_by_id(session, 50, user_id=10)
 
         assert result is None
         session.get.assert_called_once_with(Attachment, 50)
@@ -931,6 +1084,17 @@ class TestPostAttachmentArchiveRestoreIntegration:
         assert_archive_restore_round_trip(
             sqlite_session,
             50,
-            archive_fn=post_attachment_archived_by_id,
-            restore_fn=post_attachment_restored_by_id,
+            archive_fn=lambda session, attachment_id, *, archive_request: (
+                post_attachment_archived_by_id(
+                    session,
+                    attachment_id,
+                    archive_request=archive_request,
+                    user_id=None,
+                )
+            ),
+            restore_fn=lambda session, attachment_id: post_attachment_restored_by_id(
+                session,
+                attachment_id,
+                user_id=None,
+            ),
         )

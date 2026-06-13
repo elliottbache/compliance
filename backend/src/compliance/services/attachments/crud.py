@@ -251,7 +251,7 @@ def post_new_attachment(
     # check if certification belongs to current user
     if certification.inspector_id != user_id:
         raise AttachmentPermissionError(
-            f"Certification {new_attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
         )
 
     # check if findings exist
@@ -302,7 +302,11 @@ def post_new_attachment(
 
 
 def post_attachment_archived_by_id(
-    session: Session, attachment_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    attachment_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    user_id: int,
 ) -> AttachmentWithContextOut | None:
     """Archive an attachment by ID.
 
@@ -315,6 +319,23 @@ def post_attachment_archived_by_id(
         The archived attachment with context, or ``None`` if no matching
         attachment exists.
     """
+    attachment = session.get(Attachment, attachment_id)
+    if attachment is None:
+        return None
+
+    # check if certification exists
+    certification = session.get(Certification, attachment.certification_id)
+    if certification is None:
+        raise AttachmentCertificationNotFoundError(
+            f"Certification {attachment.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise AttachmentPermissionError(
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+        )
+
     attachment = archive_record_by_id(
         session, Attachment, attachment_id, archive_request
     )
@@ -324,7 +345,7 @@ def post_attachment_archived_by_id(
 
 
 def post_attachment_restored_by_id(
-    session: Session, attachment_id: int
+    session: Session, attachment_id: int, user_id: int
 ) -> AttachmentWithContextOut | None:
     """Restore an archived attachment by ID.
 
@@ -336,6 +357,23 @@ def post_attachment_restored_by_id(
         The restored attachment with context, or ``None`` if no matching
         attachment exists.
     """
+    attachment = session.get(Attachment, attachment_id)
+    if attachment is None:
+        return None
+
+    # check if certification exists
+    certification = session.get(Certification, attachment.certification_id)
+    if certification is None:
+        raise AttachmentCertificationNotFoundError(
+            f"Certification {attachment.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise AttachmentPermissionError(
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+        )
+
     attachment = restore_record_by_id(session, Attachment, attachment_id)
     if attachment is None:
         return None

@@ -161,6 +161,7 @@ def post_new_attachment_route(
 @router.post("/upload", status_code=201)
 def post_attachment_upload_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     file: UploadFile,
     id: Annotated[int, Form()],
 ) -> None:
@@ -184,9 +185,14 @@ def post_attachment_upload_route(
             file_type=file.content_type,
             file_name=file.filename,
             file_stream=file.file,
+            user_id=_authorized_user.id,
         )
     except AttachmentFileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AttachmentCertificationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:
@@ -198,15 +204,25 @@ def post_attachment_upload_route(
 @router.post("/{attachment_id}/archive", status_code=200)
 def post_attachment_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     attachment_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> AttachmentWithContextOut:
     """Archive one attachment by ID."""
     archive_request = archive_request or ArchiveRequest()
 
-    attachment = post_attachment_archived_by_id(
-        session, attachment_id, archive_request=archive_request
-    )
+    try:
+        attachment = post_attachment_archived_by_id(
+            session,
+            attachment_id,
+            archive_request=archive_request,
+            user_id=_authorized_user.id,
+        )
+    except AttachmentCertificationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     if attachment is None:
         raise HTTPException(
             status_code=404, detail=f"Attachment does not exist: {attachment_id}."
@@ -217,10 +233,20 @@ def post_attachment_archived_by_id_route(
 
 @router.post("/{attachment_id}/restore", status_code=200)
 def post_attachment_restored_by_id_route(
-    session: SessionDep, attachment_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    attachment_id: Annotated[int, Path(ge=1)],
 ) -> AttachmentWithContextOut:
     """Restore one archived attachment by ID."""
-    attachment = post_attachment_restored_by_id(session, attachment_id)
+    try:
+        attachment = post_attachment_restored_by_id(
+            session, attachment_id, user_id=_authorized_user.id
+        )
+    except AttachmentCertificationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     if attachment is None:
         raise HTTPException(
             status_code=404, detail=f"Attachment does not exist: {attachment_id}."

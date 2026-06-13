@@ -4,11 +4,13 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
-from compliance.db.models import Attachment
+from compliance.db.models import Attachment, Certification
 from compliance.services.attachments import (
+    AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentFileError,
     AttachmentNotFoundError,
+    AttachmentPermissionError,
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -34,6 +36,7 @@ def post_attachment_upload(
     file_type: str | None,
     file_name: str | None,
     file_stream: BinaryIO,
+    user_id: int,
 ) -> Attachment:
     """Persist an uploaded file for an existing attachment metadata record.
 
@@ -66,6 +69,19 @@ def post_attachment_upload(
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
         raise AttachmentNotFoundError(f"Attachment with ID {attachment_id} not found.")
+
+    # check if certification exists
+    certification = session.get(Certification, attachment.certification_id)
+    if certification is None:
+        raise AttachmentCertificationNotFoundError(
+            f"Certification {attachment.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise AttachmentPermissionError(
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+        )
 
     # extract extension
     ext = Path(file_name).suffix if file_name is not None else ""
