@@ -113,12 +113,17 @@ def post_new_rule(session: Session, rule: RuleCreate) -> Rule:
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "fk_rules_regulation_id_regulations":
-            raise RuleRegulationNotFoundError(rule.regulation_id) from exc
+            raise RuleRegulationNotFoundError(
+                f"Regulation {rule.regulation_id} does not exist."
+            ) from exc
 
         if constraint_name == "uq_rules_regulation_id_rule_index":
-            raise RuleIndexConflictError(rule.rule_index) from exc
+            raise RuleIndexConflictError(
+                f"Rule with regulation {rule.regulation_id} and index "
+                f"{rule.rule_index} already exists."
+            ) from exc
 
-        raise RuleConflictError() from exc
+        raise RuleConflictError(f"Rule was not added: {rule}.") from exc
 
     return new_rule
 

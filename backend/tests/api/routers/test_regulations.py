@@ -291,7 +291,9 @@ class TestPostNewRegulationRouteUnit:
         )
 
         def fake_post_new_regulation(session, regulation_info):
-            raise regulations_router.RegulationTitleConflictError()
+            raise regulations_router.RegulationTitleConflictError(
+                "Regulation with title Fire Safety 2026 already exists."
+            )
 
         monkeypatch.setattr(
             regulations_router, "post_new_regulation", fake_post_new_regulation
@@ -318,7 +320,9 @@ class TestPostNewRegulationRouteUnit:
         )
 
         def fake_post_new_regulation(session, regulation_info):
-            raise regulations_router.RegulationConflictError()
+            raise regulations_router.RegulationConflictError(
+                f"Regulation was not added: {regulation}."
+            )
 
         monkeypatch.setattr(
             regulations_router, "post_new_regulation", fake_post_new_regulation

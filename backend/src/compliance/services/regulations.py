@@ -110,9 +110,13 @@ def post_new_regulation(session: Session, regulation: RegulationCreate) -> Regul
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "uq_regulations_title":
-            raise RegulationTitleConflictError(regulation.title) from exc
+            raise RegulationTitleConflictError(
+                f"Regulation with title {regulation.title} already exists."
+            ) from exc
 
-        raise RegulationConflictError() from exc
+        raise RegulationConflictError(
+            f"Regulation was not added: {regulation}."
+        ) from exc
 
     return new_regulation
 

@@ -157,9 +157,13 @@ def post_new_certification(
     if certification.inspector_id is not None:
         inspector = session.get(User, certification.inspector_id)
         if not inspector:
-            raise CertificationInspectorNotFoundError(certification.inspector_id)
+            raise CertificationInspectorNotFoundError(
+                f"Inspector {certification.inspector_id} does not exist."
+            )
         if not inspector.is_active:
-            raise CertificationInspectorInactiveError(inspector.id)
+            raise CertificationInspectorInactiveError(
+                f"Inspector {inspector.id} is inactive."
+            )
 
     try:
         session.add(new_certification)
@@ -171,23 +175,27 @@ def post_new_certification(
 
         if constraint_name == "fk_certifications_certifier_id_certifiers":
             raise CertificationCertifierNotFoundError(
-                certification.certifier_id
+                f"Certifier {certification.certifier_id} does not exist."
             ) from exc
 
         if constraint_name == "fk_certifications_regulation_id_regulations":
             raise CertificationRegulationNotFoundError(
-                certification.regulation_id
+                f"Regulation {certification.regulation_id} does not exist."
             ) from exc
 
         if constraint_name == "fk_certifications_site_id_sites":
-            raise CertificationSiteNotFoundError(certification.site_id) from exc
+            raise CertificationSiteNotFoundError(
+                f"Site {certification.site_id} does not exist."
+            ) from exc
 
         if constraint_name == "fk_certifications_inspector_id_users":
             raise CertificationInspectorNotFoundError(
-                certification.inspector_id
+                f"Inspector {certification.inspector_id} does not exist."
             ) from exc
 
-        raise CertificationConflictError() from exc
+        raise CertificationConflictError(
+            f"Certification was not added: {certification}."
+        ) from exc
 
     return new_certification
 

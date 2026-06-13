@@ -281,7 +281,9 @@ class TestPostNewRuleRouteUnit:
         )
 
         def fake_post_new_rule(session, rule_info):
-            raise rules_router.RuleRegulationNotFoundError()
+            raise rules_router.RuleRegulationNotFoundError(
+                "Regulation 3 does not exist."
+            )
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
@@ -304,7 +306,9 @@ class TestPostNewRuleRouteUnit:
         )
 
         def fake_post_new_rule(session, rule_info):
-            raise rules_router.RuleIndexConflictError()
+            raise rules_router.RuleIndexConflictError(
+                "Rule index FS-101 already exists for regulation 3."
+            )
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
@@ -330,7 +334,7 @@ class TestPostNewRuleRouteUnit:
         )
 
         def fake_post_new_rule(session, rule_info):
-            raise rules_router.RuleConflictError()
+            raise rules_router.RuleConflictError(f"Rule was not added: {rule}.")
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 

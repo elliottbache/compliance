@@ -202,7 +202,7 @@ class TestGetFindingsRouteUnit:
             open_only,
             include_archived=False,
         ):
-            raise findings_router.FindingMissingSiteError(site_id)
+            raise findings_router.FindingMissingSiteError("Missing site 999.")
 
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
@@ -227,7 +227,9 @@ class TestGetFindingsRouteUnit:
             open_only,
             include_archived=False,
         ):
-            raise findings_router.FindingMissingCertificationError(certification_id)
+            raise findings_router.FindingMissingCertificationError(
+                "Missing certification 999."
+            )
 
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
@@ -250,7 +252,7 @@ class TestGetFindingsRouteUnit:
             open_only,
             include_archived=False,
         ):
-            raise findings_router.FindingMissingRuleError(rule_id)
+            raise findings_router.FindingMissingRuleError("Missing rule 999.")
 
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
@@ -275,7 +277,9 @@ class TestGetFindingsRouteUnit:
             open_only,
             include_archived=False,
         ):
-            raise findings_router.FindingMissingAttachmentError(attachment_id)
+            raise findings_router.FindingMissingAttachmentError(
+                "Missing attachment 999."
+            )
 
         monkeypatch.setattr(findings_router, "get_findings", fake_get_findings)
 
@@ -393,7 +397,7 @@ class TestPostNewFindingRouteUnit:
 
         def fake_post_new_finding(session, finding_info, user_id):
             raise findings_router.FindingMissingCertificationError(
-                finding_info.certification_id
+                "Certification 100 does not exist."
             )
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
@@ -420,7 +424,10 @@ class TestPostNewFindingRouteUnit:
 
         def fake_post_new_finding(session, finding_info, user_id):
             assert user_id == authorized_user.id
-            raise findings_router.FindingPermissionError()
+            raise findings_router.FindingPermissionError(
+                "Certification is assigned to another inspector.  "
+                "You are logged in as inspector 10."
+            )
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
@@ -447,7 +454,7 @@ class TestPostNewFindingRouteUnit:
         )
 
         def fake_post_new_finding(session, finding_info, user_id):
-            raise findings_router.FindingMissingRuleError(finding_info.rule_id)
+            raise findings_router.FindingMissingRuleError("Rule 5 does not exist.")
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 
@@ -471,7 +478,9 @@ class TestPostNewFindingRouteUnit:
         )
 
         def fake_post_new_finding(session, finding_info, user_id):
-            raise findings_router.FindingConflictError()
+            raise findings_router.FindingConflictError(
+                f"Finding was not added: {finding}."
+            )
 
         monkeypatch.setattr(findings_router, "post_new_finding", fake_post_new_finding)
 

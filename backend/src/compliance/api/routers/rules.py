@@ -90,23 +90,17 @@ def post_new_rule_route(
     except RuleRegulationNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Regulation {rule.regulation_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except RuleIndexConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=(
-                f"Rule index {rule.rule_index} already exists for "
-                f"regulation {rule.regulation_id}."
-            ),
+            detail=str(err),
         ) from err
 
     except RuleConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Rule was not added: {rule}.",
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return RuleOut.model_validate(new_rule)
 

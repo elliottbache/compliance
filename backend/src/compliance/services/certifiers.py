@@ -79,10 +79,13 @@ def post_new_certifier(session: Session, certifier: CertifierCreate) -> Certifie
 
         if constraint_name == "uq_certifiers_organization_name":
             raise CertifierOrganizationNameConflictError(
-                certifier.organization_name
+                "Certifier with organization name "
+                f"{certifier.organization_name} already exists."
             ) from exc
 
-        raise CertifierConflictError() from exc
+        raise CertifierConflictError(
+            "Certifier was not added because of a data conflict."
+        ) from exc
 
     return new_certifier
 

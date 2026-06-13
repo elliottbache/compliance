@@ -41,11 +41,11 @@ def get_site_attachments(
     """
     site = session.get(Site, site_id)
     if site is None or not record_is_visible(site, include_archived):
-        raise SiteNotFoundError(site_id)
+        raise SiteNotFoundError(f"No site for this id found: {site_id}.")
 
     client = session.get(Client, site.nif)
     if not record_is_visible(client, include_archived):
-        raise SiteClientNotFoundError(site.nif)
+        raise SiteClientNotFoundError(f"No client for this site found: {site_id}.")
 
     finding_join_condition = (Finding.id == FindingAttachment.finding_id) & (
         Finding.certification_id == FindingAttachment.certification_id

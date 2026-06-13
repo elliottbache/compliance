@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -415,7 +416,10 @@ class TestGetSiteAttachments:
             },
         )
 
-        with pytest.raises(SiteNotFoundError):
+        with pytest.raises(
+            SiteNotFoundError,
+            match=re.escape("No site for this id found: 12."),
+        ):
             get_site_attachments(sqlite_session, 12)
 
     def test_excludes_attachments_from_archived_clients_by_default(
@@ -428,7 +432,10 @@ class TestGetSiteAttachments:
             },
         )
 
-        with pytest.raises(SiteClientNotFoundError):
+        with pytest.raises(
+            SiteClientNotFoundError,
+            match=re.escape("No client for this site found: 12."),
+        ):
             get_site_attachments(sqlite_session, 12)
 
 

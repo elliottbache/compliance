@@ -73,19 +73,17 @@ def post_new_client_route(
     except ClientNifConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=f"Client with NIF {client.nif} already exists.",
+            detail=str(err),
         ) from err
 
     except ClientCompanyNameConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=f"Client with company name {client.company_name} already exists.",
+            detail=str(err),
         ) from err
 
     except ClientConflictError as err:
-        raise HTTPException(
-            status_code=409, detail="Client was not added because of a data conflict."
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return ClientOut.model_validate(new_client)
 

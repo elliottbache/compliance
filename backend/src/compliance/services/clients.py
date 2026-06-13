@@ -77,12 +77,18 @@ def post_new_client(session: Session, client: ClientCreate) -> Client:
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "pk_clients":
-            raise ClientNifConflictError(client.nif) from exc
+            raise ClientNifConflictError(
+                f"Client with NIF {client.nif} already exists."
+            ) from exc
 
         if constraint_name == "uq_clients_company_name":
-            raise ClientCompanyNameConflictError(client.company_name) from exc
+            raise ClientCompanyNameConflictError(
+                f"Client with company name {client.company_name} already exists."
+            ) from exc
 
-        raise ClientConflictError() from exc
+        raise ClientConflictError(
+            "Client was not added because of a data conflict."
+        ) from exc
 
     return new_client
 

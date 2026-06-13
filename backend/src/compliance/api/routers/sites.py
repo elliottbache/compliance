@@ -104,15 +104,9 @@ def get_site_attachments_route(
             include_archived=include_archived,
         )
     except SiteNotFoundError as err:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No site for this id found: {site_id}.",
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except SiteClientNotFoundError as err:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No client for this site found: {site_id}.",
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
 
     if site_attachments is None:
         return SiteAttachmentsOut(site_id=site_id, attachments=list())
@@ -179,13 +173,11 @@ def post_new_site_route(
     except SiteClientNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Client {site.nif} does not exist.",
+            detail=str(err),
         ) from err
 
     except SiteConflictError as err:
-        raise HTTPException(
-            status_code=409, detail=f"Site was not added: {site}."
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return SiteOut.model_validate(new_site)
 

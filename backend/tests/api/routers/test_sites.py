@@ -432,7 +432,7 @@ class TestPostNewSiteRouteUnit:
         )
 
         def fake_post_new_site(session, site_info):
-            raise sites_router.SiteConflictError()
+            raise sites_router.SiteConflictError(f"Site was not added: {site}.")
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
@@ -458,7 +458,9 @@ class TestPostNewSiteRouteUnit:
         )
 
         def fake_post_new_site(session, site_info):
-            raise sites_router.SiteClientNotFoundError()
+            raise sites_router.SiteClientNotFoundError(
+                "Client A1234567B does not exist."
+            )
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 
@@ -996,7 +998,7 @@ class TestGetSiteAttachmentsRouteClient:
         def fake_get_site_attachments(session, site_id, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
-            raise sites_router.SiteNotFoundError()
+            raise sites_router.SiteNotFoundError("No site for this id found: 999.")
 
         monkeypatch.setattr(
             sites_router,
@@ -1015,7 +1017,9 @@ class TestGetSiteAttachmentsRouteClient:
         def fake_get_site_attachments(session, site_id, *, include_archived=False):
             assert site_id == 999
             assert session is mock_db
-            raise sites_router.SiteClientNotFoundError()
+            raise sites_router.SiteClientNotFoundError(
+                "No client for this site found: 999."
+            )
 
         monkeypatch.setattr(
             sites_router,
@@ -1086,7 +1090,7 @@ class TestGetSiteAttachmentsRouteUnit:
 
     def test_returns_404_when_site_is_not_found(self, monkeypatch) -> None:
         def fake_get_site_attachments(session, site_info, *, include_archived):
-            raise sites_router.SiteNotFoundError()
+            raise sites_router.SiteNotFoundError("No site for this id found: 999.")
 
         monkeypatch.setattr(
             sites_router,
@@ -1106,7 +1110,9 @@ class TestGetSiteAttachmentsRouteUnit:
 
     def test_returns_404_when_client_is_not_found(self, monkeypatch) -> None:
         def fake_get_site_attachments(session, site_info, *, include_archived):
-            raise sites_router.SiteClientNotFoundError()
+            raise sites_router.SiteClientNotFoundError(
+                "No client for this site found: 999."
+            )
 
         monkeypatch.setattr(
             sites_router,

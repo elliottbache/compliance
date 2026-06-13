@@ -1,6 +1,5 @@
 from datetime import UTC, date, datetime
 from io import BytesIO
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -223,7 +222,7 @@ class TestGetAttachmentsRouteUnit:
             finding_id,
             include_archived=False,
         ):
-            raise attachments_router.AttachmentSiteNotFoundError(site_id)
+            raise attachments_router.AttachmentSiteNotFoundError("Missing site 999.")
 
         monkeypatch.setattr(
             attachments_router,
@@ -251,7 +250,7 @@ class TestGetAttachmentsRouteUnit:
             include_archived=False,
         ):
             raise attachments_router.AttachmentCertificationNotFoundError(
-                certification_id
+                "Missing certification 999."
             )
 
         monkeypatch.setattr(
@@ -277,7 +276,7 @@ class TestGetAttachmentsRouteUnit:
             finding_id,
             include_archived=False,
         ):
-            raise attachments_router.AttachmentRuleNotFoundError(rule_id)
+            raise attachments_router.AttachmentRuleNotFoundError("Missing rule 999.")
 
         monkeypatch.setattr(
             attachments_router,
@@ -302,7 +301,9 @@ class TestGetAttachmentsRouteUnit:
             finding_id,
             include_archived=False,
         ):
-            raise attachments_router.AttachmentFindingNotFoundError(finding_id)
+            raise attachments_router.AttachmentFindingNotFoundError(
+                "Missing finding 999."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -364,7 +365,9 @@ class TestGetAttachmentDownloadRoute:
     def test_returns_404_when_attachment_id_does_not_exist(self, monkeypatch) -> None:
         def fake_get_attachment_download(session, attachment_id):
             assert attachment_id == 999
-            raise attachments_router.AttachmentNotFoundError(attachment_id)
+            raise attachments_router.AttachmentNotFoundError(
+                "Attachment with ID 999 not found."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -385,7 +388,7 @@ class TestGetAttachmentDownloadRoute:
     def test_returns_404_when_attachment_file_does_not_exist(self, monkeypatch) -> None:
         def fake_get_attachment_download(session, attachment_id):
             raise attachments_router.AttachmentFileError(
-                attachment_id, Path("missing.pdf")
+                "Attachment file does not exist or not found: missing.pdf."
             )
 
         monkeypatch.setattr(
@@ -742,7 +745,10 @@ class TestPostAttachmentUploadRouteClient:
 
     def test_route_returns_400_when_upload_file_is_invalid(self, client, monkeypatch):
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentFileError()
+            raise attachments_router.AttachmentFileError(
+                "Attachment could not be uploaded: evidence.exe with type "
+                "application/x-msdownload and size 4."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -768,7 +774,9 @@ class TestPostAttachmentUploadRouteClient:
         self, client, monkeypatch
     ):
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentNotFoundError()
+            raise attachments_router.AttachmentNotFoundError(
+                "Attachment with ID 999 not found."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -833,7 +841,10 @@ class TestPostAttachmentUploadRouteUnit:
         )
 
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentFileError()
+            raise attachments_router.AttachmentFileError(
+                "Attachment could not be uploaded: evidence.exe with type "
+                "application/x-msdownload and size 4."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -861,7 +872,9 @@ class TestPostAttachmentUploadRouteUnit:
         )
 
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentNotFoundError()
+            raise attachments_router.AttachmentNotFoundError(
+                "Attachment with ID 50 not found."
+            )
 
         monkeypatch.setattr(
             attachments_router,
@@ -885,7 +898,9 @@ class TestPostAttachmentUploadRouteUnit:
         )
 
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentConflictError()
+            raise attachments_router.AttachmentConflictError(
+                "File persistence error for file: evidence.pdf."
+            )
 
         monkeypatch.setattr(
             attachments_router,

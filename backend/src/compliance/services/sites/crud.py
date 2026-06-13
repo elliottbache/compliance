@@ -93,9 +93,9 @@ def post_new_site(session: Session, site: SiteCreate) -> Site:
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "fk_sites_nif_clients":
-            raise SiteClientNotFoundError(site.nif) from exc
+            raise SiteClientNotFoundError(f"Client {site.nif} does not exist.") from exc
 
-        raise SiteConflictError() from exc
+        raise SiteConflictError(f"Site was not added: {site}.") from exc
 
     return new_site
 

@@ -77,8 +77,12 @@ def post_new_user(session: Session, user: UserCreate) -> UserOut:
         constraint_name = get_constraint_name(exc)
 
         if constraint_name == "uq_users_email":
-            raise UserEmailConflictError(user.email) from exc
+            raise UserEmailConflictError(
+                f"User with email {user.email} already exists."
+            ) from exc
 
-        raise UserConflictError() from exc
+        raise UserConflictError(
+            "User was not added because of a data conflict."
+        ) from exc
 
     return UserOut.model_validate(new_user)

@@ -57,12 +57,15 @@ def post_attachment_upload(
     """
     # check that content type and extension is acceptable
     if not _validate_file_size_type_and_ext(file_size, file_type, file_name):
-        raise AttachmentFileError(file_size, file_type, file_name)
+        raise AttachmentFileError(
+            "Attachment could not be uploaded: "
+            f"{file_name} with type {file_type} and size {file_size}."
+        )
 
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
-        raise AttachmentNotFoundError(attachment_id)
+        raise AttachmentNotFoundError(f"Attachment with ID {attachment_id} not found.")
 
     # extract extension
     ext = Path(file_name).suffix if file_name is not None else ""
@@ -89,7 +92,9 @@ def post_attachment_upload(
     except (OSError, SQLAlchemyError) as e:
         session.rollback()
         file_path.unlink(missing_ok=True)
-        raise AttachmentConflictError(file_path) from e
+        raise AttachmentConflictError(
+            f"File persistence error for file: {file_name}."
+        ) from e
 
     except Exception:
         session.rollback()
@@ -116,14 +121,18 @@ def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, 
     """
     attachment = session.get(Attachment, attachment_id)
     if not attachment:
-        raise AttachmentNotFoundError(attachment_id)
+        raise AttachmentNotFoundError(f"Attachment with ID {attachment_id} not found.")
 
     if not attachment.file_path:
-        raise AttachmentFileError(attachment_id, attachment.file_path)
+        raise AttachmentFileError(
+            "Attachment file does not exist or not found: " f"{attachment.file_path}."
+        )
 
     file_path = Path(attachment.file_path)
     if not file_path.is_file():
-        raise AttachmentFileError(attachment_id, attachment.file_path)
+        raise AttachmentFileError(
+            "Attachment file does not exist or not found: " f"{attachment.file_path}."
+        )
 
     file_name = attachment.file_name or ""
     file_name += str(file_path.suffix)

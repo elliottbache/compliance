@@ -139,7 +139,7 @@ def get_findings(
     if site_id is not None:
         site = session.get(Site, site_id)
         if not record_is_visible(site, include_archived):
-            raise FindingMissingSiteError(site_id)
+            raise FindingMissingSiteError(f"Missing site {site_id}.")
         stmt = stmt.where(Certification.site_id == site_id)
 
     if certification_id is not None:
@@ -147,25 +147,29 @@ def get_findings(
         if certification is None or not record_is_visible(
             certification, include_archived
         ):
-            raise FindingMissingCertificationError(certification_id)
+            raise FindingMissingCertificationError(
+                f"Missing certification {certification_id}."
+            )
 
         if not include_archived and not certification_parent_chain_is_visible(
             session, certification
         ):
-            raise FindingMissingCertificationChainError(certification_id)
+            raise FindingMissingCertificationChainError(
+                f"Missing certification {certification_id}."
+            )
 
         stmt = stmt.where(Certification.id == certification_id)
 
     if rule_id is not None:
         rule = session.get(Rule, rule_id)
         if not record_is_visible(rule, include_archived):
-            raise FindingMissingRuleError(rule_id)
+            raise FindingMissingRuleError(f"Missing rule {rule_id}.")
         stmt = stmt.where(Rule.id == rule_id)
 
     if attachment_id is not None:
         attachment = session.get(Attachment, attachment_id)
         if not record_is_visible(attachment, include_archived):
-            raise FindingMissingAttachmentError(attachment_id)
+            raise FindingMissingAttachmentError(f"Missing attachment {attachment_id}.")
         stmt = stmt.where(FindingAttachment.attachment_id == attachment_id)
 
     if open_only:

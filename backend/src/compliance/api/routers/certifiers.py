@@ -73,17 +73,11 @@ def post_new_certifier_route(
     except CertifierOrganizationNameConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=(
-                "Certifier with organization name "
-                f"{certifier.organization_name} already exists."
-            ),
+            detail=str(err),
         ) from err
 
     except CertifierConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail="Certifier was not added because of a data conflict.",
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return CertifierOut.model_validate(new_certifier)
 

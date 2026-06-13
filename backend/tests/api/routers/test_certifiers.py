@@ -223,7 +223,9 @@ class TestPostNewCertifierRouteUnit:
         )
 
         def fake_post_new_certifier(session, certifier_info):
-            raise certifiers_router.CertifierConflictError
+            raise certifiers_router.CertifierConflictError(
+                "Certifier was not added because of a data conflict."
+            )
 
         monkeypatch.setattr(
             certifiers_router, "post_new_certifier", fake_post_new_certifier
@@ -250,7 +252,9 @@ class TestPostNewCertifierRouteUnit:
         )
 
         def fake_post_new_certifier(session, certifier_info):
-            raise certifiers_router.CertifierOrganizationNameConflictError
+            raise certifiers_router.CertifierOrganizationNameConflictError(
+                "Certifier with organization name SafeCheck Inc. already exists."
+            )
 
         monkeypatch.setattr(
             certifiers_router, "post_new_certifier", fake_post_new_certifier

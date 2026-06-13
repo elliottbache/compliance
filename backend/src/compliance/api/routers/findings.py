@@ -74,17 +74,13 @@ def get_findings_route(
             include_archived=include_archived,
         )
     except FindingMissingSiteError as err:
-        raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except FindingMissingCertificationError as err:
-        raise HTTPException(
-            status_code=404, detail=f"Missing certification {certification_id}."
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except FindingMissingRuleError as err:
-        raise HTTPException(status_code=404, detail=f"Missing rule {rule_id}.") from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except FindingMissingAttachmentError as err:
-        raise HTTPException(
-            status_code=404, detail=f"Missing attachment {attachment_id}."
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
 
     return findings
 

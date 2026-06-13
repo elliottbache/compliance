@@ -76,17 +76,13 @@ def get_attachments_route(
             include_archived=include_archived,
         )
     except AttachmentSiteNotFoundError as err:
-        raise HTTPException(status_code=404, detail=f"Missing site {site_id}.") from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except AttachmentCertificationNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"Missing certification {certification_id}."
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except AttachmentRuleNotFoundError as err:
-        raise HTTPException(status_code=404, detail=f"Missing rule {rule_id}.") from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
     except AttachmentFindingNotFoundError as err:
-        raise HTTPException(
-            status_code=404, detail=f"Missing finding {finding_id}."
-        ) from err
+        raise HTTPException(status_code=404, detail=str(err)) from err
 
     return attachments
 
@@ -115,15 +111,10 @@ def get_attachment_download_route(
         file_name, file_path = get_attachment_download(session, attachment_id)
 
     except AttachmentNotFoundError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Attachment with ID {attachment_id} not found."
-        ) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     except AttachmentFileError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Attachment file does not exist or not found: {exc}.",
-        ) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return FileResponse(
         path=file_path, filename=file_name, media_type="application/octet-stream"
@@ -195,18 +186,11 @@ def post_attachment_upload_route(
             file_stream=file.file,
         )
     except AttachmentFileError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Attachment could not be uploaded: {file.filename} with type {file.content_type} and size {file.size}.",
-        ) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
-        raise HTTPException(
-            status_code=500, detail=f"File persistence error for file: {file.filename}."
-        ) from exc
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Attachment with ID {id} not found."
-        ) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:
         file.file.close()
 

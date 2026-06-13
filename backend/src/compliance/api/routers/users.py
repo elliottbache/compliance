@@ -71,13 +71,10 @@ def post_new_user_route(
     except UserEmailConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=("User with email " f"{user.email} already exists."),
+            detail=str(err),
         ) from err
 
     except UserConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail="User was not added because of a data conflict.",
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return UserOut.model_validate(new_user)

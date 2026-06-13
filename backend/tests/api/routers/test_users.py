@@ -251,7 +251,9 @@ class TestPostNewUserRouteUnit:
         )
 
         def fake_post_new_user(session, user_info):
-            raise users_router.UserEmailConflictError()
+            raise users_router.UserEmailConflictError(
+                "User with email alice@example.com already exists."
+            )
 
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 
@@ -277,7 +279,9 @@ class TestPostNewUserRouteUnit:
         )
 
         def fake_post_new_user(session, user_info):
-            raise users_router.UserConflictError()
+            raise users_router.UserConflictError(
+                "User was not added because of a data conflict."
+            )
 
         monkeypatch.setattr(users_router, "post_new_user", fake_post_new_user)
 

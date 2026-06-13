@@ -621,9 +621,21 @@ class TestPostFindingArchivedById:
         self, monkeypatch, assert_archived_record
     ) -> None:
         session = MagicMock()
-        finding = SimpleNamespace(archived_at=None, archive_reason=None)
-        session.get.return_value = finding
+        finding = SimpleNamespace(
+            certification_id=100,
+            archived_at=None,
+            archive_reason=None,
+        )
         expected = object()
+
+        def fake_archive_record_by_id(session_arg, model, finding_id, archive_request):
+            assert session_arg is session
+            assert model is Finding
+            assert finding_id == 1
+            finding.archived_at = datetime.now(UTC)
+            finding.archive_reason = archive_request.archive_reason
+            session.commit()
+            return finding
 
         def fake_get_finding_by_id(session_arg, finding_id, *, include_archived):
             assert session_arg is session
@@ -632,17 +644,23 @@ class TestPostFindingArchivedById:
             return expected
 
         monkeypatch.setattr(
+            "compliance.services.findings.archive_record_by_id",
+            fake_archive_record_by_id,
+        )
+        monkeypatch.setattr(
             "compliance.services.findings.get_finding_by_id",
             fake_get_finding_by_id,
         )
 
         result = post_finding_archived_by_id(
-            session, 1, archive_request=ArchiveRequest(archive_reason="resolved")
+            session,
+            1,
+            archive_request=ArchiveRequest(archive_reason="resolved"),
+            user_id=10,
         )
 
         assert result is expected
         assert_archived_record(finding, "resolved")
-        session.get.assert_called_once_with(Finding, 1)
         session.commit.assert_called_once_with()
 
     def test_returns_none_when_finding_does_not_exist(self) -> None:
@@ -650,7 +668,7 @@ class TestPostFindingArchivedById:
         session.get.return_value = None
 
         result = post_finding_archived_by_id(
-            session, 1, archive_request=ArchiveRequest()
+            session, 1, archive_request=ArchiveRequest(), user_id=10
         )
 
         assert result is None
@@ -664,29 +682,41 @@ class TestPostFindingRestoredById:
     ) -> None:
         session = MagicMock()
         finding = SimpleNamespace(
+            certification_id=100,
             archived_at=datetime(2026, 5, 8, 10, 0, tzinfo=UTC),
             archive_reason="resolved",
         )
-        session.get.return_value = finding
         expected = object()
 
+        def fake_restore_record_by_id(session_arg, model, finding_id):
+            assert session_arg is session
+            assert model is Finding
+            assert finding_id == 1
+            finding.archived_at = None
+            finding.archive_reason = None
+            session.commit()
+            return finding
+
+        monkeypatch.setattr(
+            "compliance.services.findings.restore_record_by_id",
+            fake_restore_record_by_id,
+        )
         monkeypatch.setattr(
             "compliance.services.findings.get_finding_by_id",
             lambda session_arg, finding_id, *, include_archived: expected,
         )
 
-        result = post_finding_restored_by_id(session, 1)
+        result = post_finding_restored_by_id(session, 1, user_id=10)
 
         assert result is expected
         assert_restored_record(finding)
-        session.get.assert_called_once_with(Finding, 1)
         session.commit.assert_called_once_with()
 
     def test_returns_none_when_finding_does_not_exist(self) -> None:
         session = MagicMock()
         session.get.return_value = None
 
-        result = post_finding_restored_by_id(session, 1)
+        result = post_finding_restored_by_id(session, 1, user_id=10)
 
         assert result is None
         session.get.assert_called_once_with(Finding, 1)
@@ -708,6 +738,17 @@ class TestPostFindingArchiveRestoreIntegration:
         assert_archive_restore_round_trip(
             sqlite_session,
             1,
-            archive_fn=post_finding_archived_by_id,
-            restore_fn=post_finding_restored_by_id,
+            archive_fn=lambda session, finding_id, *, archive_request: (
+                post_finding_archived_by_id(
+                    session,
+                    finding_id,
+                    archive_request=archive_request,
+                    user_id=None,
+                )
+            ),
+            restore_fn=lambda session, finding_id: post_finding_restored_by_id(
+                session,
+                finding_id,
+                user_id=None,
+            ),
         )

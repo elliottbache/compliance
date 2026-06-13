@@ -89,14 +89,11 @@ def post_new_regulation_route(
     except RegulationTitleConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=f"Regulation with title {regulation.title} already exists.",
+            detail=str(err),
         ) from err
 
     except RegulationConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Regulation was not added: {regulation}.",
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return RegulationOut.model_validate(new_regulation)
 

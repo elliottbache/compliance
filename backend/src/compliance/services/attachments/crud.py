@@ -112,25 +112,27 @@ def get_attachments(
     if site_id is not None:
         site = session.get(Site, site_id)
         if not record_is_visible(site, include_archived):
-            raise AttachmentSiteNotFoundError(site_id)
+            raise AttachmentSiteNotFoundError(f"Missing site {site_id}.")
         stmt = stmt.where(Certification.site_id == site_id)
 
     if certification_id is not None:
         certification = session.get(Certification, certification_id)
         if not record_is_visible(certification, include_archived):
-            raise AttachmentCertificationNotFoundError(certification_id)
+            raise AttachmentCertificationNotFoundError(
+                f"Missing certification {certification_id}."
+            )
         stmt = stmt.where(Certification.id == certification_id)
 
     if rule_id is not None:
         rule = session.get(Rule, rule_id)
         if not record_is_visible(rule, include_archived):
-            raise AttachmentRuleNotFoundError(rule_id)
+            raise AttachmentRuleNotFoundError(f"Missing rule {rule_id}.")
         stmt = stmt.where(Rule.id == rule_id)
 
     if finding_id is not None:
         finding = session.get(Finding, finding_id)
         if not record_is_visible(finding, include_archived):
-            raise AttachmentFindingNotFoundError(finding_id)
+            raise AttachmentFindingNotFoundError(f"Missing finding {finding_id}.")
         stmt = stmt.where(FindingAttachment.finding_id == finding_id)
 
     stmt = stmt.order_by(Attachment.id, Finding.id)

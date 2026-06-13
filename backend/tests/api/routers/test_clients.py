@@ -252,7 +252,9 @@ class TestPostNewClientRouteUnit:
         )
 
         def fake_post_new_client(session, client_info):
-            raise clients_router.ClientConflictError
+            raise clients_router.ClientConflictError(
+                "Client was not added because of a data conflict."
+            )
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
@@ -280,7 +282,9 @@ class TestPostNewClientRouteUnit:
         )
 
         def fake_post_new_client(session, client_info):
-            raise clients_router.ClientNifConflictError
+            raise clients_router.ClientNifConflictError(
+                "Client with NIF A1234567B already exists."
+            )
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 
@@ -306,7 +310,9 @@ class TestPostNewClientRouteUnit:
         )
 
         def fake_post_new_client(session, client_info):
-            raise clients_router.ClientCompanyNameConflictError
+            raise clients_router.ClientCompanyNameConflictError(
+                "Client with company name Acme Compliance already exists."
+            )
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 

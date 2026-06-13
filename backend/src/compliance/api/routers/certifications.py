@@ -96,38 +96,35 @@ def post_new_certification_route(
     except CertificationCertifierNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Certifier {certification.certifier_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except CertificationRegulationNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Regulation {certification.regulation_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except CertificationSiteNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Site {certification.site_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except CertificationInspectorNotFoundError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Inspector {certification.inspector_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except CertificationInspectorInactiveError as err:
         raise HTTPException(
             status_code=422,
-            detail=f"Inspector {certification.inspector_id} is inactive.",
+            detail=str(err),
         ) from err
 
     except CertificationConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Certification was not added: {certification}.",
-        ) from err
+        raise HTTPException(status_code=409, detail=str(err)) from err
 
     return CertificationOut.model_validate(new_certification)
 

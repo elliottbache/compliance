@@ -395,7 +395,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationCertifierNotFoundError()
+            raise certifications_router.CertificationCertifierNotFoundError(
+                "Certifier 7 does not exist."
+            )
 
         monkeypatch.setattr(
             certifications_router,
@@ -422,7 +424,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationRegulationNotFoundError()
+            raise certifications_router.CertificationRegulationNotFoundError(
+                "Regulation 3 does not exist."
+            )
 
         monkeypatch.setattr(
             certifications_router,
@@ -449,7 +453,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationSiteNotFoundError()
+            raise certifications_router.CertificationSiteNotFoundError(
+                "Site 12 does not exist."
+            )
 
         monkeypatch.setattr(
             certifications_router,
@@ -477,7 +483,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationInspectorNotFoundError()
+            raise certifications_router.CertificationInspectorNotFoundError(
+                "Inspector 9 does not exist."
+            )
 
         monkeypatch.setattr(
             certifications_router,
@@ -505,7 +513,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationInspectorInactiveError()
+            raise certifications_router.CertificationInspectorInactiveError(
+                "Inspector 9 is inactive."
+            )
 
         monkeypatch.setattr(
             certifications_router,
@@ -532,7 +542,9 @@ class TestPostNewCertificationRouteUnit:
         )
 
         def fake_post_new_certification(session, certification_info):
-            raise certifications_router.CertificationConflictError()
+            raise certifications_router.CertificationConflictError(
+                f"Certification was not added: {certification}."
+            )
 
         monkeypatch.setattr(
             certifications_router,
