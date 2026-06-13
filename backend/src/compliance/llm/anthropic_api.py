@@ -29,6 +29,10 @@ class LLMStopReasonError(RuntimeError):
     """Base error for Anthropic responses that stop before valid output is returned."""
 
 
+class LLMResponseContentError(RuntimeError):
+    """Raised when a response uses content this adapter cannot parse."""
+
+
 class LLMMaxTokensError(LLMStopReasonError):
     """Raised when Anthropic stops because the response reached max_tokens."""
 
@@ -323,7 +327,7 @@ def _extract_text_from_response(response: Message) -> str:
     if response.content and isinstance(response.content[0], TextBlock):
         return response.content[0].text
     else:
-        raise ValueError("LLM response does not contain text.")
+        raise LLMResponseContentError("LLM response content is not parseable text.")
 
 
 def _create_error_message(

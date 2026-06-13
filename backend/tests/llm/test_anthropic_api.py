@@ -16,6 +16,7 @@ from compliance.llm.anthropic_api import (
     LLMMaxTokensError,
     LLMPauseTurnError,
     LLMRefusalError,
+    LLMResponseContentError,
     LLMTokenBudgetExceededError,
     LLMToolUseError,
     _convert_base_model_to_json_schema,
@@ -527,13 +528,13 @@ class TestExtractTextFromResponse:
     def test_raises_when_response_has_no_content(self) -> None:
         response = SimpleNamespace(content=[])
 
-        with pytest.raises(ValueError, match="does not contain text"):
+        with pytest.raises(LLMResponseContentError, match="not parseable text"):
             _extract_text_from_response(response)
 
     def test_raises_when_first_content_item_is_not_text_block(self) -> None:
         response = SimpleNamespace(content=[{"type": "text", "text": "hello"}])
 
-        with pytest.raises(ValueError, match="does not contain text"):
+        with pytest.raises(LLMResponseContentError, match="not parseable text"):
             _extract_text_from_response(response)
 
 
