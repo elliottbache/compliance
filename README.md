@@ -604,9 +604,6 @@ Terminal model stop:
 
 ### Security
 
-- Replace placeholder user password creation with a complete password-management
-  workflow.
-- Add tenant/client isolation where users should only see part of the dataset.
 - Harden file upload handling with stricter MIME checks, size limits, malware
   scanning, quarantine, safe filenames, and path hiding.
 - Move secrets to managed secret storage in deployed environments.
@@ -621,8 +618,7 @@ Terminal model stop:
 - Document when site history and attachments may be sent to Anthropic.
 - Add redaction/minimization policies for AI requests.
 - Add retention, export, and deletion procedures.
-- Avoid exposing original filenames or storage paths when they contain sensitive
-  information.
+
 
 ### Deployment And Operations
 
