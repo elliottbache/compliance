@@ -340,7 +340,7 @@ def post_new_finding(
     except IntegrityError as exc:
         session.rollback()
 
-        raise FindingConflictError() from exc
+        raise FindingConflictError(f"Finding was not added: {new_finding}.") from exc
 
     return finding_out
 

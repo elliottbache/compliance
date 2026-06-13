@@ -121,19 +121,19 @@ def post_new_finding_route(
     except FindingMissingCertificationError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Certification {finding.certification_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except FindingPermissionError as err:
         raise HTTPException(
             status_code=403,
-            detail=f"Certification is assigned to another inspector.  You are logged in as inspector {_authorized_user.id}.",
+            detail=str(err),
         ) from err
 
     except FindingMissingRuleError as err:
         raise HTTPException(
             status_code=404,
-            detail=f"Rule {finding.rule_id} does not exist.",
+            detail=str(err),
         ) from err
 
     except FindingMissingAttachmentError as err:
@@ -145,7 +145,7 @@ def post_new_finding_route(
     except FindingConflictError as err:
         raise HTTPException(
             status_code=409,
-            detail=f"Finding was not added: {finding}.",
+            detail=str(err),
         ) from err
 
     return FindingOut.model_validate(new_finding)
