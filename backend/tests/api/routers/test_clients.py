@@ -345,6 +345,7 @@ class TestPostNewClientRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostClientArchivedByNifRouteClient:
     # TestClient
     def test_route_archives_active_client(
@@ -460,7 +461,10 @@ class TestPostClientArchivedByNifRouteUnit:
         )
 
         result = clients_router.post_client_archived_by_nif_route(
-            fake_session, "A1234567B", archive_request
+            fake_session,
+            _authorized_user=object(),
+            nif="A1234567B",
+            archive_request=archive_request,
         )
 
         assert result == expected_client
@@ -490,7 +494,9 @@ class TestPostClientArchivedByNifRouteUnit:
         )
 
         result = clients_router.post_client_archived_by_nif_route(
-            fake_session, "A1234567B"
+            fake_session,
+            _authorized_user=object(),
+            nif="A1234567B",
         )
 
         assert result == expected_client
@@ -506,12 +512,17 @@ class TestPostClientArchivedByNifRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_client_archived_by_nif_route(object(), "A1234567B")
+            clients_router.post_client_archived_by_nif_route(
+                object(),
+                _authorized_user=object(),
+                nif="A1234567B",
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client does not exist: A1234567B."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostClientRestoredByNifRouteClient:
     # TestClient
     def test_route_restores_archived_client(
@@ -617,7 +628,9 @@ class TestPostClientRestoredByNifRouteUnit:
         )
 
         result = clients_router.post_client_restored_by_nif_route(
-            fake_session, "A1234567B"
+            fake_session,
+            _authorized_user=object(),
+            nif="A1234567B",
         )
 
         assert result == expected_client
@@ -633,7 +646,11 @@ class TestPostClientRestoredByNifRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            clients_router.post_client_restored_by_nif_route(object(), "A1234567B")
+            clients_router.post_client_restored_by_nif_route(
+                object(),
+                _authorized_user=object(),
+                nif="A1234567B",
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Client does not exist: A1234567B."

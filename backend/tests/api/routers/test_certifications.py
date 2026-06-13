@@ -578,6 +578,7 @@ class TestPostNewCertificationRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostCertificationArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_certification(
@@ -709,7 +710,9 @@ class TestPostCertificationArchivedByIdRouteUnit:
         )
 
         result = certifications_router.post_certification_archived_by_id_route(
-            fake_session, 100
+            fake_session,
+            _authorized_user=object(),
+            certification_id=100,
         )
 
         assert result == expected
@@ -727,12 +730,17 @@ class TestPostCertificationArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_certification_archived_by_id_route(object(), 100)
+            certifications_router.post_certification_archived_by_id_route(
+                object(),
+                _authorized_user=object(),
+                certification_id=100,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification does not exist: 100."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostCertificationRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_certification(
@@ -841,7 +849,9 @@ class TestPostCertificationRestoredByIdRouteUnit:
         )
 
         result = certifications_router.post_certification_restored_by_id_route(
-            fake_session, 100
+            fake_session,
+            _authorized_user=object(),
+            certification_id=100,
         )
 
         assert result == expected
@@ -857,7 +867,11 @@ class TestPostCertificationRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifications_router.post_certification_restored_by_id_route(object(), 100)
+            certifications_router.post_certification_restored_by_id_route(
+                object(),
+                _authorized_user=object(),
+                certification_id=100,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification does not exist: 100."

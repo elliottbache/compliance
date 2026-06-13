@@ -85,6 +85,7 @@ def post_new_certifier_route(
 @router.post("/{certifier_id}/archive", status_code=200)
 def post_certifier_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certifier_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> CertifierOut:
@@ -104,7 +105,9 @@ def post_certifier_archived_by_id_route(
 
 @router.post("/{certifier_id}/restore", status_code=200)
 def post_certifier_restored_by_id_route(
-    session: SessionDep, certifier_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    certifier_id: Annotated[int, Path(ge=1)],
 ) -> CertifierOut:
     """Restore one archived certifier by ID."""
     certifier = post_certifier_restored_by_id(session, certifier_id)

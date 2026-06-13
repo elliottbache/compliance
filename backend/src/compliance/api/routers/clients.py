@@ -91,6 +91,7 @@ def post_new_client_route(
 @router.post("/{nif}/archive", status_code=200)
 def post_client_archived_by_nif_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     nif: Annotated[str, Path(min_length=9, max_length=9)],
     archive_request: ArchiveRequest | None = None,
 ) -> ClientOut:
@@ -119,7 +120,9 @@ def post_client_archived_by_nif_route(
 
 @router.post("/{nif}/restore", status_code=200)
 def post_client_restored_by_nif_route(
-    session: SessionDep, nif: Annotated[str, Path(min_length=9, max_length=9)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    nif: Annotated[str, Path(min_length=9, max_length=9)],
 ) -> ClientOut:
     """Restore one archived client by NIF.
 

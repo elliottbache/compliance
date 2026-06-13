@@ -354,6 +354,7 @@ class TestPostNewRegulationRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostRegulationArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_regulation(
@@ -476,7 +477,9 @@ class TestPostRegulationArchivedByIdRouteUnit:
         )
 
         result = regulations_router.post_regulation_archived_by_id_route(
-            fake_session, 5
+            fake_session,
+            _authorized_user=object(),
+            regulation_id=5,
         )
 
         assert result == expected
@@ -494,12 +497,17 @@ class TestPostRegulationArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_regulation_archived_by_id_route(object(), 5)
+            regulations_router.post_regulation_archived_by_id_route(
+                object(),
+                _authorized_user=object(),
+                regulation_id=5,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Regulation does not exist: 5."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostRegulationRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_regulation(
@@ -601,7 +609,9 @@ class TestPostRegulationRestoredByIdRouteUnit:
         )
 
         result = regulations_router.post_regulation_restored_by_id_route(
-            fake_session, 5
+            fake_session,
+            _authorized_user=object(),
+            regulation_id=5,
         )
 
         assert result == expected
@@ -617,7 +627,11 @@ class TestPostRegulationRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            regulations_router.post_regulation_restored_by_id_route(object(), 5)
+            regulations_router.post_regulation_restored_by_id_route(
+                object(),
+                _authorized_user=object(),
+                regulation_id=5,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Regulation does not exist: 5."

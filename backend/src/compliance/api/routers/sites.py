@@ -185,6 +185,7 @@ def post_new_site_route(
 @router.post("/{site_id}/archive", status_code=200)
 def post_site_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     site_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> SiteOut:
@@ -200,7 +201,9 @@ def post_site_archived_by_id_route(
 
 @router.post("/{site_id}/restore", status_code=200)
 def post_site_restored_by_id_route(
-    session: SessionDep, site_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    site_id: Annotated[int, Path(ge=1)],
 ) -> SiteOut:
     """Restore one archived site by ID."""
     site = post_site_restored_by_id(session, site_id)

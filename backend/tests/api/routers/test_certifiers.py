@@ -289,6 +289,7 @@ class TestPostNewCertifierRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostCertifierArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_certifier(
@@ -408,7 +409,11 @@ class TestPostCertifierArchivedByIdRouteUnit:
             fake_post_certifier_archived_by_id,
         )
 
-        result = certifiers_router.post_certifier_archived_by_id_route(fake_session, 10)
+        result = certifiers_router.post_certifier_archived_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            certifier_id=10,
+        )
 
         assert result == expected
 
@@ -425,12 +430,17 @@ class TestPostCertifierArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_certifier_archived_by_id_route(object(), 10)
+            certifiers_router.post_certifier_archived_by_id_route(
+                object(),
+                _authorized_user=object(),
+                certifier_id=10,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certifier does not exist: 10."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostCertifierRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_certifier(
@@ -529,7 +539,11 @@ class TestPostCertifierRestoredByIdRouteUnit:
             fake_post_certifier_restored_by_id,
         )
 
-        result = certifiers_router.post_certifier_restored_by_id_route(fake_session, 10)
+        result = certifiers_router.post_certifier_restored_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            certifier_id=10,
+        )
 
         assert result == expected
 
@@ -544,7 +558,11 @@ class TestPostCertifierRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            certifiers_router.post_certifier_restored_by_id_route(object(), 10)
+            certifiers_router.post_certifier_restored_by_id_route(
+                object(),
+                _authorized_user=object(),
+                certifier_id=10,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certifier does not exist: 10."

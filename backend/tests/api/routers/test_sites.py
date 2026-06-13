@@ -488,6 +488,7 @@ class TestPostNewSiteRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostSiteArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_site(
@@ -585,7 +586,11 @@ class TestPostSiteArchivedByIdRouteUnit:
             fake_post_site_archived_by_id,
         )
 
-        result = sites_router.post_site_archived_by_id_route(fake_session, 12)
+        result = sites_router.post_site_archived_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            site_id=12,
+        )
 
         assert result == expected
 
@@ -600,12 +605,17 @@ class TestPostSiteArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.post_site_archived_by_id_route(object(), 12)
+            sites_router.post_site_archived_by_id_route(
+                object(),
+                _authorized_user=object(),
+                site_id=12,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site does not exist: 12."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostSiteRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_site(
@@ -694,7 +704,11 @@ class TestPostSiteRestoredByIdRouteUnit:
             fake_post_site_restored_by_id,
         )
 
-        result = sites_router.post_site_restored_by_id_route(fake_session, 12)
+        result = sites_router.post_site_restored_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            site_id=12,
+        )
 
         assert result == expected
 
@@ -709,7 +723,11 @@ class TestPostSiteRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router.post_site_restored_by_id_route(object(), 12)
+            sites_router.post_site_restored_by_id_route(
+                object(),
+                _authorized_user=object(),
+                site_id=12,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site does not exist: 12."

@@ -108,6 +108,7 @@ def post_new_rule_route(
 @router.post("/{rule_id}/archive", status_code=200)
 def post_rule_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     rule_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> RuleOut:
@@ -123,7 +124,9 @@ def post_rule_archived_by_id_route(
 
 @router.post("/{rule_id}/restore", status_code=200)
 def post_rule_restored_by_id_route(
-    session: SessionDep, rule_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    rule_id: Annotated[int, Path(ge=1)],
 ) -> RuleOut:
     """Restore one archived rule by ID."""
     rule = post_rule_restored_by_id(session, rule_id)

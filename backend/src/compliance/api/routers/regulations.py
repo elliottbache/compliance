@@ -101,6 +101,7 @@ def post_new_regulation_route(
 @router.post("/{regulation_id}/archive", status_code=200)
 def post_regulation_archived_by_id_route(
     session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     regulation_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> RegulationOut:
@@ -120,7 +121,9 @@ def post_regulation_archived_by_id_route(
 
 @router.post("/{regulation_id}/restore", status_code=200)
 def post_regulation_restored_by_id_route(
-    session: SessionDep, regulation_id: Annotated[int, Path(ge=1)]
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    regulation_id: Annotated[int, Path(ge=1)],
 ) -> RegulationOut:
     """Restore one archived regulation by ID."""
     regulation = post_regulation_restored_by_id(session, regulation_id)

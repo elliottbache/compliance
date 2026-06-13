@@ -362,6 +362,7 @@ class TestPostNewRuleRouteUnit:
         assert route.status_code == 201
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostRuleArchivedByIdRouteClient:
     # TestClient
     def test_route_archives_active_rule(
@@ -470,7 +471,11 @@ class TestPostRuleArchivedByIdRouteUnit:
             fake_post_rule_archived_by_id,
         )
 
-        result = rules_router.post_rule_archived_by_id_route(fake_session, 21)
+        result = rules_router.post_rule_archived_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            rule_id=21,
+        )
 
         assert result == expected
 
@@ -485,12 +490,17 @@ class TestPostRuleArchivedByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_rule_archived_by_id_route(object(), 21)
+            rules_router.post_rule_archived_by_id_route(
+                object(),
+                _authorized_user=object(),
+                rule_id=21,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Rule does not exist: 21."
 
 
+@pytest.mark.usefixtures("admin_user_override")
 class TestPostRuleRestoredByIdRouteClient:
     # TestClient
     def test_route_restores_archived_rule(
@@ -586,7 +596,11 @@ class TestPostRuleRestoredByIdRouteUnit:
             fake_post_rule_restored_by_id,
         )
 
-        result = rules_router.post_rule_restored_by_id_route(fake_session, 21)
+        result = rules_router.post_rule_restored_by_id_route(
+            fake_session,
+            _authorized_user=object(),
+            rule_id=21,
+        )
 
         assert result == expected
 
@@ -601,7 +615,11 @@ class TestPostRuleRestoredByIdRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            rules_router.post_rule_restored_by_id_route(object(), 21)
+            rules_router.post_rule_restored_by_id_route(
+                object(),
+                _authorized_user=object(),
+                rule_id=21,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Rule does not exist: 21."
