@@ -405,6 +405,7 @@ class TestGetAttachmentDownloadRoute:
         assert "Attachment file does not exist or not found:" in exc_info.value.detail
 
 
+@pytest.mark.usefixtures("inspector_user_override")
 class TestPostNewAttachmentRouteClient:
     def test_route_returns_attachment_json_when_created(
         self, client, mock_db, monkeypatch, attachment_create_factory
@@ -421,10 +422,11 @@ class TestPostNewAttachmentRouteClient:
             }
         )
 
-        def fake_post_new_attachment(session, attachment):
+        def fake_post_new_attachment(session, attachment, user_id):
             assert attachment.file_name == "evidence"
             assert attachment.certification_id == 100
             assert session is mock_db
+            assert user_id == 10
             return new_attachment
 
         monkeypatch.setattr(
@@ -454,7 +456,7 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_404_when_certification_is_not_found(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment):
+        def fake_post_new_attachment(session, attachment, user_id):
             assert attachment.certification_id == 100
             assert session is mock_db
             raise attachments_router.AttachmentCertificationNotFoundError(
@@ -472,10 +474,37 @@ class TestPostNewAttachmentRouteClient:
         assert response.status_code == 404
         assert response.json() == {"detail": "Certification 100 does not exist."}
 
+    def test_route_returns_403_when_certification_belongs_to_another_inspector(
+        self, main_module, client, mock_db, monkeypatch, attachment_create_factory
+    ):
+        def fake_post_new_attachment(session, attachment, user_id):
+            assert session is mock_db
+            assert user_id == 10
+            raise attachments_router.AttachmentPermissionError(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        response = client.post("/attachments", json=attachment_create_factory())
+
+        assert response.status_code == 403
+        assert response.json() == {
+            "detail": (
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            )
+        }
+
     def test_route_returns_422_when_finding_belongs_to_another_certification(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment):
+        def fake_post_new_attachment(session, attachment, user_id):
             assert attachment.finding_ids == [7]
             assert session is mock_db
             raise attachments_router.AttachmentFindingCertificationMismatchError(
@@ -500,7 +529,7 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_409_when_attachment_conflicts(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment):
+        def fake_post_new_attachment(session, attachment, user_id):
             assert session is mock_db
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
@@ -526,13 +555,13 @@ class TestPostNewAttachmentRouteClient:
 class TestPostNewAttachmentRouteUnit:
 
     def test_returns_404_when_certification_is_not_found(
-        self, main_module, monkeypatch, attachment_create_factory
+        self, main_module, monkeypatch, attachment_create_factory, user_record_factory
     ) -> None:
         attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(session, attachment_info):
+        def fake_post_new_attachment(session, attachment_info, user_id):
             raise attachments_router.AttachmentCertificationNotFoundError(
                 "Certification 100 does not exist."
             )
@@ -544,19 +573,57 @@ class TestPostNewAttachmentRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(object(), attachment)
+            attachments_router.post_new_attachment_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                attachment=attachment,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Certification 100 does not exist."
 
+    def test_returns_403_when_certification_belongs_to_another_inspector(
+        self, main_module, monkeypatch, attachment_create_factory, user_record_factory
+    ) -> None:
+        attachment = attachments_router.AttachmentCreate.model_validate(
+            attachment_create_factory()
+        )
+        authorized_user = user_record_factory(id=10)
+
+        def fake_post_new_attachment(session, attachment_info, user_id):
+            assert user_id == authorized_user.id
+            raise attachments_router.AttachmentPermissionError(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_new_attachment",
+            fake_post_new_attachment,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_new_attachment_route(
+                object(),
+                _authorized_user=authorized_user,
+                attachment=attachment,
+            )
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == (
+            "Certification 100 is assigned to inspector 11.  "
+            "You are logged in as inspector 10."
+        )
+
     def test_returns_404_when_finding_is_not_found(
-        self, main_module, monkeypatch, attachment_create_factory
+        self, main_module, monkeypatch, attachment_create_factory, user_record_factory
     ) -> None:
         attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(session, attachment_info):
+        def fake_post_new_attachment(session, attachment_info, user_id):
             raise attachments_router.AttachmentFindingNotFoundError(
                 "Finding 7 does not exist."
             )
@@ -568,19 +635,23 @@ class TestPostNewAttachmentRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(object(), attachment)
+            attachments_router.post_new_attachment_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                attachment=attachment,
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Finding 7 does not exist."
 
     def test_returns_422_when_finding_belongs_to_another_certification(
-        self, main_module, monkeypatch, attachment_create_factory
+        self, main_module, monkeypatch, attachment_create_factory, user_record_factory
     ) -> None:
         attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(session, attachment_info):
+        def fake_post_new_attachment(session, attachment_info, user_id):
             raise attachments_router.AttachmentFindingCertificationMismatchError(
                 "Finding 7 does not belong to certification 100."
             )
@@ -592,7 +663,11 @@ class TestPostNewAttachmentRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(object(), attachment)
+            attachments_router.post_new_attachment_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                attachment=attachment,
+            )
 
         assert exc_info.value.status_code == 422
         assert (
@@ -600,13 +675,13 @@ class TestPostNewAttachmentRouteUnit:
         )
 
     def test_returns_409_when_attachment_conflicts(
-        self, main_module, monkeypatch, attachment_create_factory
+        self, main_module, monkeypatch, attachment_create_factory, user_record_factory
     ) -> None:
         attachment = attachments_router.AttachmentCreate.model_validate(
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(session, attachment_info):
+        def fake_post_new_attachment(session, attachment_info, user_id):
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
             )
@@ -618,7 +693,11 @@ class TestPostNewAttachmentRouteUnit:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_new_attachment_route(object(), attachment)
+            attachments_router.post_new_attachment_route(
+                object(),
+                _authorized_user=user_record_factory(),
+                attachment=attachment,
+            )
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "Attachment could not be created."

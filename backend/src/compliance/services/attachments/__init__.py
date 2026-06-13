@@ -6,6 +6,10 @@ class AttachmentNotFoundError(AttachmentCreateError):
     """Raised when an attachment ID does not exist."""
 
 
+class AttachmentPermissionError(AttachmentCreateError):
+    """Raised when an attachment belongs to a different inspector."""
+
+
 class AttachmentSiteNotFoundError(AttachmentCreateError):
     """Raised when an attachment filter references a missing site."""
 

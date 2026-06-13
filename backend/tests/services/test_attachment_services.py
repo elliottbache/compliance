@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, date, datetime
 from io import BytesIO
 from pathlib import Path
@@ -9,8 +10,10 @@ from compliance.db.models import (
     Attachment,
     Certification,
     Finding,
+    Role,
     Rule,
     Site,
+    User,
 )
 from compliance.services.attachments import (
     _UPLOAD_DIR,
@@ -21,6 +24,7 @@ from compliance.services.attachments import (
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     AttachmentNotFoundError,
+    AttachmentPermissionError,
     _format_attachments,
     _format_new_attachment_with_context,
     _validate_file_size_type_and_ext,
@@ -398,14 +402,26 @@ class TestPostNewAttachment:
     def test_creates_metadata_with_null_file_path(
         self, sqlite_session, db_factory
     ) -> None:
-        db_factory()
+        sqlite_session.add(
+            User(
+                id=10,
+                email="inspector@example.com",
+                hashed_password="hashed",  # noqa: S106
+                full_name="Alice Inspector",
+                role=Role.INSPECTOR,
+                is_active=True,
+                created_at=datetime(2026, 6, 13, 10, 0, tzinfo=UTC),
+            )
+        )
+        sqlite_session.commit()
+        db_factory(certification_overrides={"inspector_id": 10})
         attachment = AttachmentCreate(
             file_name="pending_evidence",
             certification_id=42,
             description="Pending upload",
         )
 
-        result = post_new_attachment(sqlite_session, attachment)
+        result = post_new_attachment(sqlite_session, attachment, user_id=10)
         persisted = sqlite_session.get(Attachment, result.id)
 
         assert result.file_path is None
@@ -424,9 +440,34 @@ class TestPostNewAttachment:
             AttachmentCertificationNotFoundError,
             match="Certification 100 does not exist",
         ):
-            post_new_attachment(session, attachment)
+            post_new_attachment(session, attachment, user_id=10)
 
         session.add.assert_not_called()
+
+    def test_raises_when_certification_belongs_to_another_inspector(self) -> None:
+        attachment = AttachmentCreate(
+            file_name="evidence",
+            certification_id=100,
+        )
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(
+            id=100,
+            inspection_date=date(2026, 4, 1),
+            inspector_id=11,
+        )
+
+        with pytest.raises(
+            AttachmentPermissionError,
+            match=re.escape(
+                "Certification 100 is assigned to inspector 11.  "
+                "You are logged in as inspector 10."
+            ),
+        ):
+            post_new_attachment(session, attachment, user_id=10)
+
+        session.get.assert_called_once_with(Certification, 100)
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
 
     def test_raises_when_finding_does_not_exist(self) -> None:
         attachment = AttachmentCreate(
@@ -436,7 +477,7 @@ class TestPostNewAttachment:
         )
         session = MagicMock()
         session.get.side_effect = [
-            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1)),
+            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1), inspector_id=10),
             None,
         ]
 
@@ -444,7 +485,7 @@ class TestPostNewAttachment:
             AttachmentFindingNotFoundError,
             match="Finding 7 does not exist",
         ):
-            post_new_attachment(session, attachment)
+            post_new_attachment(session, attachment, user_id=10)
 
         session.add.assert_not_called()
 
@@ -456,7 +497,7 @@ class TestPostNewAttachment:
         )
         session = MagicMock()
         session.get.side_effect = [
-            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1)),
+            SimpleNamespace(id=100, inspection_date=date(2026, 4, 1), inspector_id=10),
             SimpleNamespace(id=7, certification_id=200),
         ]
 
@@ -464,7 +505,7 @@ class TestPostNewAttachment:
             AttachmentFindingCertificationMismatchError,
             match="Finding 7 does not belong to certification 100",
         ):
-            post_new_attachment(session, attachment)
+            post_new_attachment(session, attachment, user_id=10)
 
         session.add.assert_not_called()
 

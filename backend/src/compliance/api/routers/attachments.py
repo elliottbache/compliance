@@ -16,6 +16,7 @@ from compliance.services.attachments import (
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
     AttachmentNotFoundError,
+    AttachmentPermissionError,
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
     get_attachment_download,
@@ -131,7 +132,9 @@ def get_attachment_download_route(
 
 @router.post("", status_code=201)
 def post_new_attachment_route(
-    session: SessionDep, attachment: AttachmentCreate
+    session: SessionDep,
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    attachment: AttachmentCreate,
 ) -> AttachmentOut:
     """Create a new attachment metadata record.
 
@@ -149,11 +152,13 @@ def post_new_attachment_route(
             attachment conflicts with existing stored data.
     """
     try:
-        new_attachment = post_new_attachment(session, attachment)
+        new_attachment = post_new_attachment(session, attachment, _authorized_user.id)
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentFindingNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttachmentPermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except AttachmentFindingCertificationMismatchError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except AttachmentConflictError as exc:

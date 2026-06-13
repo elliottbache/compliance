@@ -13,6 +13,7 @@ from compliance.services.attachments import (
     AttachmentConflictError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
+    AttachmentPermissionError,
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
 )
@@ -199,7 +200,7 @@ def get_attachment_by_id(
 
 
 def post_new_attachment(
-    session: Session, attachment: AttachmentCreate
+    session: Session, attachment: AttachmentCreate, user_id: int
 ) -> AttachmentOut:
     """Persist a new attachment metadata record and optional finding links.
 
@@ -243,6 +244,12 @@ def post_new_attachment(
     if certification is None:
         raise AttachmentCertificationNotFoundError(
             f"Certification {attachment.certification_id} does not exist."
+        )
+
+    # check if certification belongs to current user
+    if certification.inspector_id != user_id:
+        raise AttachmentPermissionError(
+            f"Certification {new_attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
         )
 
     # check if findings exist
