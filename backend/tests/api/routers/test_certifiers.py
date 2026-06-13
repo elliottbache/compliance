@@ -165,7 +165,9 @@ class TestPostNewCertifierRouteClient:
     ):
         def fake_post_new_certifier(session, certifier_record):
             assert session is mock_db
-            raise certifiers_router.CertifierConflictError
+            raise certifiers_router.CertifierConflictError(
+                "Certifier was not added because of a data conflict."
+            )
 
         monkeypatch.setattr(
             certifiers_router, "post_new_certifier", fake_post_new_certifier

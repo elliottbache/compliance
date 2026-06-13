@@ -299,7 +299,9 @@ class TestPostNewCertificationRouteClient:
     ):
         def fake_post_new_certification(session, certification):
             assert session is mock_db
-            raise certifications_router.CertificationConflictError()
+            raise certifications_router.CertificationConflictError(
+                f"Certification was not added: {certification}."
+            )
 
         monkeypatch.setattr(
             certifications_router,

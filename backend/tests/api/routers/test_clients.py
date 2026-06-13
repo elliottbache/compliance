@@ -192,7 +192,9 @@ class TestPostNewClientRouteClient:
     ):
         def fake_post_new_client(session, client_record):
             assert session is mock_db
-            raise clients_router.ClientConflictError
+            raise clients_router.ClientConflictError(
+                "Client was not added because of a data conflict."
+            )
 
         monkeypatch.setattr(clients_router, "post_new_client", fake_post_new_client)
 

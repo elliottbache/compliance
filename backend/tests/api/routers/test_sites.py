@@ -354,7 +354,7 @@ class TestPostNewSiteRouteClient:
     ):
         def fake_post_new_site(session, site):
             assert session is mock_db
-            raise sites_router.SiteConflictError()
+            raise sites_router.SiteConflictError(f"Site was not added: {site}.")
 
         monkeypatch.setattr(sites_router, "post_new_site", fake_post_new_site)
 

@@ -218,7 +218,9 @@ class TestPostNewRegulationRouteClient:
     ):
         def fake_post_new_regulation(session, regulation):
             assert session is mock_db
-            raise regulations_router.RegulationConflictError()
+            raise regulations_router.RegulationConflictError(
+                f"Regulation was not added: {regulation}."
+            )
 
         monkeypatch.setattr(
             regulations_router, "post_new_regulation", fake_post_new_regulation

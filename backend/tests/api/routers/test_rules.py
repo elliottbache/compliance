@@ -214,7 +214,7 @@ class TestPostNewRuleRouteClient:
     def test_route_returns_409_when_rule_conflicts(self, client, mock_db, monkeypatch):
         def fake_post_new_rule(session, rule):
             assert session is mock_db
-            raise rules_router.RuleConflictError()
+            raise rules_router.RuleConflictError(f"Rule was not added: {rule}.")
 
         monkeypatch.setattr(rules_router, "post_new_rule", fake_post_new_rule)
 
