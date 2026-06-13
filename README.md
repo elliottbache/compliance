@@ -159,8 +159,8 @@ schema so route handlers do not receive `hashed_password`.
 
 User schemas are intentionally separated:
 
-- `UserCreate`: input for creating users; includes `full_name`, `email`, `role`,
-  and `is_active`.
+- `UserCreate`: input for creating users; includes `full_name`, `email`,
+  plaintext `password`, `role`, and `is_active`.
 - `UserOut`: public user data returned to API callers and route dependencies.
 - `UserInDB`: internal credential-bearing schema; includes `hashed_password` and
   should stay inside authentication code.
@@ -182,13 +182,24 @@ admins, but rejects viewers.
 
 Current protected behavior:
 
-- Creating users requires `Role.ADMIN`.
-- User listing currently requires a bearer token but does not enforce a role
-  hierarchy.
+- Read/list endpoints require at least `Role.VIEWER`.
+- Creating users, clients, sites, certifiers, regulations, rules, and
+  certifications requires `Role.ADMIN`.
+- Archiving and restoring clients, sites, certifiers, regulations, rules, and
+  certifications requires `Role.ADMIN`.
+- Creating, uploading, archiving, and restoring attachments requires at least
+  `Role.INSPECTOR` and verifies that the certification belongs to the current
+  inspector.
+- Creating, archiving, and restoring findings requires at least
+  `Role.INSPECTOR` and verifies that the certification belongs to the current
+  inspector.
+- Requesting site analysis requires at least `Role.REVIEWER`.
+- User passwords are accepted only at creation time and stored as hashes.
 
-Security note: the current user-creation service still uses a placeholder
-password hash while the user-management workflow is being developed. This must
-be replaced before production use.
+Production note: the authentication layer is functional, but production
+deployments still need a first-admin bootstrap procedure, password reset/change
+workflow, password policy, login throttling or lockout, and operational
+procedures for rotating secrets.
 
 ## Archive Policy
 
@@ -602,32 +613,69 @@ Terminal model stop:
 
 ## Production Gaps And Roadmap
 
+The current deployment story is still demo/development oriented. A client-server
+production install is expected to run on the client's infrastructure with no
+external inbound connections. Outbound access may still be available for
+package installation, Docker image pulls, operating-system updates, and Claude
+API calls.
+
+Minimum production readiness means the system can be installed, upgraded,
+backed up, restored, secured, and operated without developer intervention.
+
 ### Security
 
+- Replace development servers with production serving: run the backend under a
+  production ASGI server such as Gunicorn/Uvicorn and serve the built frontend
+  through a reverse proxy or static web server instead of Vite.
+- Reject insecure default secrets at startup. Production installs must provide a
+  strong `SECRET_KEY`, database password, and first-admin credentials.
+- Add a first-admin bootstrap flow, password reset/change workflow, password
+  policy, login throttling or lockout, and documented secret-rotation procedure.
 - Harden file upload handling with stricter MIME checks, size limits, malware
   scanning, quarantine, safe filenames, and path hiding.
-- Move secrets to managed secret storage in deployed environments.
-- Add rate limiting, request size limits, audit logging, and tighter CORS.
-- Use least-privilege database users, TLS connections, encrypted backups, and
-  migration safety checks.
+- Move attachment storage to a configured persistent directory or volume outside
+  the source tree and include it in backup/restore procedures.
+- Add rate limiting, request size limits, audit logging, and config-driven CORS.
+- Use least-privilege database users for runtime access, with a separate
+  migration/owner path where needed.
+- Disable debug logging in production and redact sensitive values, prompts,
+  tokens, passwords, and attachment contents from logs.
 
 ### Privacy
 
 - Define data classification for personal, client, regulatory, and confidential
   data.
-- Document when site history and attachments may be sent to Anthropic.
+- Document when site history, findings, and any attachment-derived data may be
+  sent to Anthropic. Because outbound Claude API calls leave the client's
+  server, this should be an explicit client-approved configuration.
 - Add redaction/minimization policies for AI requests.
 - Add retention, export, and deletion procedures.
-
+- Define whether AI analysis is enabled, disabled, or replaced by a local model
+  for each client deployment.
 
 ### Deployment And Operations
 
 - Add separate development, staging, and production settings.
-- Add HTTPS, reverse proxy configuration, health checks, persistent storage,
-  backups, and restore testing.
-- Add deployment gates, migration review, rollback plans, and image scanning.
+- Add reverse proxy configuration, health checks, persistent storage, backups,
+  and restore testing. Add HTTPS/TLS when the app is accessed over a network
+  rather than only through localhost or a trusted internal channel.
+- Add health checks for application startup, database connectivity, migration
+  state, writable attachment storage, and Claude API availability when live AI
+  mode is enabled.
+- Make database migrations an explicit upgrade step with backup-first
+  instructions instead of relying on automatic migrations during every app
+  startup.
+- Add deployment gates, migration review, rollback plans, dependency pinning,
+  image scanning, and release artifact checksums.
 - Add structured audit events for create, update, archive, restore, upload,
-  download, and AI-analysis actions.
+  download, authentication, authorization failure, user administration, and
+  AI-analysis actions.
+- Add a production runbook for install, configure, create first admin,
+  start/stop/restart, upgrade, backup, restore, rotate secrets, collect logs,
+  diagnose failed logins, recover from database downtime, recover from full
+  disk, and diagnose failed uploads.
+- Document outbound network requirements for package registries, OS updates,
+  Docker registries, and Anthropic API access.
 - Add orphaned attachment cleanup tooling.
 - Add logs, metrics, tracing, alerting, and error reporting.
 
@@ -643,14 +691,29 @@ Terminal model stop:
 
 ## Version History
 
-### Current Development
+### v0.2.0 - Authentication and authorization
 
-- Added authentication and role-based authorization.
+- Added JWT authentication and role-based authorization.
 - Added hierarchical roles with minimum-role route dependencies.
 - Split public user schemas from credential-bearing user schemas.
+- Added password-backed user creation with hashed password storage.
+- Added admin authorization to user management and administrative create,
+  archive, and restore routes.
+- Added inspector authorization checks for finding and attachment workflows that
+  belong to assigned certifications.
+- Added reviewer authorization for site analysis.
+- Updated the frontend API layer to request bearer-token credentials and retry
+  protected requests after authentication.
 - Expanded and reorganized auth tests around `authentication.py` and
   `authorization.py`.
 - Added user creation fields for role and active status.
+- Updated route and service tests for protected user, finding, attachment, and
+  administrative workflows.
+
+### Current Development
+
+- Preparing deployment and production-readiness documentation for client-server
+  installs.
 
 ### v0.1.1 - Anthropic API reliability patch
 
