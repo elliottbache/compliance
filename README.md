@@ -643,6 +643,7 @@ Terminal model stop:
 - Improve frontend workflows for selecting and uploading attachments.
 - Add richer user administration screens.
 - Add a clearer AI review queue with evidence-level accept/reject decisions.
+- Add upload replacement/delete button.
 
 ## Version History
 
