@@ -84,7 +84,7 @@ def get_findings_route(
     except FindingMissingAttachmentError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
 
-    return findings
+    return [FindingOut.model_validate(finding) for finding in findings]
 
 
 @router.post("", status_code=201)

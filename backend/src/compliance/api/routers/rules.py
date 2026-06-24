@@ -64,7 +64,7 @@ def get_rules_route(
             status_code=404, detail=f"Regulation does not exist: {regulation_id}"
         )
 
-    return rules_list
+    return [RuleOut.model_validate(rule) for rule in rules_list]
 
 
 @router.post("", status_code=201)

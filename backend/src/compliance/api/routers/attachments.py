@@ -86,7 +86,7 @@ def get_attachments_route(
     except AttachmentFindingNotFoundError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
 
-    return attachments
+    return [AttachmentOut.model_validate(attachment) for attachment in attachments]
 
 
 @router.get("/{attachment_id}/download")

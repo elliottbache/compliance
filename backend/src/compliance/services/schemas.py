@@ -1,4 +1,4 @@
-"""Service-layer schemas shared by business logic and API adapters."""
+"""Service-layer DTOs used by business logic."""
 
 from datetime import date
 from typing import Literal

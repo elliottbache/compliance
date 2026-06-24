@@ -2,16 +2,16 @@
 
 from datetime import UTC, datetime
 
-from compliance.api.schemas import (
-    UserCreate,
-    UserOut,
-)
 from compliance.auth.authentication import _hash_password
 from compliance.db.models import (
     User,
 )
 from compliance.services.lifecycle import (
     get_constraint_name,
+)
+from compliance.services.schemas import (
+    UserCreate,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError

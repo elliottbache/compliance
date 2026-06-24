@@ -70,7 +70,10 @@ def get_certifications_route(
     if certifications_list is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}")
 
-    return certifications_list
+    return [
+        CertificationOut.model_validate(certification)
+        for certification in certifications_list
+    ]
 
 
 @router.post("", status_code=201)

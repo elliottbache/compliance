@@ -19,7 +19,6 @@ from compliance.services.lifecycle import (
 from compliance.services.schemas import (
     ArchiveRequest,
     CertificationCreate,
-    CertificationOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -61,7 +60,7 @@ def get_certifications(
     offset: int,
     include_archived: bool = False,
     inspector_id: int | None,
-) -> list[CertificationOut] | None:
+) -> list[Certification] | None:
     """Retrieve certifications with optional site and open-only filters.
 
     Args:
@@ -80,10 +79,9 @@ def get_certifications(
             supplied, the inspector must exist.
 
     Returns:
-        Certification records serialized with the public API schema for visible
-        certifications whose required parents are also visible, or an empty
-        list if no certifications match. Returns ``None`` when ``site_id`` is
-        supplied but no matching visible site exists.
+        Certification ORM records whose required parents are visible, or an
+        empty list if no certifications match. Returns ``None`` when
+        ``site_id`` is supplied but no matching visible site exists.
     """
     stmt = (
         select(Certification)
@@ -121,12 +119,7 @@ def get_certifications(
         .offset(offset)
     )
 
-    certifications = session.execute(stmt).scalars().all()
-
-    return [
-        CertificationOut.model_validate(certification)
-        for certification in certifications
-    ]
+    return list(session.execute(stmt).scalars().all())
 
 
 def post_new_certification(

@@ -22,7 +22,6 @@ from compliance.services.certifications import (
 from compliance.services.schemas import (
     ArchiveRequest,
     CertificationCreate,
-    CertificationOut,
 )
 
 
@@ -62,10 +61,7 @@ class TestGetCertifications:
             inspector_id=None,
         )
 
-        assert result == [
-            CertificationOut.model_validate(certification)
-            for certification in certifications
-        ]
+        assert result == certifications
 
     def test_orders_certifications_by_regulation_inspection_date_then_id(self) -> None:
         session = MagicMock()

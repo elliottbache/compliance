@@ -63,7 +63,7 @@ def get_regulations_route(
             status_code=404, detail=f"Certifier does not exist: {certifier_id}"
         )
 
-    return regulations_list
+    return [RegulationOut.model_validate(regulation) for regulation in regulations_list]
 
 
 @router.post("", status_code=201)
