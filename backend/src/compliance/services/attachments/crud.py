@@ -10,7 +10,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
-from compliance.services.attachments import (
+from compliance.services.attachments.exceptions import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentFindingCertificationMismatchError,

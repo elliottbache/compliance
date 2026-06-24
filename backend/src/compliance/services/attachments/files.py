@@ -7,7 +7,7 @@ from typing import BinaryIO
 from uuid import uuid4
 
 from compliance.db.models import Attachment, Certification
-from compliance.services.attachments import (
+from compliance.services.attachments.exceptions import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentFileError,
