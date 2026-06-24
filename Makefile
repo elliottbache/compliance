@@ -45,7 +45,12 @@ ci: install-dev
 
 .PHONY: clean
 clean:
-	rm -rf .pytest_cache .mypy_cache **/__pycache__ docs/_build dist build *.egg-info .venv docs/_autosummary
+	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .mypy_cache -o -name .ruff_cache \) -prune -exec rm -rf {} +
+	find . -type f \( -name '*.pyc' -o -name '*:Zone.Identifier' \) -delete
+	rm -rf build dist *.egg-info htmlcov coverage.xml .coverage
+	rm -rf backend/htmlcov backend/coverage.xml backend/.coverage
+	rm -rf docs/_build docs/_autosummary
+	rm -rf frontend/dist frontend/playwright-report frontend/test-results frontend/coverage
 
 .PHONY: venv
 venv: $(VENVDIR)

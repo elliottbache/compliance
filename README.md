@@ -566,6 +566,15 @@ Project-level pytest configuration includes coverage settings for CI. During
 local focused development, `--no-cov` is useful to avoid unrelated coverage
 failures while iterating on a small area.
 
+Remove generated caches and local build artifacts with:
+
+```bash
+make clean
+```
+
+This cleans Python caches, coverage output, Sphinx build output, frontend build
+and Playwright artifacts, and Windows `Zone.Identifier` metadata.
+
 ## Documentation
 
 Sphinx documentation can be built with:
