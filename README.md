@@ -256,7 +256,11 @@ The Anthropic adapter:
 AI analysis is a review aid only. Generated Markdown should be checked by a
 person and traced back to source records before any operational decision.
 
-## Quickstart With Docker
+## Docker Quickstart And Tutorial
+
+Use this path when you want to install the project quickly, confirm the stack
+works, and run the demo tutorial. Docker Compose starts PostgreSQL, the backend,
+and the frontend together.
 
 Clone the repo:
 
@@ -312,7 +316,7 @@ sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-## Demo Data
+### Tutorial Data
 
 The demo dataset centers on:
 
@@ -333,6 +337,8 @@ With Docker Compose running, load the seed data:
 docker compose --env-file docker/.env exec -T postgres psql -U postgres -d compliance_db < examples/demo/seed_demo_data.sql
 ```
 
+The backend container runs Alembic migrations during startup.
+
 Then open the frontend and run:
 
 ```text
@@ -343,12 +349,16 @@ Generate Markdown
 Download Markdown
 ```
 
-The seed file is for local demo use only. It truncates demo tables before
-inserting records, so do not run it against a database containing real data.
+The seed file is for quickstart/tutorial use only. It truncates demo tables
+before inserting records, so do not run it against a database containing real
+data.
 
 See [Demo Documentation](examples/demo/README.md) for more detail.
 
 ## Local Development
+
+Use this path for day-to-day backend and frontend work without Docker. It
+assumes PostgreSQL is installed and running on the host machine.
 
 ### Backend
 
@@ -380,10 +390,30 @@ python -m pip install -U pip
 pip install -e .[dev]
 ```
 
-Run migrations:
+Start local PostgreSQL and create the development database. On Ubuntu/WSL with
+the distro PostgreSQL package, one common setup is:
+
+```bash
+sudo service postgresql start
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+sudo -u postgres createdb -O postgres compliance_db
+```
+
+If `compliance_db` already exists, keep the existing database and continue. The
+backend runs from the host during local development, so `backend/.env` should
+keep `POSTGRES_HOST=localhost`.
+
+Run migrations from the repository root:
 
 ```bash
 alembic -c backend/alembic.ini upgrade head
+```
+
+Check the applied migration revision when needed:
+
+```bash
+alembic -c backend/alembic.ini current
+alembic -c backend/alembic.ini heads
 ```
 
 Start the backend:
@@ -412,6 +442,53 @@ Open:
 ```text
 http://localhost:5173
 ```
+
+## Production Docker Deployment
+
+Use this path for a production-style Docker deployment, not for routine local
+development. Production deployments should use strong secrets, persistent
+storage, backups, and an explicit migration step.
+
+Create a deployment environment file from the Docker template:
+
+```bash
+cp docker/.env.example docker/.env
+```
+
+Before deploying, replace all development defaults in `docker/.env`, especially:
+
+```ini
+POSTGRES_PASSWORD=replace_with_a_strong_database_password
+SECRET_KEY=replace_with_a_long_random_secret
+AI_MODE=mock
+ANTHROPIC_API_KEY=
+```
+
+For live Anthropic analysis, set `AI_MODE=anthropic` and provide
+`ANTHROPIC_API_KEY`. Only enable live AI mode when the deployment owner has approved outbound provider calls for the data being analyzed.  Be sure to contact Anthropic to enable a Zero Data Retention agreement if you handle sensitive client data.  I handling health data, make sure to sign a Business Associate Agreement. 
+
+The production upgrade flow is:
+
+1. Back up the database and attachment storage.
+2. Run Alembic migrations against the deployment database.
+3. Start or restart the application containers.
+4. Confirm the application starts and the expected revision is applied.
+
+Note: the current backend container also runs migrations during startup. For a
+hardened production deployment, split migrations into a one-off job and remove
+automatic startup migrations from the long-running app container.
+
+Example commands for the current Compose setup:
+
+```bash
+docker compose --env-file docker/.env up -d postgres
+docker compose --env-file docker/.env exec -T postgres pg_dump -U postgres -d compliance_db > compliance_db_backup.sql
+docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+docker compose --env-file docker/.env up -d --build
+docker compose --env-file docker/.env exec backend python -m alembic -c backend/alembic.ini current
+```
+
+Do not load tutorial seed data into a production database.
 
 ## Configuration
 
@@ -662,9 +739,7 @@ backed up, restored, secured, and operated without developer intervention.
 - Add health checks for application startup, database connectivity, migration
   state, writable attachment storage, and Claude API availability when live AI
   mode is enabled.
-- Make database migrations an explicit upgrade step with backup-first
-  instructions instead of relying on automatic migrations during every app
-  startup.
+- Move database migrations out of backend container startup and into a dedicated backup-first deployment step.
 - Add deployment gates, migration review, rollback plans, dependency pinning,
   image scanning, and release artifact checksums.
 - Add structured audit events for create, update, archive, restore, upload,
