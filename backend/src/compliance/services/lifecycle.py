@@ -1,3 +1,5 @@
+"""Shared archive, restore, visibility, and constraint helpers for services."""
+
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock

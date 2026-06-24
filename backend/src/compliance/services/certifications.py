@@ -1,3 +1,5 @@
+"""Certification service functions for listing, creation, archive, and restore."""
+
 import logging
 
 from compliance.db.models import (

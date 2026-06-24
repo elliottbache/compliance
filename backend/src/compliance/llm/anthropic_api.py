@@ -1,3 +1,5 @@
+"""Anthropic structured-output adapter with retry and schema repair handling."""
+
 import json
 import logging
 from datetime import datetime
@@ -227,6 +229,7 @@ def _convert_response_to_structured_output[
     user_message: str,
     system_context: str,
 ) -> (T | None):
+    """Handle Anthropic stop reasons and return validated output when available."""
     if response.stop_reason == "end_turn" and response.content:
         return _convert_response_to_model_type(response, response_model)
 
@@ -275,6 +278,7 @@ def _raise_or_modify_message_for_format_exception[
     response: Message,
     messages: list[MessageParam],
 ) -> str:
+    """Log invalid structured output and add one schema-repair prompt."""
     logger.warning(
         _create_error_message(
             case_info=case_info,

@@ -1,3 +1,5 @@
+"""User administration routes for listing and creating users."""
+
 from typing import Annotated
 
 from compliance.api.deps import SessionDep

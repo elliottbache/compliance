@@ -465,7 +465,7 @@ ANTHROPIC_API_KEY=
 ```
 
 For live Anthropic analysis, set `AI_MODE=anthropic` and provide
-`ANTHROPIC_API_KEY`. Only enable live AI mode when the deployment owner has approved outbound provider calls for the data being analyzed.  Be sure to contact Anthropic to enable a Zero Data Retention agreement if you handle sensitive client data.  I handling health data, make sure to sign a Business Associate Agreement. 
+`ANTHROPIC_API_KEY`. Only enable live AI mode when the deployment owner has approved outbound provider calls for the data being analyzed.  Be sure to contact Anthropic to enable a Zero Data Retention agreement if you handle sensitive client data.  If handling health data, make sure to sign a Business Associate Agreement. 
 
 The production upgrade flow is:
 

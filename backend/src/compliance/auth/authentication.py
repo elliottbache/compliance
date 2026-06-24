@@ -1,3 +1,5 @@
+"""Password verification, JWT creation, and token decoding helpers."""
+
 from datetime import UTC, datetime, timedelta
 from os import getenv
 

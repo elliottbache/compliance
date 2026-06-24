@@ -104,6 +104,7 @@ def configure_logging(*, level: str = "INFO", is_tutorial: bool = False) -> None
 
 
 def _set_formatter(handler: logging.Handler, *, is_tutorial: bool = False) -> None:
+    """Attach the standard formatter to one logging handler."""
     # in tutorial mode set fixed datetime for deterministic log
     datetime = "2000-01-01T00:00:00+0100" if is_tutorial else "{asctime}"
     handler.setFormatter(

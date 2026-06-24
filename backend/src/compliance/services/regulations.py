@@ -1,3 +1,5 @@
+"""Regulation service functions for listing, creation, archive, and restore."""
+
 from compliance.db.models import (
     Certification,
     Certifier,

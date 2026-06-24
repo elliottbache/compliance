@@ -1,3 +1,5 @@
+"""Attachment file upload, validation, persistence, and download helpers."""
+
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -165,6 +167,7 @@ def _validate_file_size_type_and_ext(
     allowed_types: set[str] = _ALLOWED_MIME_TYPES,
     allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
 ) -> bool:
+    """Return whether uploaded file metadata satisfies current upload policy."""
 
     if not file_size or file_size > allowed_size:
         return False

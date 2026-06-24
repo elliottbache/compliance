@@ -1,3 +1,5 @@
+"""Shared helper functions for project paths and LLM evidence validation."""
+
 import logging
 from pathlib import Path
 

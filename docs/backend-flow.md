@@ -12,14 +12,16 @@ The backend application starts in `backend/src/compliance/api/main.py`.
 `main.py` creates the `FastAPI` app, configures logging in the lifespan hook,
 registers CORS middleware, and includes these routers:
 
-- `sites.router`
-- `certifications.router`
-- `findings.router`
 - `attachments.router`
-- `clients.router`
+- `auth.router`
+- `certifications.router`
 - `certifiers.router`
-- `rules.router`
+- `clients.router`
+- `findings.router`
 - `regulations.router`
+- `rules.router`
+- `sites.router`
+- `users.router`
 
 Each route receives a request-scoped SQLAlchemy session through
 `SessionDep`, which is defined in `backend/src/compliance/api/deps.py` and
@@ -32,11 +34,28 @@ FastAPI route
 -> SessionDep
 -> get_db()
 -> get_engine()
--> settings.database_url
+-> settings.resolved_database_url
 -> SQLAlchemy Session
 ```
 
 ## Endpoint Inventory
+
+### Auth
+
+Defined in `backend/src/compliance/api/routers/auth.py`.
+
+| Method | Path | Route function | Primary service call |
+| --- | --- | --- | --- |
+| `POST` | `/auth/token` | `post_auth_token_route` | `authenticate_user`, then `create_access_token` |
+
+### Users
+
+Defined in `backend/src/compliance/api/routers/users.py`.
+
+| Method | Path | Route function | Primary service call |
+| --- | --- | --- | --- |
+| `GET` | `/users` | `get_users_route` | `get_users` |
+| `POST` | `/users` | `post_new_user_route` | `post_new_user` |
 
 ### Clients
 
@@ -45,8 +64,6 @@ Defined in `backend/src/compliance/api/routers/clients.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/clients` | `get_clients_route` | `get_clients` |
-| `GET` | `/clients/{nif}` | `get_clients_by_nif_route` | `get_client_by_nif` |
-| `GET` | `/clients/{nif}/sites` | `get_client_sites_route` | `get_client_by_nif`, then `get_sites` |
 | `POST` | `/clients` | `post_new_client_route` | `post_new_client` |
 | `POST` | `/clients/{nif}/archive` | `post_client_archived_by_nif_route` | `post_client_archived_by_nif` |
 | `POST` | `/clients/{nif}/restore` | `post_client_restored_by_nif_route` | `post_client_restored_by_nif` |
@@ -58,9 +75,7 @@ Defined in `backend/src/compliance/api/routers/sites.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/sites` | `get_sites_route` | `get_sites` |
-| `GET` | `/sites/{site_id}` | `get_site_by_id_route` | `get_site_by_id` |
 | `GET` | `/sites/{site_id}/attachments` | `get_site_attachments_route` | `get_site_attachments` |
-| `GET` | `/sites/{site_id}/certifications` | `get_site_certifications_route` | `get_site_certifications`, then `format_site_certifications` |
 | `GET` | `/sites/{site_id}/history` | `get_site_history_route` | `get_site_history` |
 | `POST` | `/sites` | `post_new_site_route` | `post_new_site` |
 | `POST` | `/sites/{site_id}/archive` | `post_site_archived_by_id_route` | `post_site_archived_by_id` |
@@ -74,7 +89,6 @@ Defined in `backend/src/compliance/api/routers/certifiers.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/certifiers` | `get_certifiers_route` | `get_certifiers` |
-| `GET` | `/certifiers/{certifier_id}` | `get_certifiers_by_id_route` | `get_certifier_by_id` |
 | `POST` | `/certifiers` | `post_new_certifier_route` | `post_new_certifier` |
 | `POST` | `/certifiers/{certifier_id}/archive` | `post_certifier_archived_by_id_route` | `post_certifier_archived_by_id` |
 | `POST` | `/certifiers/{certifier_id}/restore` | `post_certifier_restored_by_id_route` | `post_certifier_restored_by_id` |
@@ -86,7 +100,6 @@ Defined in `backend/src/compliance/api/routers/regulations.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/regulations` | `get_regulations_route` | `get_regulations` |
-| `GET` | `/regulations/{regulation_id}` | `get_regulation_by_id_route` | `get_regulation_by_id` |
 | `POST` | `/regulations` | `post_new_regulation_route` | `post_new_regulation` |
 | `POST` | `/regulations/{regulation_id}/archive` | `post_regulation_archived_by_id_route` | `post_regulation_archived_by_id` |
 | `POST` | `/regulations/{regulation_id}/restore` | `post_regulation_restored_by_id_route` | `post_regulation_restored_by_id` |
@@ -98,7 +111,6 @@ Defined in `backend/src/compliance/api/routers/rules.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/rules` | `get_rules_route` | `get_rules` |
-| `GET` | `/rules/{rule_id}` | `get_rule_by_id_route` | `get_rule_by_id` |
 | `POST` | `/rules` | `post_new_rule_route` | `post_new_rule` |
 | `POST` | `/rules/{rule_id}/archive` | `post_rule_archived_by_id_route` | `post_rule_archived_by_id` |
 | `POST` | `/rules/{rule_id}/restore` | `post_rule_restored_by_id_route` | `post_rule_restored_by_id` |
@@ -110,9 +122,6 @@ Defined in `backend/src/compliance/api/routers/certifications.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/certifications` | `get_certifications_route` | `get_certifications` |
-| `GET` | `/certifications/{certification_id}` | `get_certification_by_id_route` | `get_certification_by_id` |
-| `GET` | `/certifications/{certification_id}/attachments` | `get_certification_attachments_by_id_route` | `get_certification_attachments_by_id` |
-| `GET` | `/certifications/{certification_id}/findings` | `get_certification_findings_route` | `get_certification_by_id`, then `get_findings` |
 | `POST` | `/certifications` | `post_new_certification_route` | `post_new_certification` |
 | `POST` | `/certifications/{certification_id}/archive` | `post_certification_archived_by_id_route` | `post_certification_archived_by_id` |
 | `POST` | `/certifications/{certification_id}/restore` | `post_certification_restored_by_id_route` | `post_certification_restored_by_id` |
@@ -124,7 +133,6 @@ Defined in `backend/src/compliance/api/routers/findings.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/findings` | `get_findings_route` | `get_findings` |
-| `GET` | `/findings/{finding_id}` | `get_finding_by_id_route` | `get_finding_by_id` |
 | `POST` | `/findings` | `post_new_finding_route` | `post_new_finding` |
 | `POST` | `/findings/{finding_id}/archive` | `post_finding_archived_by_id_route` | `post_finding_archived_by_id` |
 | `POST` | `/findings/{finding_id}/restore` | `post_finding_restored_by_id_route` | `post_finding_restored_by_id` |
@@ -136,7 +144,6 @@ Defined in `backend/src/compliance/api/routers/attachments.py`.
 | Method | Path | Route function | Primary service call |
 | --- | --- | --- | --- |
 | `GET` | `/attachments` | `get_attachments_route` | `get_attachments` |
-| `GET` | `/attachments/{attachment_id}` | `get_attachment_by_id_route` | `get_attachment_by_id` |
 | `GET` | `/attachments/{attachment_id}/download` | `get_attachment_download_route` | `get_attachment_download` |
 | `POST` | `/attachments` | `post_new_attachment_route` | `post_new_attachment` |
 | `POST` | `/attachments/upload` | `post_attachment_upload_route` | `post_attachment_upload` |
@@ -153,13 +160,14 @@ methods, and formatter functions.
 
 | Service area | Service functions | Functions they normally call |
 | --- | --- | --- |
-| Clients | `get_clients`, `get_client_by_nif`, `post_new_client`, `post_client_archived_by_nif`, `post_client_restored_by_nif` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
-| Sites CRUD | `get_sites`, `get_site_by_id`, `post_new_site`, `post_site_archived_by_id`, `post_site_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
-| Site aggregates | `get_site_attachments`, `get_site_certifications`, `get_site_history`, `format_site_certifications` | `session.get`, `record_is_visible`, `select`, `session.execute`, `_format_site_attachments`, `format_attachment`, `_format_site_history`, `_build_finding_history_from_site_history` |
-| Certifiers | `get_certifiers`, `get_certifier_by_id`, `post_new_certifier`, `post_certifier_archived_by_id`, `post_certifier_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
-| Regulations | `get_regulations`, `get_regulation_by_id`, `post_new_regulation`, `post_regulation_archived_by_id`, `post_regulation_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
-| Rules | `get_rules`, `get_rule_by_id`, `post_new_rule`, `post_rule_archived_by_id`, `post_rule_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
-| Certifications | `get_certifications`, `get_certification_by_id`, `get_certification_attachments_by_id`, `post_new_certification`, `post_certification_archived_by_id`, `post_certification_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `certification_parent_chain_is_visible`, `format_attachment`, `_format_certification_attachments`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Auth and users | `authenticate_user`, `create_access_token`, `decode_access_token`, `get_current_user`, `require_role`, `get_users`, `post_new_user` | `select`, `session.execute`, password hashing/verification, JWT encode/decode, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name` |
+| Clients | `get_clients`, `post_new_client`, `post_client_archived_by_nif`, `post_client_restored_by_nif` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Sites CRUD | `get_sites`, `post_new_site`, `post_site_archived_by_id`, `post_site_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Site aggregates | `get_site_attachments`, `get_site_history` | `session.get`, `record_is_visible`, `select`, `session.execute`, `_format_site_attachments`, `format_attachment`, `_format_site_history`, `_build_finding_history_from_site_history` |
+| Certifiers | `get_certifiers`, `post_new_certifier`, `post_certifier_archived_by_id`, `post_certifier_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Regulations | `get_regulations`, `post_new_regulation`, `post_regulation_archived_by_id`, `post_regulation_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Rules | `get_rules`, `post_new_rule`, `post_rule_archived_by_id`, `post_rule_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
+| Certifications | `get_certifications`, `post_new_certification`, `post_certification_archived_by_id`, `post_certification_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `session.add`, `session.commit`, `session.rollback`, `get_constraint_name`, `archive_record_by_id`, `restore_record_by_id` |
 | Findings | `get_findings`, `get_finding_by_id`, `post_new_finding`, `post_finding_archived_by_id`, `post_finding_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `certification_parent_chain_is_visible`, `_format_findings`, `_build_finding_out`, `_build_finding_attachments`, `session.add`, `session.flush`, `session.commit`, `session.rollback`, `archive_record_by_id`, `restore_record_by_id` |
 | Attachment metadata | `get_attachments`, `get_attachment_by_id`, `post_new_attachment`, `post_attachment_archived_by_id`, `post_attachment_restored_by_id` | `select`, `session.execute`, `session.get`, `record_is_visible`, `_format_attachments`, `_build_attachment_out`, `format_attachment`, `_format_new_attachment_with_context`, `session.add`, `session.flush`, `session.commit`, `session.rollback`, `archive_record_by_id`, `restore_record_by_id` |
 | Attachment files | `post_attachment_upload`, `get_attachment_download` | `session.get`, `_validate_file_size_type_and_ext`, file-system read/write checks, `session.add`, `session.commit`, `session.refresh`, `session.rollback` |
@@ -185,8 +193,8 @@ router function
 -> API response model
 ```
 
-The simple lookup services, such as `get_client_by_nif`,
-`get_certifier_by_id`, and `get_regulation_by_id`, often use:
+Simple parent visibility checks, such as checking whether a filter's parent
+record exists, often use:
 
 ```text
 service function
@@ -205,14 +213,10 @@ Examples:
   `_build_finding_history_from_site_history` for finding rows.
 - `get_site_attachments` calls `_format_site_attachments`, which groups rows
   by attachment and calls `format_attachment`.
-- `get_certification_attachments_by_id` calls
-  `_format_certification_attachments`, which also calls `format_attachment`.
 - `get_findings` calls `_format_findings`, which calls `_build_finding_out`
   and `_build_finding_attachments`.
 - `get_attachments` calls `_format_attachments`, which calls
   `_build_attachment_out`.
-- `get_attachment_by_id` calls `format_attachment`, which may call
-  `_build_finding_history_from_site_attachments`.
 
 ### Create Endpoints
 
@@ -308,7 +312,7 @@ POST /attachments/upload
 -> session.get(Attachment, attachment_id)
 -> _validate_file_size_type_and_ext(...)
 -> write file under backend storage
--> update file_path, file_name, and uploaded_at
+-> update file_path and uploaded_at
 -> session.commit()
 ```
 
@@ -352,9 +356,9 @@ validation errors, and invalid evidence references into `502` responses.
   status codes, and `HTTPException` mapping.
 - The service layer owns business checks, archive visibility, SQLAlchemy
   queries, commits, rollbacks, and response-shaping helpers.
-- `include_archived` defaults to `false` for list and aggregate endpoints, but
-  many exact detail endpoints default to `true` so archived records can still
-  be inspected directly.
+- `include_archived` defaults to `false` for list and aggregate route
+  endpoints. Internal attachment and finding detail helpers default to `true`
+  so archive/restore responses can include contextual archived records.
 - Archive visibility is centralized through `record_is_visible(...)` for simple
   parent checks and through explicit `archived_at.is_(None)` filters in joined
   queries.

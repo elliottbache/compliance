@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM models for the compliance domain."""
+
 from datetime import date, datetime
 from enum import StrEnum as PyEnum
 
@@ -18,6 +20,8 @@ from compliance.db.db_access import convention
 
 
 class Role(PyEnum):
+    """Application roles ordered by authorization rank in authorization helpers."""
+
     ADMIN = "admin"
     INSPECTOR = "inspector"
     REVIEWER = "reviewer"
@@ -31,7 +35,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    """Represents a user with access to the database (could be a client or an inspector, for example)"""
+    """Represents an authenticated application user with a role."""
 
     __tablename__ = "users"
 

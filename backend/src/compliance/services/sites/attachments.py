@@ -1,3 +1,5 @@
+"""Site attachment aggregate queries and formatting helpers."""
+
 from collections.abc import Mapping, Sequence
 
 from compliance.db.models import (

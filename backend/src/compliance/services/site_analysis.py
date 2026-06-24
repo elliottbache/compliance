@@ -1,3 +1,5 @@
+"""Site-history analysis service with mock and Anthropic-backed modes."""
+
 import json
 import logging
 import os
@@ -113,7 +115,7 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
     empty list or dict, None or null, verify if this makes sense.  If it doesn't, 
     missing_information should document it.  Do not place missing information in the 
     executive_summary.  Do not add things that do not directly affect the validity or confidence
-    in the certification.  Missing findings should go here.
+    in the certification. Missing findings belong in missing_information.
     - needs_human_review: places where a person should verify or interpret.  Be sure to 
     cite the regulation title, rule index and rule title if available.  Should name ambiguity 
     or interpretation boundary, not just "review this".  Do not question the validity of

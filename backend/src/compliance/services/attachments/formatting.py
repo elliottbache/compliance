@@ -1,3 +1,5 @@
+"""Format attachment query rows into public service-layer schemas."""
+
 from collections.abc import Mapping, Sequence
 from typing import Any
 

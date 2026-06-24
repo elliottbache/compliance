@@ -1,3 +1,5 @@
+"""Pydantic schemas for structured site-analysis LLM output."""
+
 from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field

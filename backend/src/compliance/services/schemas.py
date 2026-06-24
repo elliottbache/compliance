@@ -37,6 +37,8 @@ class UserOut(UserBase):
 
 
 class UserInDB(UserOut):
+    """Internal user shape that includes the stored password hash."""
+
     hashed_password: str
 
 

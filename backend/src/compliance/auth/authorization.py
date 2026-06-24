@@ -1,3 +1,5 @@
+"""FastAPI authorization dependencies for active users and role checks."""
+
 from collections.abc import Callable
 from typing import Annotated
 
@@ -63,6 +65,7 @@ def require_role(minimum_role: Role) -> Callable[..., UserOut]:
     def dependency(
         user: UserOut = Depends(get_active_user),  # noqa: B008
     ) -> UserOut:
+        """Validate that the active user has at least the configured role."""
         if _ROLE_RANK[user.role] < _ROLE_RANK[minimum_role]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

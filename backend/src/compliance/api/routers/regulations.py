@@ -1,3 +1,5 @@
+"""Regulation listing, creation, archive, and restore routes."""
+
 from typing import Annotated
 
 from compliance.api.deps import SessionDep

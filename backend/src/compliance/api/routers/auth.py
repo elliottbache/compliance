@@ -1,3 +1,5 @@
+"""Authentication routes for OAuth2 password login and JWT creation."""
+
 from typing import Annotated
 
 from compliance.api.deps import SessionDep

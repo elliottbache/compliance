@@ -1,3 +1,5 @@
+"""FastAPI dependency aliases used by route modules."""
+
 from typing import Annotated
 
 from fastapi import Depends

@@ -1,3 +1,5 @@
+"""Finding service functions for queries, creation, archive, and restore."""
+
 from collections.abc import Mapping, Sequence
 
 from compliance.db.models import (

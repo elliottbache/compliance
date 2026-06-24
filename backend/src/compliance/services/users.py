@@ -1,3 +1,5 @@
+"""User service functions for listing and password-backed user creation."""
+
 from datetime import UTC, datetime
 
 from compliance.api.schemas import (

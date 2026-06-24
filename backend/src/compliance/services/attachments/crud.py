@@ -1,3 +1,5 @@
+"""Attachment metadata queries and mutations."""
+
 from compliance.db.models import (
     Attachment,
     Certification,

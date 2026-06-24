@@ -1,3 +1,5 @@
+"""Runtime configuration loaded from environment variables and backend .env."""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -5,6 +7,8 @@ from compliance._helpers import ROOT_DIR
 
 
 class Settings(BaseSettings):
+    """Application settings for environment and database connection config."""
+
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / "backend" / ".env",
         env_file_encoding="utf-8",
@@ -23,6 +27,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_database_url(self) -> str | URL:
+        """Return a SQLAlchemy database URL from DATABASE_URL or POSTGRES_* parts."""
         if self.database_url:
             return self.database_url
 
@@ -47,6 +52,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_database_url_str(self) -> str:
+        """Return the resolved database URL as an unmasked string for Alembic."""
         url = self.resolved_database_url
 
         if isinstance(url, URL):

@@ -1,3 +1,5 @@
+"""Site CRUD service functions for listing, creation, archive, and restore."""
+
 from compliance.db.models import Client, Site
 from compliance.services.lifecycle import (
     archive_record_by_id,

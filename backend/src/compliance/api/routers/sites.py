@@ -1,3 +1,5 @@
+"""Site workflow routes for history, attachments, analysis, and administration."""
+
 from json import JSONDecodeError
 from typing import Annotated
 

@@ -1,3 +1,5 @@
+"""Cross-service Pydantic schemas for site history and related summaries."""
+
 from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field

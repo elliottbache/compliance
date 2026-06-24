@@ -1,3 +1,6 @@
+"""Attachment service exceptions and public attachment service exports."""
+
+
 class AttachmentCreateError(Exception):
     """Base error for attachment service failures."""
 
@@ -68,6 +71,7 @@ __all__ = [
     "AttachmentFindingCertificationMismatchError",
     "AttachmentFindingNotFoundError",
     "AttachmentNotFoundError",
+    "AttachmentPermissionError",
     "AttachmentRuleNotFoundError",
     "AttachmentSiteNotFoundError",
     "_build_attachment_out",

@@ -1,3 +1,5 @@
+"""SQLAlchemy engine, session, metadata, and table reflection helpers."""
+
 from collections.abc import Generator
 from functools import cache
 
@@ -41,7 +43,7 @@ def get_engine_metadata() -> tuple[Engine, MetaData]:
 
 
 def get_tables(engine: Engine, meta: MetaData) -> dict[str, Table]:
-    """Create dict of Tables reflected from current ones in engine."""
+    """Reflect the core application tables from the configured database engine."""
     tables_dict = dict()
     tables_dict["certifiers_table"] = Table("certifiers", meta, autoload_with=engine)
     tables_dict["findings_table"] = Table("findings", meta, autoload_with=engine)
