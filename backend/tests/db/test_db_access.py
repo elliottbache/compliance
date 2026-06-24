@@ -17,7 +17,7 @@ class TestGetEngine:
     def teardown_method(self) -> None:
         get_engine.cache_clear()
 
-    def test_creates_engine_from_built_url(self) -> None:
+    def test_creates_engine_from_resolved_settings_url(self) -> None:
         mock_engine = MagicMock()
         mock_settings = SimpleNamespace(
             resolved_database_url="postgresql+psycopg2://test"
