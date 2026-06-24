@@ -329,8 +329,50 @@ export async function uploadAttachmentFile(
   await assertOk(response);
 }
 
-export function getAttachmentDownloadUrl(attachmentId: number): string {
-  return buildUrl(`/attachments/${attachmentId}/download`);
+function getFilenameFromContentDisposition(headerValue: string | null): string | null {
+  if (!headerValue) {
+    return null;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(headerValue);
+  if (utf8Match) {
+    return decodeURIComponent(utf8Match[1].replace(/^"|"$/g, ""));
+  }
+
+  const filenameMatch = /filename="?([^";]+)"?/i.exec(headerValue);
+  return filenameMatch?.[1] ?? null;
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadAttachmentFile(attachmentId: number): Promise<void> {
+  const response = await fetchWithAuthRetry(
+    `/attachments/${encodeRecordId(attachmentId)}/download`,
+    {
+      headers: {
+        Accept: "application/octet-stream",
+      },
+    },
+  );
+
+  await assertOk(response);
+
+  const filename =
+    getFilenameFromContentDisposition(response.headers.get("content-disposition")) ??
+    `attachment-${attachmentId}`;
+  const blob = await response.blob();
+  saveBlob(blob, filename);
 }
 
 export async function archiveAdminRecord<TResponse>(

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  downloadAttachmentFile,
   fetchJson,
   setAuthCredentialsProvider,
 } from "../../../src/api/complianceApi";
@@ -33,6 +34,15 @@ function createLocalStorage(): Storage {
 
 function getRequestHeaders(fetchMock: ReturnType<typeof vi.fn>, callIndex: number) {
   return new Headers(fetchMock.mock.calls[callIndex][1]?.headers);
+}
+
+function fileResponse(body: string, filename: string): Response {
+  return new Response(body, {
+    headers: {
+      "content-disposition": `attachment; filename="${filename}"`,
+      "content-type": "application/octet-stream",
+    },
+  });
 }
 
 describe("fetchJson", () => {
@@ -108,5 +118,59 @@ describe("fetchJson", () => {
       status: 401,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("downloadAttachmentFile", () => {
+  afterEach(() => {
+    setAuthCredentialsProvider(null);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("downloads an attachment with the stored bearer token", async () => {
+    const localStorage = createLocalStorage();
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, "stored-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fileResponse("example file", "inspection_report.pdf"));
+    const objectUrl = "blob:http://localhost/test";
+    const anchor = {
+      click: vi.fn(),
+      download: "",
+      href: "",
+      remove: vi.fn(),
+    };
+    const append = vi.fn();
+    const createElement = vi.fn().mockReturnValue(anchor);
+    const createObjectURL = vi.fn().mockReturnValue(objectUrl);
+    const revokeObjectURL = vi.fn();
+
+    vi.stubGlobal("window", { localStorage });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("document", {
+      body: { append },
+      createElement,
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL,
+      revokeObjectURL,
+    });
+
+    await downloadAttachmentFile(50);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${API_BASE_URL}/attachments/50/download`,
+    );
+    expect(getRequestHeaders(fetchMock, 0).get("Authorization")).toBe(
+      "Bearer stored-token",
+    );
+    expect(anchor.href).toBe(objectUrl);
+    expect(anchor.download).toBe("inspection_report.pdf");
+    expect(append).toHaveBeenCalledWith(anchor);
+    expect(anchor.click).toHaveBeenCalledOnce();
+    expect(anchor.remove).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith(objectUrl);
   });
 });

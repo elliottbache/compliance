@@ -4,7 +4,7 @@ import {
   ADMIN_RESOURCE_PATHS,
   archiveAdminRecord,
   createAdminRecord,
-  getAttachmentDownloadUrl,
+  downloadAttachmentFile,
   listAdminRecords,
   restoreAdminRecord,
   uploadAttachmentFile,
@@ -175,11 +175,7 @@ export function AttachmentsSection() {
     try {
       setLoading(`Downloading attachment ${downloadAttachmentId}...`);
       setError(null);
-      const link = document.createElement("a");
-      link.href = getAttachmentDownloadUrl(Number(downloadAttachmentId));
-      document.body.append(link);
-      link.click();
-      link.remove();
+      await downloadAttachmentFile(Number(downloadAttachmentId));
       setDownloadAttachmentId("");
       setShowDownloadForm(false);
     } catch (caughtError) {
