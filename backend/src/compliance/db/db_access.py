@@ -1,12 +1,11 @@
 from collections.abc import Generator
 from functools import cache
-from os import getenv
 
-from dotenv import load_dotenv
 from sqlalchemy import Engine, MetaData, Table, create_engine
 from sqlalchemy.orm import Session
 
 from compliance._helpers import ROOT_DIR
+from compliance.config import settings
 
 convention = {
     "ix": "ix_%(column_0_label)s",
@@ -30,7 +29,7 @@ def get_db() -> Generator[Session, None, None]:
 @cache
 def get_engine() -> Engine:
     """Return the process-wide SQLAlchemy engine for the configured database."""
-    return create_engine(_build_db_url())
+    return create_engine(settings.resolved_database_url)
 
 
 def get_engine_metadata() -> tuple[Engine, MetaData]:
@@ -56,23 +55,3 @@ def get_tables(engine: Engine, meta: MetaData) -> dict[str, Table]:
     tables_dict["regulations_table"] = Table("regulations", meta, autoload_with=engine)
 
     return tables_dict
-
-
-def _build_db_url() -> str:
-    """Build the database URL from environment variables.
-
-    Raises:
-        ValueError: If any required database environment variable is missing.
-    """
-    load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
-
-    db_name = getenv("POSTGRES_DB")
-    user = getenv("POSTGRES_USER")
-    password = getenv("POSTGRES_PASSWORD")
-    host = getenv("POSTGRES_HOST")
-    port = getenv("POSTGRES_PORT")
-
-    if db_name is None or user is None or password is None or host is None:
-        raise ValueError(".env value is not being read correctly.")
-
-    return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"

@@ -1,59 +1,13 @@
 import contextlib
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-import pytest
 from compliance.db.db_access import (
-    _build_db_url,
     get_db,
     get_engine,
     get_engine_metadata,
     get_tables,
 )
-
-
-class TestBuildDbUrl:
-    def test_builds_url_from_environment(self, monkeypatch) -> None:
-        monkeypatch.setenv("POSTGRES_DB", "test_db")
-        monkeypatch.setenv("POSTGRES_USER", "test_user")
-        monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
-        monkeypatch.setenv("POSTGRES_HOST", "localhost")
-        monkeypatch.setenv("POSTGRES_PORT", "5433")
-
-        assert (
-            _build_db_url()
-            == "postgresql+psycopg2://test_user:test_password@localhost:5433/test_db"
-        )
-
-    def test_loads_dotenv_without_overriding_existing_environment(self) -> None:
-        with (
-            patch("compliance.db.db_access.load_dotenv") as mock_load_dotenv,
-            patch("compliance.db.db_access.getenv") as mock_getenv,
-        ):
-            mock_getenv.side_effect = {
-                "POSTGRES_DB": "test_db",
-                "POSTGRES_USER": "test_user",
-                "POSTGRES_PASSWORD": "test_password",
-                "POSTGRES_HOST": "localhost",
-                "POSTGRES_PORT": "5432",
-            }.__getitem__
-
-            _build_db_url()
-
-        mock_load_dotenv.assert_called_once()
-        assert mock_load_dotenv.call_args.kwargs["override"] is False
-
-    def test_raises_when_required_environment_is_missing(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            "compliance.db.db_access.load_dotenv",
-            lambda dotenv_path, override=False: None,
-        )
-        monkeypatch.delenv("POSTGRES_DB", raising=False)
-        monkeypatch.delenv("POSTGRES_USER", raising=False)
-        monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
-        monkeypatch.delenv("POSTGRES_HOST", raising=False)
-
-        with pytest.raises(ValueError, match=r"\.env value"):
-            _build_db_url()
 
 
 class TestGetEngine:
@@ -65,12 +19,15 @@ class TestGetEngine:
 
     def test_creates_engine_from_built_url(self) -> None:
         mock_engine = MagicMock()
+        mock_settings = SimpleNamespace(
+            resolved_database_url="postgresql+psycopg2://test"
+        )
 
         with (
             patch(
-                "compliance.db.db_access._build_db_url",
-                return_value="postgresql+psycopg2://test",
-            ) as mock_build_db_url,
+                "compliance.db.db_access.settings",
+                mock_settings,
+            ),
             patch(
                 "compliance.db.db_access.create_engine",
                 return_value=mock_engine,
@@ -78,18 +35,20 @@ class TestGetEngine:
         ):
             result = get_engine()
 
-        mock_build_db_url.assert_called_once_with()
         mock_create_engine.assert_called_once_with("postgresql+psycopg2://test")
         assert result == mock_engine
 
     def test_reuses_engine_after_first_creation(self) -> None:
         mock_engine = MagicMock()
+        mock_settings = SimpleNamespace(
+            resolved_database_url="postgresql+psycopg2://test"
+        )
 
         with (
             patch(
-                "compliance.db.db_access._build_db_url",
-                return_value="postgresql+psycopg2://test",
-            ) as mock_build_db_url,
+                "compliance.db.db_access.settings",
+                mock_settings,
+            ),
             patch(
                 "compliance.db.db_access.create_engine",
                 return_value=mock_engine,
@@ -98,7 +57,6 @@ class TestGetEngine:
             first_result = get_engine()
             second_result = get_engine()
 
-        mock_build_db_url.assert_called_once_with()
         mock_create_engine.assert_called_once_with("postgresql+psycopg2://test")
         assert first_result is mock_engine
         assert second_result is mock_engine

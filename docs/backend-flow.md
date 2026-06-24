@@ -32,7 +32,7 @@ FastAPI route
 -> SessionDep
 -> get_db()
 -> get_engine()
--> _build_db_url()
+-> settings.database_url
 -> SQLAlchemy Session
 ```
 
