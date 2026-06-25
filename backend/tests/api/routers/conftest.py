@@ -1,8 +1,16 @@
+import os
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
+os.environ.setdefault("POSTGRES_DB", "test_db")
+os.environ.setdefault("POSTGRES_USER", "test_user")
+os.environ.setdefault("POSTGRES_PASSWORD", "test_password")
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5432")
+
 from compliance.api.schemas import FindingOut
 from compliance.auth import authorization as authorization_module
 from compliance.db.db_access import get_db
@@ -20,8 +28,20 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client(main_module):
-    return TestClient(main_module.app)
+def client(main_module, monkeypatch):
+    monkeypatch.setattr(
+        main_module, "verify_latest_migration_script", lambda app_env: True
+    )
+    monkeypatch.setattr(
+        main_module, "verify_db_coherence_with_python_models", lambda app_env: True
+    )
+
+    def _get_db():
+        yield MagicMock()
+
+    main_module.app.dependency_overrides[get_db] = _get_db
+    yield TestClient(main_module.app)
+    main_module.app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
