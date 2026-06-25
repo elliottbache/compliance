@@ -419,6 +419,29 @@ alembic -c backend/alembic.ini current
 alembic -c backend/alembic.ini heads
 ```
 
+When changing the database schema during development:
+
+1. Update the SQLAlchemy models.
+2. Generate an Alembic migration:
+
+   ```bash
+   alembic -c backend/alembic.ini revision --autogenerate -m "describe schema change"
+   ```
+
+3. Review the generated migration before running it. Confirm that it contains
+   only intentional table, column, index, constraint, and data changes.
+4. Apply the migration locally:
+
+   ```bash
+   alembic -c backend/alembic.ini upgrade head
+   ```
+
+5. Run the relevant backend tests:
+
+   ```bash
+   pytest --no-cov
+   ```
+
 Start the backend:
 
 ```bash
@@ -480,10 +503,11 @@ the current working directory, and `CORS_ORIGINS` must not be localhost or `*`.
 
 The production upgrade flow is:
 
-1. Back up the database and attachment storage.
-2. Run Alembic migrations against the deployment database.
-3. Start or restart the application containers.
-4. Confirm the application starts and the expected revision is applied.
+1. Back up the database.
+2. Back up the attachment storage directory or volume.
+3. Run Alembic migrations against the deployment database.
+4. Start or restart the application containers.
+5. Check `/health/ready` after the readiness endpoint is available.
 
 Note: the current backend container also runs migrations during startup. For a
 hardened production deployment, split migrations into a one-off job and remove
@@ -496,6 +520,12 @@ docker compose --env-file docker/.env up -d postgres
 docker compose --env-file docker/.env exec -T postgres pg_dump -U postgres -d compliance_db > compliance_db_backup.sql
 docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
 docker compose --env-file docker/.env up -d --build
+curl -f http://localhost:8000/health/ready
+```
+
+Until `/health/ready` is implemented, confirm the migration revision with:
+
+```bash
 docker compose --env-file docker/.env exec backend python -m alembic -c backend/alembic.ini current
 ```
 
