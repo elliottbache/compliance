@@ -1,13 +1,20 @@
 """Runtime configuration loaded from environment variables and backend .env."""
 
+from pathlib import Path
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
 from compliance._helpers import ROOT_DIR
 
+AppEnv = Literal["development", "staging", "production"]
+AIMode = Literal["mock", "anthropic"]
+
 
 class Settings(BaseSettings):
-    """Application settings for environment and database connection config."""
+    """Application settings for runtime, database, storage, CORS, and AI config."""
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / "backend" / ".env",
@@ -16,7 +23,7 @@ class Settings(BaseSettings):
         frozen=True,
     )
 
-    app_env: str = "development"
+    app_env: AppEnv = "development"
     database_url: str | None = None
 
     postgres_db: str | None = None
@@ -24,6 +31,32 @@ class Settings(BaseSettings):
     postgres_password: str | None = None
     postgres_host: str | None = None
     postgres_port: int = 5432
+    attachments_dir: Path = ROOT_DIR / "backend" / "storage" / "attachments"
+    cors_origins: str | None = None
+    ai_mode: AIMode = "mock"
+
+    @model_validator(mode="after")
+    def _validate_envs(self) -> "Settings":
+        """Reject unsafe staging and production configuration values."""
+        if self.app_env in ["staging", "production"]:
+            if self.postgres_password in ["postgres", ""]:
+                raise ValueError(
+                    "For production and staging environments, PostgreSQL password must not be postgres.  Set this in .env file.  Check /opt/compliance/.env."
+                )
+            if self.ai_mode == "mock":
+                raise ValueError(
+                    "For production and staging environments, AI mode must not be mock.  Set this in .env file.  Check /opt/compliance/.env."
+                )
+            if self.attachments_dir.expanduser().resolve() == Path.cwd().resolve():
+                raise ValueError(
+                    "For production and staging environments, attachments directory must not be current directory.  Set this in .env file.  Check /opt/compliance/.env."
+                )
+            if self.cors_origins in ["http://localhost:5173", "*"]:
+                raise ValueError(
+                    "For production and staging environments, CORS origins should not be localhost or *.  Set this in .env file.  Check /opt/compliance/.env."
+                )
+
+        return self
 
     @property
     def resolved_database_url(self) -> str | URL:

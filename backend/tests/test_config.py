@@ -57,3 +57,76 @@ class TestSettingsDatabaseUrl:
 
         with pytest.raises(ValueError, match="DATABASE_URL or complete POSTGRES_"):
             _ = settings.resolved_database_url
+
+
+class TestSettingsEnvironmentValidation:
+    def test_allows_safe_production_settings(self, tmp_path) -> None:
+        settings = Settings(
+            app_env="production",
+            database_url="postgresql+psycopg2://user:secret@db/app",
+            postgres_password="not-postgres",  # noqa: S106
+            attachments_dir=tmp_path,
+            cors_origins="https://compliance.example.com",
+            ai_mode="anthropic",
+            _env_file=None,
+        )
+
+        assert settings.app_env == "production"
+        assert settings.attachments_dir == tmp_path
+
+    @pytest.mark.parametrize("app_env", ["staging", "production"])
+    def test_rejects_default_postgres_password_in_deployed_envs(
+        self, app_env, tmp_path
+    ) -> None:
+        with pytest.raises(ValueError, match="PostgreSQL password"):
+            Settings(
+                app_env=app_env,
+                database_url="postgresql+psycopg2://user:postgres@db/app",
+                postgres_password="postgres",  # noqa: S106
+                attachments_dir=tmp_path,
+                cors_origins="https://compliance.example.com",
+                ai_mode="anthropic",
+                _env_file=None,
+            )
+
+    @pytest.mark.parametrize("attachments_dir", [".", ""])
+    def test_rejects_current_directory_attachment_storage_in_deployed_envs(
+        self, attachments_dir
+    ) -> None:
+        with pytest.raises(ValueError, match="attachments directory"):
+            Settings(
+                app_env="production",
+                database_url="postgresql+psycopg2://user:secret@db/app",
+                postgres_password="not-postgres",  # noqa: S106
+                attachments_dir=attachments_dir,
+                cors_origins="https://compliance.example.com",
+                ai_mode="anthropic",
+                _env_file=None,
+            )
+
+    def test_rejects_mock_ai_mode_in_deployed_envs(self, tmp_path) -> None:
+        with pytest.raises(ValueError, match="AI mode"):
+            Settings(
+                app_env="staging",
+                database_url="postgresql+psycopg2://user:secret@db/app",
+                postgres_password="not-postgres",  # noqa: S106
+                attachments_dir=tmp_path,
+                cors_origins="https://staging.compliance.example.com",
+                ai_mode="mock",
+                _env_file=None,
+            )
+
+    @pytest.mark.parametrize("cors_origins", ["http://localhost:5173", "*"])
+    def test_rejects_local_or_wildcard_cors_in_deployed_envs(
+        self, cors_origins, tmp_path
+    ) -> None:
+        with pytest.raises(ValueError, match="CORS origins"):
+            Settings(
+                app_env="production",
+                database_url="postgresql+psycopg2://user:secret@db/app",
+                postgres_password="not-postgres",  # noqa: S106
+                attachments_dir=tmp_path,
+                cors_origins=cors_origins,
+                ai_mode="anthropic",
+                _env_file=None,
+            )

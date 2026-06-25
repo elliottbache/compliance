@@ -1,4 +1,4 @@
-"""Attachment file upload, validation, persistence, and download helpers."""
+"""Attachment file upload, validation, persistence, and configured storage helpers."""
 
 import shutil
 from datetime import UTC, datetime
@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
+from compliance.config import settings
 from compliance.db.models import Attachment, Certification
 from compliance.services.attachments.exceptions import (
     AttachmentCertificationNotFoundError,
@@ -17,8 +18,7 @@ from compliance.services.attachments.exceptions import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[5]
-_UPLOAD_DIR = _PROJECT_ROOT / "backend" / "storage" / "attachments"
+_UPLOAD_DIR = settings.attachments_dir
 _ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"}
 _ALLOWED_MIME_TYPES = {
     "application/pdf",

@@ -371,11 +371,14 @@ cp backend/.env.example backend/.env
 Default local values:
 
 ```ini
+APP_ENV=development
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=compliance_db
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
+ATTACHMENTS_DIR=/path/to/your/compliance/folder/backend/storage/attachments
+CORS_ORIGINS=http://localhost:5173
 AI_MODE=mock
 ANTHROPIC_API_KEY=
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
@@ -458,14 +461,22 @@ cp docker/.env.example docker/.env
 Before deploying, replace all development defaults in `docker/.env`, especially:
 
 ```ini
+APP_ENV=production
 POSTGRES_PASSWORD=replace_with_a_strong_database_password
+ATTACHMENTS_DIR=/persistent/path/to/attachments
+CORS_ORIGINS=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
-AI_MODE=mock
-ANTHROPIC_API_KEY=
+AI_MODE=anthropic
+ANTHROPIC_API_KEY=replace_with_provider_key
 ```
 
 For live Anthropic analysis, set `AI_MODE=anthropic` and provide
 `ANTHROPIC_API_KEY`. Only enable live AI mode when the deployment owner has approved outbound provider calls for the data being analyzed.  Be sure to contact Anthropic to enable a Zero Data Retention agreement if you handle sensitive client data.  If handling health data, make sure to sign a Business Associate Agreement. 
+
+When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
+development defaults at startup. The PostgreSQL password must not be
+`postgres`, `AI_MODE` must not be `mock`, `ATTACHMENTS_DIR` must not resolve to
+the current working directory, and `CORS_ORIGINS` must not be localhost or `*`.
 
 The production upgrade flow is:
 
@@ -492,6 +503,17 @@ Do not load tutorial seed data into a production database.
 
 ## Configuration
 
+### Runtime Environment
+
+```ini
+APP_ENV=development
+```
+
+`APP_ENV` must be one of `development`, `staging`, or `production`.
+Development allows local defaults for quick setup. Staging and production
+enable startup validation that rejects unsafe defaults for database password,
+AI mode, attachment storage, and CORS origins.
+
 ### Database
 
 The backend builds its database URL from:
@@ -506,6 +528,27 @@ POSTGRES_PORT
 
 Environment variables supplied by Docker or the shell are preserved. `.env`
 files are loaded with `override=False`.
+
+### Attachment Storage
+
+```ini
+ATTACHMENTS_DIR=/path/to/attachments
+```
+
+Uploaded attachment files are stored under `ATTACHMENTS_DIR`. For local
+development this can point at `backend/storage/attachments`. For staging and
+production, use a persistent directory or mounted volume that is included in
+backup and restore procedures.
+
+### CORS
+
+```ini
+CORS_ORIGINS=http://localhost:5173
+```
+
+`CORS_ORIGINS` defines the frontend origins allowed to call the backend. Local
+development normally uses the Vite origin shown above. Staging and production
+must use explicit deployed frontend origins, not localhost or `*`.
 
 ### Auth
 
