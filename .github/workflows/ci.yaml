@@ -83,7 +83,7 @@ jobs:
           --health-retries 5
 
     env:
-      APP_ENV: test
+      APP_ENV: development
       POSTGRES_DB: compliance_test
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

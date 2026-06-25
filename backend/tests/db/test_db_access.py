@@ -2,6 +2,8 @@ import contextlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
+import compliance.db.db_access as db_access
+from alembic.util.exc import CommandError
 from compliance.db.db_access import (
     get_db,
     get_engine,
@@ -162,3 +164,117 @@ class TestGetTables:
             call("clients", mock_meta, autoload_with=mock_engine),
             call("regulations", mock_meta, autoload_with=mock_engine),
         ]
+
+
+class TestGetAlembicConfig:
+    def test_uses_absolute_runtime_paths_and_disables_logger_config(self) -> None:
+        cfg = db_access._get_alembic_config()
+
+        assert cfg.get_main_option("script_location") == str(
+            db_access.ROOT_DIR / "backend" / "migrations"
+        )
+        assert cfg.get_main_option("prepend_sys_path") == str(
+            db_access.ROOT_DIR / "backend" / "src"
+        )
+        assert cfg.attributes["configure_logger"] is False
+
+    def test_can_enable_alembic_logger_config_for_cli_like_use(self) -> None:
+        cfg = db_access._get_alembic_config(configure_logger=True)
+
+        assert cfg.attributes["configure_logger"] is True
+
+
+class TestVerifyLatestMigrationScript:
+    def test_returns_true_when_database_is_at_head(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch("compliance.db.db_access.command.current") as mock_current,
+            patch("compliance.db.db_access.command.upgrade") as mock_upgrade,
+        ):
+            result = db_access.verify_latest_migration_script("production")
+
+        assert result is True
+        mock_current.assert_called_once_with(cfg, check_heads=True)
+        mock_upgrade.assert_not_called()
+
+    def test_development_upgrades_to_head_when_database_is_behind(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch(
+                "compliance.db.db_access.command.current",
+                side_effect=CommandError("behind head"),
+            ),
+            patch("compliance.db.db_access.command.upgrade") as mock_upgrade,
+        ):
+            result = db_access.verify_latest_migration_script("development")
+
+        assert result is True
+        mock_upgrade.assert_called_once_with(cfg, "head")
+
+    def test_development_returns_false_when_upgrade_fails(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch(
+                "compliance.db.db_access.command.current",
+                side_effect=CommandError("behind head"),
+            ),
+            patch(
+                "compliance.db.db_access.command.upgrade",
+                side_effect=CommandError("upgrade failed"),
+            ),
+        ):
+            result = db_access.verify_latest_migration_script("development")
+
+        assert result is False
+
+    def test_deployed_env_returns_false_without_auto_upgrade_when_database_is_behind(
+        self,
+    ) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch(
+                "compliance.db.db_access.command.current",
+                side_effect=CommandError("behind head"),
+            ),
+            patch("compliance.db.db_access.command.upgrade") as mock_upgrade,
+        ):
+            result = db_access.verify_latest_migration_script("production")
+
+        assert result is False
+        mock_upgrade.assert_not_called()
+
+
+class TestVerifyDbCoherenceWithPythonModels:
+    def test_returns_true_when_models_match_migrations(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch("compliance.db.db_access.command.check") as mock_check,
+        ):
+            result = db_access.verify_db_coherence_with_python_models("production")
+
+        assert result is True
+        mock_check.assert_called_once_with(cfg)
+
+    def test_returns_false_when_models_differ_from_migrations(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch(
+                "compliance.db.db_access.command.check",
+                side_effect=CommandError("new upgrade operations detected"),
+            ),
+        ):
+            result = db_access.verify_db_coherence_with_python_models("development")
+
+        assert result is False

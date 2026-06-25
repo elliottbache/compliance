@@ -509,9 +509,10 @@ The production upgrade flow is:
 4. Start or restart the application containers.
 5. Check `/health/ready` after the readiness endpoint is available.
 
-Note: the current backend container also runs migrations during startup. For a
-hardened production deployment, split migrations into a one-off job and remove
-automatic startup migrations from the long-running app container.
+Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
+checks fail; run the explicit migration command below after taking backups.
+Development startup may apply existing migrations automatically, but model
+changes still require a generated and reviewed migration.
 
 Example commands for the current Compose setup:
 
