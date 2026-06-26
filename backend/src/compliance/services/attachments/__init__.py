@@ -22,6 +22,7 @@ from compliance.services.attachments.exceptions import (
 from compliance.services.attachments.files import (
     _UPLOAD_DIR,
     _validate_file_size_type_and_ext,
+    check_attachment_storage,
     get_attachment_download,
     post_attachment_upload,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "_format_attachments",
     "_format_new_attachment_with_context",
     "_validate_file_size_type_and_ext",
+    "check_attachment_storage",
     "format_attachment",
     "get_attachment_by_id",
     "get_attachment_download",

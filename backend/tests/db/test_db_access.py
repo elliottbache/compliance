@@ -199,7 +199,9 @@ class TestVerifyLatestMigrationScript:
         mock_current.assert_called_once_with(cfg, check_heads=True)
         mock_upgrade.assert_not_called()
 
-    def test_development_upgrades_to_head_when_database_is_behind(self) -> None:
+    def test_development_reports_false_without_auto_upgrade_when_database_is_behind(
+        self,
+    ) -> None:
         cfg = MagicMock()
 
         with (
@@ -212,26 +214,8 @@ class TestVerifyLatestMigrationScript:
         ):
             result = db_access.verify_latest_migration_script("development")
 
-        assert result is True
-        mock_upgrade.assert_called_once_with(cfg, "head")
-
-    def test_development_returns_false_when_upgrade_fails(self) -> None:
-        cfg = MagicMock()
-
-        with (
-            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
-            patch(
-                "compliance.db.db_access.command.current",
-                side_effect=CommandError("behind head"),
-            ),
-            patch(
-                "compliance.db.db_access.command.upgrade",
-                side_effect=CommandError("upgrade failed"),
-            ),
-        ):
-            result = db_access.verify_latest_migration_script("development")
-
         assert result is False
+        mock_upgrade.assert_not_called()
 
     def test_deployed_env_returns_false_without_auto_upgrade_when_database_is_behind(
         self,
@@ -249,6 +233,42 @@ class TestVerifyLatestMigrationScript:
             result = db_access.verify_latest_migration_script("production")
 
         assert result is False
+        mock_upgrade.assert_not_called()
+
+
+class TestUpgradeToHeadIfDevelopment:
+    def test_development_upgrades_to_head(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch("compliance.db.db_access.command.upgrade") as mock_upgrade,
+        ):
+            result = db_access.upgrade_to_head_if_development("development")
+
+        assert result is True
+        mock_upgrade.assert_called_once_with(cfg, "head")
+
+    def test_development_returns_false_when_upgrade_fails(self) -> None:
+        cfg = MagicMock()
+
+        with (
+            patch("compliance.db.db_access._get_alembic_config", return_value=cfg),
+            patch(
+                "compliance.db.db_access.command.upgrade",
+                side_effect=CommandError("upgrade failed"),
+            ) as mock_upgrade,
+        ):
+            result = db_access.upgrade_to_head_if_development("development")
+
+        assert result is False
+        mock_upgrade.assert_called_once_with(cfg, "head")
+
+    def test_deployed_env_does_not_upgrade(self) -> None:
+        with patch("compliance.db.db_access.command.upgrade") as mock_upgrade:
+            result = db_access.upgrade_to_head_if_development("production")
+
+        assert result is True
         mock_upgrade.assert_not_called()
 
 
@@ -276,5 +296,28 @@ class TestVerifyDbCoherenceWithPythonModels:
             ),
         ):
             result = db_access.verify_db_coherence_with_python_models("development")
+
+        assert result is False
+
+
+class TestVerifyDbIsReachable:
+    def test_returns_true_when_database_accepts_query(self) -> None:
+        mock_engine = MagicMock()
+        mock_connection = MagicMock()
+        mock_engine.connect.return_value.__enter__.return_value = mock_connection
+
+        with patch("compliance.db.db_access.get_engine", return_value=mock_engine):
+            result = db_access.verify_db_is_reachable()
+
+        assert result is True
+        query = mock_connection.execute.call_args.args[0]
+        assert str(query) == "SELECT 1"
+
+    def test_returns_false_when_database_query_fails(self) -> None:
+        mock_engine = MagicMock()
+        mock_engine.connect.side_effect = db_access.SQLAlchemyError("offline")
+
+        with patch("compliance.db.db_access.get_engine", return_value=mock_engine):
+            result = db_access.verify_db_is_reachable()
 
         assert result is False

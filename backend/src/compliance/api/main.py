@@ -13,6 +13,7 @@ from compliance.api.routers import (
     certifiers,
     clients,
     findings,
+    health,
     regulations,
     rules,
     sites,
@@ -20,7 +21,9 @@ from compliance.api.routers import (
 )
 from compliance.config import settings
 from compliance.db.db_access import (
+    upgrade_to_head_if_development,
     verify_db_coherence_with_python_models,
+    verify_db_is_reachable,
     verify_latest_migration_script,
 )
 from compliance.logging_utils import configure_logging
@@ -30,9 +33,15 @@ from compliance.logging_utils import configure_logging
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure app-level resources when FastAPI starts."""
     configure_logging(level="DEBUG")
-    if not verify_latest_migration_script(
-        settings.app_env
-    ) or not verify_db_coherence_with_python_models(settings.app_env):
+    if (
+        not verify_db_is_reachable()
+        or (
+            settings.app_env != "development"
+            and not verify_latest_migration_script(settings.app_env)
+        )
+        or not upgrade_to_head_if_development(settings.app_env)
+        or not verify_db_coherence_with_python_models(settings.app_env)
+    ):
         raise RuntimeError(
             "Database out of sync: Alembic heads and current state do not coincide."
         )
@@ -47,6 +56,7 @@ app.include_router(clients.router)
 app.include_router(certifications.router)
 app.include_router(certifiers.router)
 app.include_router(findings.router)
+app.include_router(health.router)
 app.include_router(rules.router)
 app.include_router(regulations.router)
 app.include_router(sites.router)

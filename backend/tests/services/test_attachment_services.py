@@ -28,6 +28,7 @@ from compliance.services.attachments import (
     _format_attachments,
     _format_new_attachment_with_context,
     _validate_file_size_type_and_ext,
+    check_attachment_storage,
     get_attachment_by_id,
     get_attachment_download,
     get_attachments,
@@ -809,6 +810,42 @@ class TestPostAttachmentUpload:
 
         assert list(tmp_path.iterdir()) == []
         session.rollback.assert_called_once_with()
+
+
+class TestCheckAttachmentStorage:
+    def test_returns_true_when_upload_dir_accepts_writes(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        upload_dir = tmp_path / "attachments"
+        upload_dir.mkdir()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", upload_dir
+        )
+
+        assert check_attachment_storage() is True
+        assert upload_dir.is_dir()
+        assert list(upload_dir.iterdir()) == []
+
+    def test_returns_false_when_upload_dir_does_not_exist(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        upload_dir = tmp_path / "attachments"
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", upload_dir
+        )
+
+        assert check_attachment_storage() is False
+
+    def test_returns_false_when_upload_path_is_not_a_directory(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        upload_path = tmp_path / "attachments"
+        upload_path.write_text("not a directory")
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", upload_path
+        )
+
+        assert check_attachment_storage() is False
 
 
 class TestValidateFileSizeTypeAndExt:

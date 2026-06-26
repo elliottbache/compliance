@@ -158,6 +158,22 @@ def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, 
     return file_name, file_path
 
 
+def check_attachment_storage() -> bool:
+    """Return whether configured attachment storage exists and accepts writes."""
+    try:
+        if not _UPLOAD_DIR.is_dir():
+            return False
+
+        test_file = _UPLOAD_DIR / ".healthcheck.tmp"
+        test_file.write_bytes(b"ok")
+        test_file.unlink()
+
+        return True
+
+    except OSError:
+        return False
+
+
 def _validate_file_size_type_and_ext(
     file_size: int | None,
     file_type: str | None,

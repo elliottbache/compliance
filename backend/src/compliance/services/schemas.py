@@ -292,3 +292,12 @@ class ArchiveRequest(BaseModel):
     """Input shape for archive metadata."""
 
     archive_reason: str | None = Field(max_length=160, default=None)
+
+
+class HealthCheckResult(BaseModel):
+    """Readiness status for app dependencies checked by ``/health/ready``."""
+
+    database_reachable: bool = False
+    migration_current: bool = False
+    model_drift_absent: bool = False
+    attachment_storage: bool = False

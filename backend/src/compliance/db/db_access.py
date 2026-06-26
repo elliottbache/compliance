@@ -7,7 +7,8 @@ from functools import cache
 from alembic import command
 from alembic.config import Config
 from alembic.util.exc import CommandError
-from sqlalchemy import Engine, MetaData, Table, create_engine
+from sqlalchemy import Engine, MetaData, Table, create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from compliance._helpers import ROOT_DIR
@@ -68,9 +69,10 @@ def get_tables(engine: Engine, meta: MetaData) -> dict[str, Table]:
 def verify_latest_migration_script(app_env: AppEnv) -> bool:
     """Return whether the database is at the latest Alembic migration.
 
-    In development, an out-of-date database is upgraded to ``head`` because
-    local startup favors convenience. In staging and production, this check
-    only reports failure so operators can run the backup-first migration flow.
+    In development, this check only reports whether the database is current;
+    startup applies pending migrations separately with
+    :func:`upgrade_to_head_if_development`. In staging and production, this
+    check reports failure so operators can run the backup-first migration flow.
     """
 
     try:
@@ -85,14 +87,6 @@ def verify_latest_migration_script(app_env: AppEnv) -> bool:
             logger.warning(
                 f"Database out of sync with latest Alembic migration script: {exc}!\nUpgrading to head."
             )
-            try:
-                command.upgrade(cfg, "head")
-                return True
-
-            except CommandError as err:
-                logger.critical(
-                    f"Database failed upgrading to head: {err}!\nTry running:\nalembic -c backend/alembic.ini upgrade head"
-                )
 
         else:
             logger.critical(
@@ -118,6 +112,23 @@ def _get_alembic_config(*, configure_logger: bool = False) -> Config:
     return cfg
 
 
+def upgrade_to_head_if_development(app_env: AppEnv) -> bool:
+    """Apply pending Alembic migrations during development startup only."""
+    if app_env == "development":
+        try:
+            cfg = _get_alembic_config()
+            command.upgrade(cfg, "head")
+            logger.info("Database upgraded to head.")
+
+        except CommandError as err:
+            logger.critical(
+                f"Database failed upgrading to head: {err}!\nTry running:\nalembic -c backend/alembic.ini upgrade head"
+            )
+            return False
+
+    return True
+
+
 def verify_db_coherence_with_python_models(app_env: AppEnv) -> bool:
     """Return whether Alembic autogenerate sees no ORM/model drift."""
 
@@ -137,5 +148,20 @@ def verify_db_coherence_with_python_models(app_env: AppEnv) -> bool:
             logger.critical(
                 f"Database is at migration head, but SQLAlchemy models differ from migrations: {exc}!\n\nGenerate migration script by running:\nalembic -c backend/alembic.ini revision --autogenerate -m 'describe change'\nReview the generated migration, then run: alembic -c backend/alembic.ini upgrade head"
             )
+
+    return False
+
+
+def verify_db_is_reachable() -> bool:
+    """Return whether the configured database accepts a simple query."""
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+
+        return True
+
+    except SQLAlchemyError as exc:
+        logger.critical(f"Database is not reachable: {exc}!")
 
     return False
