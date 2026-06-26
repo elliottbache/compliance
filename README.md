@@ -218,9 +218,8 @@ Current protected behavior:
 - User passwords are accepted only at creation time and stored as hashes.
 
 Production note: the authentication layer is functional, but production
-deployments still need a first-admin bootstrap procedure, password reset/change
-workflow, password policy, login throttling or lockout, and operational
-procedures for rotating secrets.
+deployments still need a password reset/change workflow, password policy, login
+throttling or lockout, and operational procedures for rotating secrets.
 
 ## Archive Policy
 
@@ -546,8 +545,9 @@ The production upgrade flow is:
 1. Back up the database.
 2. Back up the attachment storage directory or volume.
 3. Run Alembic migrations against the deployment database.
-4. Start or restart the application containers.
-5. Check `/health/live` and `/health/ready`.
+4. Bootstrap the first admin user if this is a new deployment.
+5. Start or restart the application containers.
+6. Check `/health/live` and `/health/ready`.
 
 Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
 checks fail; run the explicit migration command below after taking backups.
@@ -560,10 +560,15 @@ Example commands for the current Compose setup:
 docker compose --env-file docker/.env up -d postgres
 docker compose --env-file docker/.env exec -T postgres pg_dump -U postgres -d compliance_db > compliance_db_backup.sql
 docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+docker compose --env-file docker/.env run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
 docker compose --env-file docker/.env up -d --build
 curl -f http://localhost:8000/health/live
 curl -f http://localhost:8000/health/ready
 ```
+
+The first-admin bootstrap command prompts for the password twice without
+echoing it to the terminal. If an active admin user already exists, it exits
+successfully without creating another admin.
 
 Do not load tutorial seed data into a production database.
 
@@ -830,8 +835,8 @@ backed up, restored, secured, and operated without developer intervention.
   through a reverse proxy or static web server instead of Vite.
 - Reject insecure default secrets at startup. Production installs must provide a
   strong `SECRET_KEY`, database password, and first-admin credentials.
-- Add a first-admin bootstrap flow, password reset/change workflow, password
-  policy, login throttling or lockout, and documented secret-rotation procedure.
+- Add a password reset/change workflow, password policy, login throttling or
+  lockout, and documented secret-rotation procedure.
 - Harden file upload handling with stricter MIME checks, size limits, malware
   scanning, quarantine, safe filenames, and path hiding.
 - Move attachment storage to a configured persistent directory or volume outside

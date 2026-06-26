@@ -7,6 +7,7 @@ from compliance.services.schemas import UserCreate
 from compliance.services.users import (
     UserConflictError,
     UserEmailConflictError,
+    bootstrap_first_admin,
     get_users,
     post_new_user,
 )
@@ -161,3 +162,87 @@ class TestPostNewUser:
             post_new_user(session, user)
 
         session.rollback.assert_called_once_with()
+
+
+class TestBootstrapFirstAdmin:
+    def test_creates_active_admin_when_no_active_admin_exists(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.first.return_value = None
+
+        with patch(
+            "compliance.services.users.post_new_user",
+            return_value=_user(role=Role.ADMIN),
+        ) as mock_post_new_user:
+            result = bootstrap_first_admin(
+                session,
+                full_name="Alice Admin",
+                email="admin@example.com",
+                password=TEST_PASSWORD,
+            )
+
+        assert result.created is True
+        assert result.user is not None
+        assert result.user.role == Role.ADMIN
+        assert result.user.is_active is True
+
+        user_create = mock_post_new_user.call_args.args[1]
+        assert user_create.full_name == "Alice Admin"
+        assert user_create.email == "admin@example.com"
+        assert user_create.password == TEST_PASSWORD
+        assert user_create.role == Role.ADMIN
+        assert user_create.is_active is True
+
+    def test_noops_when_active_admin_exists(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.first.return_value = _user(
+            role=Role.ADMIN
+        )
+
+        with patch("compliance.services.users.post_new_user") as mock_post_new_user:
+            result = bootstrap_first_admin(
+                session,
+                full_name="Alice Admin",
+                email="admin@example.com",
+                password=TEST_PASSWORD,
+            )
+
+        assert result.created is False
+        assert result.user is None
+        mock_post_new_user.assert_not_called()
+
+    def test_checks_only_active_admins(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.first.return_value = None
+
+        with patch(
+            "compliance.services.users.post_new_user",
+            return_value=_user(role=Role.ADMIN),
+        ):
+            bootstrap_first_admin(
+                session,
+                full_name="Alice Admin",
+                email="admin@example.com",
+                password=TEST_PASSWORD,
+            )
+
+        stmt = session.execute.call_args.args[0]
+        assert "users.role = :role_1" in str(stmt)
+        assert "users.is_active IS true" in str(stmt)
+
+    def test_propagates_email_conflict_when_requested_email_exists(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.scalars.return_value.first.return_value = None
+
+        with (
+            patch(
+                "compliance.services.users.post_new_user",
+                side_effect=UserEmailConflictError("email exists"),
+            ),
+            pytest.raises(UserEmailConflictError),
+        ):
+            bootstrap_first_admin(
+                session,
+                full_name="Alice Admin",
+                email="admin@example.com",
+                password=TEST_PASSWORD,
+            )

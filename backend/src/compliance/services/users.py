@@ -1,9 +1,11 @@
 """User service functions for listing and password-backed user creation."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from compliance.auth.authentication import _hash_password
 from compliance.db.models import (
+    Role,
     User,
 )
 from compliance.services.lifecycle import (
@@ -24,6 +26,14 @@ class UserConflictError(Exception):
 
 class UserEmailConflictError(UserConflictError):
     """Raised when a user email already exists."""
+
+
+@dataclass(frozen=True)
+class FirstAdminBootstrapResult:
+    """Result returned by the first-admin bootstrap flow."""
+
+    created: bool
+    user: UserOut | None
 
 
 def get_users(
@@ -88,3 +98,42 @@ def post_new_user(session: Session, user: UserCreate) -> UserOut:
         ) from exc
 
     return UserOut.model_validate(new_user)
+
+
+def bootstrap_first_admin(
+    session: Session, *, full_name: str, email: str, password: str
+) -> FirstAdminBootstrapResult:
+    """Create the first active admin user when no active admin exists.
+
+    Args:
+        session: Database session used to check and create users.
+        full_name: Display name for the bootstrap admin user.
+        email: Login email for the bootstrap admin user.
+        password: Plaintext password to hash before storage.
+
+    Returns:
+        A bootstrap result indicating whether a new admin was created. If an
+        active admin already exists, no user is created and ``user`` is ``None``.
+
+    Raises:
+        UserEmailConflictError: If no active admin exists but the email is
+            already used by another user.
+        UserConflictError: If another integrity conflict prevents creation.
+    """
+    stmt = select(User).where(User.role == Role.ADMIN, User.is_active.is_(True))
+    existing_admin = session.execute(stmt).scalars().first()
+    if existing_admin is not None:
+        return FirstAdminBootstrapResult(created=False, user=None)
+
+    user = post_new_user(
+        session,
+        UserCreate(
+            full_name=full_name,
+            email=email,
+            password=password,
+            role=Role.ADMIN,
+            is_active=True,
+        ),
+    )
+
+    return FirstAdminBootstrapResult(created=True, user=user)
