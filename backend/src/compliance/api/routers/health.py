@@ -13,6 +13,12 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter(prefix="/health", tags=["health"])
 
 
+@router.get("/live")
+def liveness_check() -> dict[str, str]:
+    """Return a minimal process liveness signal."""
+    return {"status": "alive"}
+
+
 @router.get("/ready")
 def readiness_check() -> HealthCheckResult:
     """Return dependency readiness details or raise 503 when not ready."""

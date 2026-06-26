@@ -6,6 +6,11 @@ from compliance.services.schemas import HealthCheckResult
 from fastapi import HTTPException
 
 
+class TestLivenessCheck:
+    def test_returns_alive_status(self) -> None:
+        assert health.liveness_check() == {"status": "alive"}
+
+
 class TestReadinessCheck:
     def test_returns_dependency_statuses(self, monkeypatch) -> None:
         monkeypatch.setattr(health, "verify_db_is_reachable", lambda: True)

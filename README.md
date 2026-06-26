@@ -143,6 +143,9 @@ The backend exposes route groups for:
 - `/findings`: list, create, archive, and restore findings.
 - `/attachments`: list metadata, create metadata, upload files, download files,
   archive, and restore attachments.
+- `/health/live`: liveness probe for the running API process.
+- `/health/ready`: readiness probe for database reachability, migration state,
+  model/migration drift, and attachment storage availability.
 
 FastAPI interactive docs are available locally at:
 
@@ -331,13 +334,17 @@ mkdir -p backend/storage/attachments
 cp examples/demo/attachments/* backend/storage/attachments/
 ```
 
-With Docker Compose running, load the seed data:
+With Docker Compose running, apply migrations:
+
+```bash
+docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+```
+
+Then load the seed data:
 
 ```bash
 docker compose --env-file docker/.env exec -T postgres psql -U postgres -d compliance_db < examples/demo/seed_demo_data.sql
 ```
-
-The backend container runs Alembic migrations during startup.
 
 Then open the frontend and run:
 
@@ -448,6 +455,10 @@ Start the backend:
 fastapi dev backend/src/compliance/api/main.py
 ```
 
+During development startup, the backend verifies database connectivity, applies
+existing migrations to `head`, and fails if Alembic detects model drift that
+requires a new reviewed migration.
+
 ### Frontend
 
 ```bash
@@ -507,7 +518,7 @@ The production upgrade flow is:
 2. Back up the attachment storage directory or volume.
 3. Run Alembic migrations against the deployment database.
 4. Start or restart the application containers.
-5. Check `/health/ready` after the readiness endpoint is available.
+5. Check `/health/live` and `/health/ready`.
 
 Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
 checks fail; run the explicit migration command below after taking backups.
@@ -521,13 +532,8 @@ docker compose --env-file docker/.env up -d postgres
 docker compose --env-file docker/.env exec -T postgres pg_dump -U postgres -d compliance_db > compliance_db_backup.sql
 docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
 docker compose --env-file docker/.env up -d --build
+curl -f http://localhost:8000/health/live
 curl -f http://localhost:8000/health/ready
-```
-
-Until `/health/ready` is implemented, confirm the migration revision with:
-
-```bash
-docker compose --env-file docker/.env exec backend python -m alembic -c backend/alembic.ini current
 ```
 
 Do not load tutorial seed data into a production database.
@@ -547,7 +553,13 @@ AI mode, attachment storage, and CORS origins.
 
 ### Database
 
-The backend builds its database URL from:
+The backend uses `DATABASE_URL` when it is set:
+
+```ini
+DATABASE_URL=postgresql+psycopg2://user:password@host:5432/database
+```
+
+If `DATABASE_URL` is not set, it builds the SQLAlchemy URL from:
 
 ```ini
 POSTGRES_USER
@@ -819,10 +831,9 @@ backed up, restored, secured, and operated without developer intervention.
 - Add reverse proxy configuration, health checks, persistent storage, backups,
   and restore testing. Add HTTPS/TLS when the app is accessed over a network
   rather than only through localhost or a trusted internal channel.
-- Add health checks for application startup, database connectivity, migration
-  state, writable attachment storage, and Claude API availability when live AI
-  mode is enabled.
-- Move database migrations out of backend container startup and into a dedicated backup-first deployment step.
+- Expand health checks to include Claude API availability when live AI mode is
+  enabled.
+- Add deployment automation around the explicit backup-first migration step.
 - Add deployment gates, migration review, rollback plans, dependency pinning,
   image scanning, and release artifact checksums.
 - Add structured audit events for create, update, archive, restore, upload,
