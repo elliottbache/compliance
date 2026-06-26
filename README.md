@@ -153,6 +153,24 @@ FastAPI interactive docs are available locally at:
 http://localhost:8000/docs
 ```
 
+## Health Checks
+
+The backend exposes two operational health endpoints:
+
+- `/health/live`: confirms the FastAPI process can answer HTTP requests. Docker
+  Compose uses this endpoint for the backend container healthcheck because it
+  does not depend on PostgreSQL, migrations, attachment storage, or external
+  services.
+- `/health/ready`: confirms the app is ready to serve real traffic. It checks
+  database reachability, Alembic migration state, SQLAlchemy model/migration
+  drift, and attachment storage availability.
+
+Use `/health/live` for process/container liveness checks. Use `/health/ready`
+after migrations and startup, before tutorial data loading, after production or
+staging upgrades, and when debugging whether the backend can safely handle API
+requests. Do not use `/health/ready` as a replacement for running migrations;
+it is a verification step after the expected migration flow.
+
 ## Authentication And Authorization
 
 Authentication uses FastAPI's OAuth2 password flow and signed JWT bearer tokens.
@@ -303,6 +321,17 @@ Start the stack:
 ```bash
 docker compose --env-file docker/.env up -d --build
 ```
+
+Check that the API process is live and dependencies are ready:
+
+```bash
+curl -f http://localhost:8000/health/live
+curl -f http://localhost:8000/health/ready
+```
+
+Docker Compose uses `/health/live` for the backend container healthcheck. Use
+`/health/ready` as the workflow check before loading tutorial data or relying on
+the API.
 
 Open:
 
