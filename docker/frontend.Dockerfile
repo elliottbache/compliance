@@ -1,6 +1,6 @@
 # docker/frontend.Dockerfile
 # Locks your base down to Node v22.14.0 (Alpine 3.21) via verified SHA-256 digest
-FROM node:22.14.0-alpine3.21@sha256:9bef0ef1e268f60627da9ba7d7605e8831d5b56ad07487d24d1aa386336d1944
+FROM node:25.2.1-alpine3.21@sha256:32509199057d74a987fdd88cde00fdfd48ef52469adbd6bd11969fc701477761
 
 WORKDIR /app
 
