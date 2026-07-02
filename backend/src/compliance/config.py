@@ -1,9 +1,11 @@
 """Runtime configuration loaded from environment variables and backend .env."""
 
+import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import model_validator
+from dotenv import dotenv_values
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -31,9 +33,45 @@ class Settings(BaseSettings):
     postgres_password: str | None = None
     postgres_host: str | None = None
     postgres_port: int = 5432
-    attachments_dir: Path = ROOT_DIR / "backend" / "storage" / "attachments"
+    attachments_dir: Path = (
+        Path.home() / ".local" / "share" / "compliance" / "attachments"
+    )
     cors_origins: str | None = None
     ai_mode: AIMode = "mock"
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_dynamic_env_file(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Dynamically load values from a specific .env file based on app_env."""
+        if not isinstance(data, dict):
+            data = dict(data)
+
+        app_env = (
+            data.get("app_env")
+            or data.get("APP_ENV")
+            or os.getenv("APP_ENV", "development")
+        )
+
+        if app_env in ["staging", "production"]:
+            env_file = Path("/etc/compliance/.env")
+        else:
+            env_file = ROOT_DIR / "backend" / ".env"
+
+        if env_file.is_file():
+            # dotenv_values parses the file into a dictionary without modifying os.environ
+            file_values = {
+                key.lower(): value for key, value in dotenv_values(env_file).items()
+            }
+
+            data = {**file_values, **data}
+
+        return data
+
+    @field_validator("attachments_dir")
+    @classmethod
+    def _expand_attachments_dir(cls, value: Path) -> Path:
+        """Expand user-relative attachment paths from env files."""
+        return value.expanduser()
 
     @model_validator(mode="after")
     def _validate_envs(self) -> "Settings":
@@ -41,19 +79,24 @@ class Settings(BaseSettings):
         if self.app_env in ["staging", "production"]:
             if self.postgres_password in ["postgres", ""]:
                 raise ValueError(
-                    "For production and staging environments, PostgreSQL password must not be postgres.  Set this in .env file.  Check /opt/compliance/.env."
+                    "For production and staging environments, PostgreSQL password must not be postgres.  Set this in .env file.  Check /etc/compliance/.env."
                 )
             if self.ai_mode == "mock":
                 raise ValueError(
-                    "For production and staging environments, AI mode must not be mock.  Set this in .env file.  Check /opt/compliance/.env."
+                    "For production and staging environments, AI mode must not be mock.  Set this in .env file.  Check /etc/compliance/.env."
                 )
-            if self.attachments_dir.expanduser().resolve() == Path.cwd().resolve():
+            attach_dir = self.attachments_dir.expanduser().resolve()
+            if (
+                attach_dir == Path.cwd().resolve()
+                or attach_dir
+                == Path.home() / ".local" / "share" / "compliance" / "attachments"
+            ):
                 raise ValueError(
-                    "For production and staging environments, attachments directory must not be current directory.  Set this in .env file.  Check /opt/compliance/.env."
+                    "For production and staging environments, attachments directory must not be current directory nor be in the current user's .local folder.  Set this in .env file.  Check /etc/compliance/.env."
                 )
             if self.cors_origins in ["http://localhost:5173", "*"]:
                 raise ValueError(
-                    "For production and staging environments, CORS origins should not be localhost or *.  Set this in .env file.  Check /opt/compliance/.env."
+                    "For production and staging environments, CORS origins should not be localhost or *.  Set this in .env file.  Check /etc/compliance/.env."
                 )
 
         return self

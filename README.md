@@ -102,6 +102,7 @@ docs/                        Sphinx documentation
 examples/demo/               Seed data, fake evidence files, screenshots
 docker/                      Backend/frontend Dockerfiles and env template
 docker-compose.yaml          Local Postgres + backend + frontend stack
+docker-compose.prod.yaml     Staging/production Compose stack using /etc/compliance/.env
 ```
 
 For a route-by-route overview of backend request flow, see
@@ -295,6 +296,10 @@ Create a Docker environment file:
 cp docker/.env.example docker/.env
 ```
 
+`docker-compose.yaml` reads `docker/.env` directly for both the PostgreSQL and
+backend containers. Keep `POSTGRES_HOST=postgres` in this file because the
+backend reaches PostgreSQL over the Compose service network.
+
 For offline demos, keep:
 
 ```ini
@@ -318,7 +323,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 Start the stack:
 
 ```bash
-docker compose --env-file docker/.env up -d --build
+docker compose up -d --build
 ```
 
 Check that the API process is live and dependencies are ready:
@@ -365,13 +370,13 @@ cp examples/demo/attachments/* backend/storage/attachments/
 With Docker Compose running, apply migrations:
 
 ```bash
-docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+docker compose run --rm backend python -m alembic -c backend/alembic.ini upgrade head
 ```
 
 Then load the seed data:
 
 ```bash
-docker compose --env-file docker/.env exec -T postgres psql -U postgres -d compliance_db < examples/demo/seed_demo_data.sql
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < examples/demo/seed_demo_data.sql
 ```
 
 Then open the frontend and run:
@@ -508,28 +513,122 @@ Open:
 http://localhost:5173
 ```
 
-## Production Docker Deployment
+## Staging And Production Docker Deployment
 
-Use this path for a production-style Docker deployment, not for routine local
-development. Production deployments should use strong secrets, persistent
-storage, backups, and an explicit migration step.
+Use this path for staging or production Docker deployments, not for routine
+local development. Staging and production deployments should use strong secrets,
+persistent storage, backups, and an explicit migration step.
 
-Create a deployment environment file from the Docker template:
+Recommended production filesystem layout:
 
-```bash
-cp docker/.env.example docker/.env
+```text
+/opt/compliance/
+├── docker-compose.yml         Production Compose file copied from docker-compose.prod.yaml
+├── app/                       Repo checkout or release bundle
+└── scripts/                   Deployment, backup, and maintenance scripts
+
+/etc/compliance/
+└── .env                       Real deployment env vars, not committed to git
+
+/var/lib/compliance/
+├── attachments/               Host attachment storage mounted into the backend
+└── postgres/                  Host PostgreSQL data storage mounted into postgres
+
+/var/backups/compliance/
+├── db/
+└── attachments/
+
+/var/log/compliance/
+└── backend/
 ```
 
-Before deploying, replace all development defaults in `docker/.env`, especially:
+The checked-in `docker-compose.prod.yaml` is ready to run from the repository
+root. If you copy it to `/opt/compliance/docker-compose.yml` while keeping the
+repo under `/opt/compliance/app`, update the service build contexts in that copy
+from `.` to `./app`, or keep the Compose file inside `/opt/compliance/app` and
+run it from there.
+
+Create the host directories:
+
+```bash
+sudo mkdir -p /opt/compliance
+sudo mkdir -p /etc/compliance
+sudo mkdir -p /var/lib/compliance/attachments
+sudo mkdir -p /var/lib/compliance/postgres
+sudo mkdir -p /var/backups/compliance/db
+sudo mkdir -p /var/backups/compliance/attachments
+sudo mkdir -p /var/log/compliance/backend
+```
+
+Give the deployment user ownership of those paths:
+
+```bash
+sudo chown -R "$USER":"$USER" /opt/compliance
+sudo chown -R "$USER":"$USER" /etc/compliance
+sudo chown -R "$USER":"$USER" /var/lib/compliance
+sudo chown -R "$USER":"$USER" /var/backups/compliance
+sudo chown -R "$USER":"$USER" /var/log/compliance
+```
+
+`/etc/compliance/.env` contains secrets. Keep it out of the repository and lock
+it down after creating or editing it:
+
+```bash
+chmod 600 /etc/compliance/.env
+```
+
+Create the deployment environment file on the target host:
+
+```bash
+sudo cp docker/.env.example /etc/compliance/.env
+chmod 600 /etc/compliance/.env
+```
+
+Before deploying, replace all development defaults in `/etc/compliance/.env`,
+especially:
 
 ```ini
 APP_ENV=production
 POSTGRES_PASSWORD=replace_with_a_strong_database_password
-ATTACHMENTS_DIR=/persistent/path/to/attachments
+POSTGRES_HOST=postgres
+ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGINS=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 ANTHROPIC_API_KEY=replace_with_provider_key
+```
+
+For staging, use the same file path on the staging host, but set
+`APP_ENV=staging`, staging-specific secrets, and the staging frontend origin:
+
+```ini
+APP_ENV=staging
+POSTGRES_HOST=postgres
+ATTACHMENTS_DIR=/app/data/attachments
+CORS_ORIGINS=https://your-staging-origin.example
+```
+
+`docker-compose.prod.yaml` is the Compose file for both staging and production.
+It reads `/etc/compliance/.env` through each service's `env_file` setting, so do
+not rely on `docker compose --env-file` for deployment secrets. If staging and
+production run on the same host, use separate Compose projects and a
+staging-specific Compose override so each environment points at its own env file
+and persistent volumes.
+
+The staging/production Compose file mounts host attachment storage at
+`/app/data/attachments` inside the backend container:
+
+```yaml
+/var/lib/compliance/attachments:/app/data/attachments
+```
+
+Keep `ATTACHMENTS_DIR=/app/data/attachments` in `/etc/compliance/.env`; the host
+path belongs in `docker-compose.prod.yaml`, not in the application env file.
+
+The same Compose file mounts PostgreSQL data from the host:
+
+```yaml
+/var/lib/compliance/postgres:/var/lib/compliance/postgresql/data
 ```
 
 For live Anthropic analysis, set `AI_MODE=anthropic` and provide
@@ -538,9 +637,10 @@ For live Anthropic analysis, set `AI_MODE=anthropic` and provide
 When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
 development defaults at startup. The PostgreSQL password must not be
 `postgres`, `AI_MODE` must not be `mock`, `ATTACHMENTS_DIR` must not resolve to
-the current working directory, and `CORS_ORIGINS` must not be localhost or `*`.
+the current working directory or the default local user storage path, and
+`CORS_ORIGINS` must not be localhost or `*`.
 
-The production upgrade flow is:
+The staging/production upgrade flow is:
 
 1. Back up the database.
 2. Back up the attachment storage directory or volume.
@@ -557,11 +657,11 @@ changes still require a generated and reviewed migration.
 Example commands for the current Compose setup:
 
 ```bash
-docker compose --env-file docker/.env up -d postgres
-docker compose --env-file docker/.env exec -T postgres pg_dump -U postgres -d compliance_db > compliance_db_backup.sql
-docker compose --env-file docker/.env run --rm backend python -m alembic -c backend/alembic.ini upgrade head
-docker compose --env-file docker/.env run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
-docker compose --env-file docker/.env up -d --build
+docker compose -f docker-compose.prod.yaml up -d postgres
+docker compose -f docker-compose.prod.yaml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > compliance_db_backup.sql
+docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
+docker compose -f docker-compose.prod.yaml up -d --build
 curl -f http://localhost:8000/health/live
 curl -f http://localhost:8000/health/ready
 ```
@@ -585,6 +685,20 @@ Development allows local defaults for quick setup. Staging and production
 enable startup validation that rejects unsafe defaults for database password,
 AI mode, attachment storage, and CORS origins.
 
+Environment files are the source of truth for runtime settings:
+
+- `backend/.env`: host-based local backend development. Use
+  `POSTGRES_HOST=localhost`.
+- `docker/.env`: local Docker Compose development with `docker-compose.yaml`.
+  Use `POSTGRES_HOST=postgres` and `ATTACHMENTS_DIR=/app/data/attachments`.
+- `/etc/compliance/.env`: staging and production deployments with
+  `docker-compose.prod.yaml`. Use `APP_ENV=staging` or `APP_ENV=production`,
+  `POSTGRES_HOST=postgres`, and `ATTACHMENTS_DIR=/app/data/attachments`.
+
+The Compose files intentionally keep secrets and deployment values out of
+`environment` blocks. `docker-compose.yaml` points services at `docker/.env`;
+`docker-compose.prod.yaml` points services at `/etc/compliance/.env`.
+
 ### Database
 
 The backend uses `DATABASE_URL` when it is set:
@@ -603,8 +717,10 @@ POSTGRES_HOST
 POSTGRES_PORT
 ```
 
-Environment variables supplied by Docker or the shell are preserved. `.env`
-files are loaded with `override=False`.
+Environment variables supplied by Docker or the shell take precedence over
+values loaded from the backend `.env` fallback. For Docker deployments, keep the
+PostgreSQL settings in the Compose env file used by both the `postgres` and
+`backend` services.
 
 ### Attachment Storage
 
@@ -612,10 +728,12 @@ files are loaded with `override=False`.
 ATTACHMENTS_DIR=/path/to/attachments
 ```
 
-Uploaded attachment files are stored under `ATTACHMENTS_DIR`. For local
-development this can point at `backend/storage/attachments`. For staging and
-production, use a persistent directory or mounted volume that is included in
-backup and restore procedures.
+Uploaded attachment files are stored under `ATTACHMENTS_DIR`. For host-based
+local development this can point at `backend/storage/attachments`. For local
+Docker, staging, and production, set `ATTACHMENTS_DIR=/app/data/attachments`
+because that is the path inside the backend container. The host-side persistent
+directory or volume is configured in the relevant Compose file and should be
+included in backup and restore procedures.
 
 ### CORS
 

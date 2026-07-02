@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import compliance.config as config_module
 import pytest
 from compliance.config import Settings
 from sqlalchemy import URL
@@ -60,6 +63,61 @@ class TestSettingsDatabaseUrl:
 
 
 class TestSettingsEnvironmentValidation:
+    def test_loads_dynamic_env_file_values_for_deployed_envs(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        env_keys = [
+            "APP_ENV",
+            "DATABASE_URL",
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "POSTGRES_HOST",
+            "POSTGRES_PORT",
+            "ATTACHMENTS_DIR",
+            "CORS_ORIGINS",
+            "AI_MODE",
+            "ANTHROPIC_API_KEY",
+            "SECRET_KEY",
+            "ALGORITHM",
+            "ACCESS_TOKEN_EXPIRE_MINUTES",
+        ]
+        for key in env_keys:
+            monkeypatch.delenv(key, raising=False)
+
+        def fake_is_file(path: Path) -> bool:
+            return path == Path("/etc/compliance/.env")
+
+        def fake_dotenv_values(path: Path) -> dict[str, str]:
+            assert path == Path("/etc/compliance/.env")
+            return {
+                "APP_ENV": "production",
+                "POSTGRES_DB": "compliance_db",
+                "POSTGRES_USER": "postgres",
+                "POSTGRES_PASSWORD": "strong-password",
+                "POSTGRES_HOST": "postgres",
+                "POSTGRES_PORT": "5432",
+                "ATTACHMENTS_DIR": str(tmp_path),
+                "CORS_ORIGINS": "https://compliance.example.com",
+                "AI_MODE": "anthropic",
+                "ANTHROPIC_API_KEY": "test-api-key",
+                "SECRET_KEY": "test-secret-key",
+                "ALGORITHM": "HS256",
+                "ACCESS_TOKEN_EXPIRE_MINUTES": "30",
+            }
+
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setattr(config_module.Path, "is_file", fake_is_file)
+        monkeypatch.setattr(config_module, "dotenv_values", fake_dotenv_values)
+
+        settings = Settings(_env_file=None)
+
+        assert settings.app_env == "production"
+        assert settings.postgres_host == "postgres"
+        assert settings.postgres_db == "compliance_db"
+        assert settings.postgres_port == 5432
+        assert settings.attachments_dir == tmp_path
+
     def test_allows_safe_production_settings(self, tmp_path) -> None:
         settings = Settings(
             app_env="production",
@@ -73,6 +131,11 @@ class TestSettingsEnvironmentValidation:
 
         assert settings.app_env == "production"
         assert settings.attachments_dir == tmp_path
+
+    def test_expands_user_relative_attachment_storage(self) -> None:
+        settings = Settings(attachments_dir="~/compliance/attachments", _env_file=None)
+
+        assert settings.attachments_dir == Path.home() / "compliance" / "attachments"
 
     @pytest.mark.parametrize("app_env", ["staging", "production"])
     def test_rejects_default_postgres_password_in_deployed_envs(
@@ -99,6 +162,22 @@ class TestSettingsEnvironmentValidation:
                 database_url="postgresql+psycopg2://user:secret@db/app",
                 postgres_password="not-postgres",  # noqa: S106
                 attachments_dir=attachments_dir,
+                cors_origins="https://compliance.example.com",
+                ai_mode="anthropic",
+                _env_file=None,
+            )
+
+    def test_rejects_default_local_attachment_storage_in_deployed_envs(self) -> None:
+        with pytest.raises(ValueError, match=r"/etc/compliance/\.env"):
+            Settings(
+                app_env="production",
+                database_url="postgresql+psycopg2://user:secret@db/app",
+                postgres_password="not-postgres",  # noqa: S106
+                attachments_dir=Path.home()
+                / ".local"
+                / "share"
+                / "compliance"
+                / "attachments",
                 cors_origins="https://compliance.example.com",
                 ai_mode="anthropic",
                 _env_file=None,

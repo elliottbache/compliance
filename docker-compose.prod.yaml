@@ -4,9 +4,9 @@ services:
     environment:
       PGDATA: /var/lib/compliance/postgresql/data
     env_file:
-      - ./docker/.env
+      - /etc/compliance/.env
     volumes:
-      - postgres_data:/var/lib/compliance/postgresql/data
+      - /var/lib/compliance/postgres:/var/lib/compliance/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -20,9 +20,9 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     env_file:
-      - ./docker/.env
+      - /etc/compliance/.env
     volumes:
-      - ./backend/storage/attachments:/app/data/attachments
+      - /var/lib/compliance/attachments:/app/data/attachments
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +48,3 @@ services:
       - backend
     ports:
       - "127.0.0.1:5173:5173"
-
-volumes:
-  postgres_data:

@@ -672,9 +672,7 @@ class TestPostAttachmentUpload:
     def test_default_upload_dir_is_independent_of_cwd(
         self, monkeypatch, tmp_path
     ) -> None:
-        expected_path = (
-            Path(__file__).resolve().parents[3] / "backend" / "storage" / "attachments"
-        )
+        expected_path = Path.home() / ".local" / "share" / "compliance" / "attachments"
 
         monkeypatch.chdir(tmp_path)
 
