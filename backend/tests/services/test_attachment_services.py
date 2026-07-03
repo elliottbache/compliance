@@ -761,6 +761,43 @@ class TestPostAttachmentUpload:
 
         session.get.assert_not_called()
 
+    @pytest.mark.parametrize("file_name", [None, "", "   ", "evidence"])
+    def test_raises_file_error_before_fetching_attachment_when_file_name_is_invalid(
+        self, file_name
+    ) -> None:
+        session = MagicMock()
+
+        with pytest.raises(AttachmentFileError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=10,
+                file_type="application/pdf",
+                file_name=file_name,
+                file_stream=BytesIO(b"data"),
+                user_id=10,
+            )
+
+        session.get.assert_not_called()
+
+    def test_raises_file_error_before_fetching_attachment_for_dangerous_inner_extension(
+        self,
+    ) -> None:
+        session = MagicMock()
+
+        with pytest.raises(AttachmentFileError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=10,
+                file_type="application/pdf",
+                file_name="evidence.exe.pdf",
+                file_stream=BytesIO(b"data"),
+                user_id=10,
+            )
+
+        session.get.assert_not_called()
+
     def test_raises_create_error_when_attachment_does_not_exist(self) -> None:
         session = MagicMock()
         session.get.return_value = None
@@ -879,8 +916,25 @@ class TestValidateFileSizeTypeAndExt:
             10, "application/pdf", "evidence.exe"
         )
 
-    def test_returns_true_for_missing_file_name(self) -> None:
-        assert _validate_file_size_type_and_ext(10, "application/pdf", None)
+    @pytest.mark.parametrize("file_name", [None, "", "   "])
+    def test_returns_false_for_missing_or_empty_file_name(self, file_name) -> None:
+        assert not _validate_file_size_type_and_ext(10, "application/pdf", file_name)
+
+    def test_returns_true_for_safe_multi_part_file_name(self) -> None:
+        assert _validate_file_size_type_and_ext(
+            10, "application/pdf", "inspection.report.pdf"
+        )
+
+    @pytest.mark.parametrize(
+        "file_name",
+        [
+            "evidence.exe.pdf",
+            "evidence.sh.txt",
+            "evidence.ps1.csv",
+        ],
+    )
+    def test_returns_false_for_dangerous_inner_extension(self, file_name) -> None:
+        assert not _validate_file_size_type_and_ext(10, "application/pdf", file_name)
 
 
 class TestPostAttachmentArchivedById:

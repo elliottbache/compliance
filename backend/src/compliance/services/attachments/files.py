@@ -28,6 +28,19 @@ _ALLOWED_MIME_TYPES = {
     "text/csv",
 }
 _ALLOWED_SIZE = int(5e7)
+_DANGEROUS_INNER_EXTENSIONS = {
+    ".bat",
+    ".cmd",
+    ".com",
+    ".exe",
+    ".jar",
+    ".js",
+    ".msi",
+    ".ps1",
+    ".scr",
+    ".sh",
+    ".vbs",
+}
 
 
 def post_attachment_upload(
@@ -143,13 +156,13 @@ def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, 
 
     if not attachment.file_path:
         raise AttachmentFileError(
-            "Attachment file does not exist or not found: " f"{attachment.file_path}."
+            f"Attachment file does not exist or not found: {attachment.file_path}."
         )
 
     file_path = Path(attachment.file_path)
     if not file_path.is_file():
         raise AttachmentFileError(
-            "Attachment file does not exist or not found: " f"{attachment.file_path}."
+            f"Attachment file does not exist or not found: {attachment.file_path}."
         )
 
     file_name = attachment.file_name or ""
@@ -191,4 +204,15 @@ def _validate_file_size_type_and_ext(
     if file_type is None or file_type not in allowed_types:
         return False
 
-    return file_name is None or Path(file_name).suffix in allowed_extensions
+    if file_name is None:
+        return False
+
+    normalized_name = Path(file_name.strip()).name
+    if not normalized_name:
+        return False
+
+    suffixes = [suffix.lower() for suffix in Path(normalized_name).suffixes]
+    if not suffixes or suffixes[-1] not in allowed_extensions:
+        return False
+
+    return not any(suffix in _DANGEROUS_INNER_EXTENSIONS for suffix in suffixes[:-1])
