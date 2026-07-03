@@ -21,6 +21,7 @@ from compliance.services.attachments import (
     AttachmentPermissionError,
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
+    AttachmentTooLargeError,
     get_attachment_download,
     get_attachments,
     post_attachment_archived_by_id,
@@ -195,6 +196,8 @@ def post_attachment_upload_route(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentPermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except AttachmentTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:

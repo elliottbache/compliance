@@ -1,6 +1,5 @@
 """Attachment file upload, validation, persistence, and configured storage helpers."""
 
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
@@ -14,6 +13,7 @@ from compliance.services.attachments.exceptions import (
     AttachmentFileError,
     AttachmentNotFoundError,
     AttachmentPermissionError,
+    AttachmentTooLargeError,
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -110,8 +110,7 @@ def post_attachment_upload(
     try:
         # stream to path
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file_stream, buffer)
+        _copy_upload_with_limit(file_stream, file_path, _ALLOWED_SIZE)
 
         attachment.file_path = str(file_path)
         attachment.uploaded_at = datetime.now(UTC)
@@ -119,6 +118,13 @@ def post_attachment_upload(
         session.add(attachment)
         session.commit()
         session.refresh(attachment)
+
+    except AttachmentTooLargeError as e:
+        session.rollback()
+        file_path.unlink(missing_ok=True)
+        raise AttachmentTooLargeError(
+            f"File persistence error for file: {file_name}."
+        ) from e
 
     except (OSError, SQLAlchemyError) as e:
         session.rollback()
@@ -185,6 +191,28 @@ def check_attachment_storage() -> bool:
 
     except OSError:
         return False
+
+
+def _copy_upload_with_limit(
+    source: BinaryIO, destination: Path, max_bytes: int, chunk_size: int = 1024 * 1024
+) -> int:
+    total = 0
+
+    try:
+        with destination.open("xb") as output:
+            while chunk := source.read(chunk_size):
+                total += len(chunk)
+
+                if total > max_bytes:
+                    raise AttachmentTooLargeError
+
+                output.write(chunk)
+
+        return total
+
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
 
 
 def _validate_file_size_type_and_ext(

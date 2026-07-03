@@ -39,3 +39,7 @@ class AttachmentConflictError(AttachmentCreateError):
 
 class AttachmentFileError(AttachmentCreateError):
     """Raised when attachment file upload or download is invalid."""
+
+
+class AttachmentTooLargeError(AttachmentCreateError):
+    """Raised when attachment file upload is too large."""

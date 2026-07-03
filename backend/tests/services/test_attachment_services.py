@@ -25,6 +25,7 @@ from compliance.services.attachments import (
     AttachmentFindingNotFoundError,
     AttachmentNotFoundError,
     AttachmentPermissionError,
+    AttachmentTooLargeError,
     _format_attachments,
     _format_new_attachment_with_context,
     _validate_file_size_type_and_ext,
@@ -845,6 +846,34 @@ class TestPostAttachmentUpload:
 
         assert list(tmp_path.iterdir()) == []
         session.rollback.assert_called_once_with()
+
+    def test_deletes_partial_file_and_rolls_back_when_upload_is_too_large(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        session = MagicMock()
+        session.get.side_effect = [
+            SimpleNamespace(id=50, certification_id=100),
+            SimpleNamespace(inspector_id=10),
+        ]
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
+        monkeypatch.setattr("compliance.services.attachments.files._ALLOWED_SIZE", 3)
+
+        with pytest.raises(AttachmentTooLargeError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=3,
+                file_type="text/plain",
+                file_name="evidence.txt",
+                file_stream=BytesIO(b"data"),
+                user_id=10,
+            )
+
+        assert list(tmp_path.iterdir()) == []
+        session.rollback.assert_called_once_with()
+        session.commit.assert_not_called()
 
 
 class TestCheckAttachmentStorage:
