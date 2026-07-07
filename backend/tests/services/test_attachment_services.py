@@ -48,6 +48,10 @@ from compliance.services.schemas import (
 from sqlalchemy.exc import IntegrityError
 
 
+def _upload_stream(content: bytes = b"%PDF-1.4\n") -> BytesIO:
+    return BytesIO(content)
+
+
 class TestGetAttachments:
     def test_returns_formatted_attachments_from_session(
         self, attachment_out_factory
@@ -670,6 +674,13 @@ class TestGetAttachmentDownload:
 
 
 class TestPostAttachmentUpload:
+    @pytest.fixture(autouse=True)
+    def _stub_magic_mime(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            lambda header_bytes, mime: "application/pdf",
+        )
+
     def test_default_upload_dir_is_independent_of_cwd(
         self, monkeypatch, tmp_path
     ) -> None:
@@ -694,7 +705,7 @@ class TestPostAttachmentUpload:
             file_size=11,
             file_type="application/pdf",
             file_name="evidence.pdf",
-            file_stream=BytesIO(b"hello world"),
+            file_stream=_upload_stream(b"hello world"),
             user_id=None,
         )
 
@@ -718,7 +729,7 @@ class TestPostAttachmentUpload:
             file_size=11,
             file_type="application/pdf",
             file_name="uploaded-name.pdf",
-            file_stream=BytesIO(b"hello world"),
+            file_stream=_upload_stream(b"hello world"),
             user_id=None,
         )
 
@@ -738,7 +749,7 @@ class TestPostAttachmentUpload:
             file_size=11,
             file_type="application/pdf",
             file_name="uploaded-name.pdf",
-            file_stream=BytesIO(b"hello world"),
+            file_stream=_upload_stream(b"hello world"),
             user_id=None,
         )
 
@@ -756,7 +767,7 @@ class TestPostAttachmentUpload:
                 file_size=10,
                 file_type="application/x-msdownload",
                 file_name="evidence.exe",
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -775,7 +786,7 @@ class TestPostAttachmentUpload:
                 file_size=10,
                 file_type="application/pdf",
                 file_name=file_name,
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -793,7 +804,7 @@ class TestPostAttachmentUpload:
                 file_size=10,
                 file_type="application/pdf",
                 file_name="evidence.exe.pdf",
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -810,7 +821,7 @@ class TestPostAttachmentUpload:
                 file_size=10,
                 file_type="application/pdf",
                 file_name="evidence.pdf",
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -840,7 +851,7 @@ class TestPostAttachmentUpload:
                 file_size=4,
                 file_type="text/plain",
                 file_name="evidence.txt",
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -867,7 +878,7 @@ class TestPostAttachmentUpload:
                 file_size=3,
                 file_type="text/plain",
                 file_name="evidence.txt",
-                file_stream=BytesIO(b"data"),
+                file_stream=_upload_stream(b"data"),
                 user_id=10,
             )
 
@@ -913,12 +924,21 @@ class TestCheckAttachmentStorage:
 
 
 class TestValidateFileSizeTypeAndExt:
-    def test_returns_true_for_allowed_size_type_and_extension(self) -> None:
-        assert _validate_file_size_type_and_ext(10, "application/pdf", "evidence.pdf")
+    @pytest.fixture(autouse=True)
+    def _stub_magic_mime(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            lambda header_bytes, mime: "application/pdf",
+        )
+
+    def test_returns_true_for_allowed_size_type_extension_and_content(self) -> None:
+        assert _validate_file_size_type_and_ext(
+            10, "application/pdf", "evidence.pdf", _upload_stream()
+        )
 
     def test_returns_false_for_zero_size(self) -> None:
         assert not _validate_file_size_type_and_ext(
-            0, "application/pdf", "evidence.pdf"
+            0, "application/pdf", "evidence.pdf", _upload_stream()
         )
 
     def test_returns_false_for_large_size(self) -> None:
@@ -926,32 +946,69 @@ class TestValidateFileSizeTypeAndExt:
             11,
             "application/pdf",
             "evidence.pdf",
+            _upload_stream(),
             allowed_size=10,
         )
 
     def test_returns_false_for_missing_type(self) -> None:
-        assert not _validate_file_size_type_and_ext(10, None, "evidence.pdf")
+        assert not _validate_file_size_type_and_ext(
+            10, None, "evidence.pdf", _upload_stream()
+        )
 
     def test_returns_false_for_bad_type(self) -> None:
         assert not _validate_file_size_type_and_ext(
-            10, "application/x-msdownload", "evidence.pdf"
+            10, "application/x-msdownload", "evidence.pdf", _upload_stream()
         )
 
+    def test_returns_false_for_bad_content_type(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            lambda header_bytes, mime: "application/x-msdownload",
+        )
+
+        assert not _validate_file_size_type_and_ext(
+            10, "application/pdf", "evidence.pdf", _upload_stream()
+        )
+
+    def test_passes_header_bytes_to_magic_and_rewinds_stream(self, monkeypatch) -> None:
+        captured = {}
+
+        def fake_from_buffer(header_bytes, mime):
+            captured["header_bytes"] = header_bytes
+            captured["mime"] = mime
+            return "application/pdf"
+
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            fake_from_buffer,
+        )
+        file_stream = _upload_stream(b"%PDF-1.4\nbody")
+
+        assert _validate_file_size_type_and_ext(
+            13, "application/pdf", "evidence.pdf", file_stream
+        )
+        assert captured == {"header_bytes": b"%PDF-1.4\nbody", "mime": True}
+        assert file_stream.tell() == 0
+
     def test_returns_false_for_missing_extension(self) -> None:
-        assert not _validate_file_size_type_and_ext(10, "application/pdf", "evidence")
+        assert not _validate_file_size_type_and_ext(
+            10, "application/pdf", "evidence", _upload_stream()
+        )
 
     def test_returns_false_for_bad_extension(self) -> None:
         assert not _validate_file_size_type_and_ext(
-            10, "application/pdf", "evidence.exe"
+            10, "application/pdf", "evidence.exe", _upload_stream()
         )
 
     @pytest.mark.parametrize("file_name", [None, "", "   "])
     def test_returns_false_for_missing_or_empty_file_name(self, file_name) -> None:
-        assert not _validate_file_size_type_and_ext(10, "application/pdf", file_name)
+        assert not _validate_file_size_type_and_ext(
+            10, "application/pdf", file_name, _upload_stream()
+        )
 
     def test_returns_true_for_safe_multi_part_file_name(self) -> None:
         assert _validate_file_size_type_and_ext(
-            10, "application/pdf", "inspection.report.pdf"
+            10, "application/pdf", "inspection.report.pdf", _upload_stream()
         )
 
     @pytest.mark.parametrize(
@@ -963,7 +1020,9 @@ class TestValidateFileSizeTypeAndExt:
         ],
     )
     def test_returns_false_for_dangerous_inner_extension(self, file_name) -> None:
-        assert not _validate_file_size_type_and_ext(10, "application/pdf", file_name)
+        assert not _validate_file_size_type_and_ext(
+            10, "application/pdf", file_name, _upload_stream()
+        )
 
 
 class TestPostAttachmentArchivedById:

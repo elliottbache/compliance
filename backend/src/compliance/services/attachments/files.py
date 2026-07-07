@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
+import magic
 from compliance.config import settings
 from compliance.db.models import Attachment, Certification
 from compliance.services.attachments.exceptions import (
@@ -59,7 +60,8 @@ def post_attachment_upload(
         session: Database session used to retrieve and update attachment metadata.
         attachment_id: Primary key of the attachment metadata row to update.
         file_size: Size of the uploaded file in bytes.
-        file_type: MIME type reported for the uploaded file.
+        file_type: MIME type reported for the uploaded file. The content is
+            also inspected before the file is stored.
         file_name: Original uploaded filename, used only to derive the extension.
         file_stream: Binary stream containing the uploaded file content.
 
@@ -74,7 +76,9 @@ def post_attachment_upload(
             persisted.
     """
     # check that content type and extension is acceptable
-    if not _validate_file_size_type_and_ext(file_size, file_type, file_name):
+    if not _validate_file_size_type_and_ext(
+        file_size, file_type, file_name, file_stream
+    ):
         raise AttachmentFileError(
             "Attachment could not be uploaded: "
             f"{file_name} with type {file_type} and size {file_size}."
@@ -219,12 +223,13 @@ def _validate_file_size_type_and_ext(
     file_size: int | None,
     file_type: str | None,
     file_name: str | None,
+    file_stream: BinaryIO,
     *,
     allowed_size: int = _ALLOWED_SIZE,
     allowed_types: set[str] = _ALLOWED_MIME_TYPES,
     allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
 ) -> bool:
-    """Return whether uploaded file metadata satisfies current upload policy."""
+    """Return whether uploaded file metadata and content satisfy upload policy."""
 
     if not file_size or file_size > allowed_size:
         return False
@@ -233,6 +238,13 @@ def _validate_file_size_type_and_ext(
         return False
 
     if file_name is None:
+        return False
+
+    header_bytes = file_stream.read(2048)
+    file_stream.seek(0)
+
+    mime_type = magic.from_buffer(header_bytes, mime=True)
+    if mime_type is None or mime_type not in allowed_types:
         return False
 
     normalized_name = Path(file_name.strip()).name
