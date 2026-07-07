@@ -17,9 +17,12 @@ from compliance.services.attachments import (
     AttachmentFileError,
     AttachmentFindingCertificationMismatchError,
     AttachmentFindingNotFoundError,
+    AttachmentInfectedError,
     AttachmentNotFoundError,
     AttachmentPermissionError,
     AttachmentRuleNotFoundError,
+    AttachmentScanError,
+    AttachmentScannerUnavailableError,
     AttachmentSiteNotFoundError,
     AttachmentTooLargeError,
     AttachmentUnsupportedMediaTypeError,
@@ -178,7 +181,8 @@ def post_attachment_upload_route(
 
     Raises:
         HTTPException: If the upload is invalid, the file type or extension is
-            unsupported, the attachment metadata is missing, or the file cannot
+            unsupported, malware is detected, the malware scanner is
+            unavailable, the attachment metadata is missing, or the file cannot
             be persisted.
     """
     # call attachment upload service
@@ -200,10 +204,16 @@ def post_attachment_upload_route(
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except AttachmentUnsupportedMediaTypeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
+    except AttachmentInfectedError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
     except AttachmentFileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except AttachmentScannerUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AttachmentScanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:

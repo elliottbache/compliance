@@ -252,6 +252,10 @@ The upload/download flow is intentionally split:
 Uploads reject unsupported MIME types, detected content types, or extensions
 with HTTP 415.
 
+When malware scanning is enabled, uploads are streamed to ClamAV before they
+are persisted. Infected uploads return HTTP 415, scanner outages return HTTP
+503, and invalid scanner responses return HTTP 400.
+
 Local demo files should be copied into:
 
 ```text
@@ -303,6 +307,10 @@ cp docker/.env.example docker/.env
 backend containers. Keep `POSTGRES_HOST=postgres` in this file because the
 backend reaches PostgreSQL over the Compose service network.
 
+Docker Compose also starts a private `clamav` service for optional attachment
+malware scanning. The ClamAV port is exposed only to the Compose network and is
+not published on the host.
+
 For offline demos, keep:
 
 ```ini
@@ -311,6 +319,11 @@ ANTHROPIC_API_KEY=
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Optional ClamAV scanning through the private Compose service.
+MALWARE_SCANNING_ENABLED=false
+MALWARE_SCANNER_HOST=clamav
+MALWARE_SCANNER_PORT=3310
 ```
 
 For live Anthropic analysis, set:
@@ -432,6 +445,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 Install the project and development dependencies:
 
 ```bash
+sudo apt-get install libmagic1
+sudo apt update && sudo apt install clamav-daemon -y
 python -m pip install -U pip
 pip install -e .[dev]
 ```
@@ -737,6 +752,29 @@ Docker, staging, and production, set `ATTACHMENTS_DIR=/app/data/attachments`
 because that is the path inside the backend container. The host-side persistent
 directory or volume is configured in the relevant Compose file and should be
 included in backup and restore procedures.
+
+### ClamAV Malware Scanning
+
+```ini
+# Keep disabled unless clamd is installed and reachable.
+MALWARE_SCANNING_ENABLED=false
+
+# Docker Compose uses the private clamav service name.
+# Host-based local development usually uses localhost.
+MALWARE_SCANNER_HOST=clamav
+MALWARE_SCANNER_PORT=3310
+```
+
+Local host development requires ClamAV and libmagic system packages:
+
+```bash
+sudo apt-get install libmagic1
+sudo apt update && sudo apt install clamav-daemon -y
+```
+
+For Docker development, keep `MALWARE_SCANNER_HOST=clamav` because the backend
+contacts ClamAV over the private Compose network. For host-based development,
+use `MALWARE_SCANNER_HOST=localhost` after starting `clamd`.
 
 ### CORS
 

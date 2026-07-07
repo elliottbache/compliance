@@ -2,9 +2,10 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Protocol
 from uuid import uuid4
 
+import clamd
 import magic
 from compliance.config import settings
 from compliance.db.models import Attachment, Certification
@@ -12,8 +13,11 @@ from compliance.services.attachments.exceptions import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
     AttachmentFileError,
+    AttachmentInfectedError,
     AttachmentNotFoundError,
     AttachmentPermissionError,
+    AttachmentScanError,
+    AttachmentScannerUnavailableError,
     AttachmentTooLargeError,
     AttachmentUnsupportedMediaTypeError,
 )
@@ -45,6 +49,70 @@ _DANGEROUS_INNER_EXTENSIONS = {
 }
 
 
+class FileScanner(Protocol):
+    def scan(self, file_stream: BinaryIO) -> None:
+        """Raise an exception when the file is unsafe or cannot be scanned."""
+
+
+class NoOpFileScanner:
+    def scan(self, file_stream: BinaryIO) -> None:
+        """Skip malware scan."""
+
+        if not file_stream:
+            raise AttachmentScanError("No file to scan.")
+
+
+class ClamAVFileScanner:
+    """Scan uploaded files through a ClamAV daemon on the private network."""
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int = 3310,
+        timeout_seconds: float = 10.0,
+    ) -> None:
+        self._client = clamd.ClamdNetworkSocket(
+            host=host,
+            port=port,
+            timeout=timeout_seconds,
+        )
+
+    def scan(self, file_stream: BinaryIO) -> None:
+        """Stream a file to ClamAV, rewind it, and require a clean result."""
+
+        try:
+            result = self._client.instream(file_stream)
+            file_stream.seek(0)
+
+        except clamd.BufferTooLongError as exc:
+            raise AttachmentScanError(
+                "File exceeds the ClamAV stream-size limit."
+            ) from exc
+
+        except (clamd.ConnectionError, OSError) as exc:
+            raise AttachmentScannerUnavailableError("ClamAV is unavailable.") from exc
+
+        except clamd.ResponseError as exc:
+            raise AttachmentScanError(
+                "ClamAV returned an invalid scan response."
+            ) from exc
+
+        if not result:
+            raise AttachmentScanError("ClamAV returned no scan result.")
+
+        _, scan_result = next(iter(result.items()))
+        status, reason = scan_result
+
+        if status == "FOUND":
+            raise AttachmentInfectedError(
+                reason or "Malware detected in uploaded file."
+            )
+
+        if status != "OK":
+            raise AttachmentScanError(reason or f"Unexpected ClamAV status: {status}")
+
+
 def post_attachment_upload(
     session: Session,
     *,
@@ -73,6 +141,11 @@ def post_attachment_upload(
         AttachmentFileError: If required upload metadata is missing or invalid.
         AttachmentUnsupportedMediaTypeError: If the upload MIME type, detected
             content type, or extension is not accepted.
+        AttachmentInfectedError: If ClamAV detects malware in the upload.
+        AttachmentScannerUnavailableError: If malware scanning is enabled but
+            ClamAV cannot be reached.
+        AttachmentScanError: If ClamAV returns an invalid or unexpected scan
+            response.
         AttachmentNotFoundError: If no attachment metadata row exists for the ID.
         AttachmentConflictError: If the file or database update cannot be
             persisted.
@@ -94,6 +167,9 @@ def post_attachment_upload(
             "Attachment file type or extension is not supported: "
             f"{file_name} with type {file_type}."
         )
+
+    scanner = _build_file_scanner()
+    scanner.scan(file_stream)
 
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
@@ -206,6 +282,16 @@ def check_attachment_storage() -> bool:
 
     except OSError:
         return False
+
+
+def _build_file_scanner() -> FileScanner:
+    if not settings.malware_scanning_enabled:
+        return NoOpFileScanner()
+
+    return ClamAVFileScanner(
+        host=settings.malware_scanner_host,
+        port=settings.malware_scanner_port,
+    )
 
 
 def _copy_upload_with_limit(

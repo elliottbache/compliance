@@ -919,6 +919,105 @@ class TestPostAttachmentUploadRouteUnit:
         )
         assert fake_file.file.closed
 
+    def test_returns_415_when_malware_is_detected(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentInfectedError(
+                "Malware detected in uploaded file."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(
+                object(),
+                authorized_user=user_record_factory(),
+                file=fake_file,
+                id=50,
+            )
+
+        assert exc_info.value.status_code == 415
+        assert exc_info.value.detail == "Malware detected in uploaded file."
+        assert fake_file.file.closed
+
+    def test_returns_503_when_malware_scanner_is_unavailable(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentScannerUnavailableError(
+                "ClamAV is unavailable."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(
+                object(),
+                authorized_user=user_record_factory(),
+                file=fake_file,
+                id=50,
+            )
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "ClamAV is unavailable."
+        assert fake_file.file.closed
+
+    def test_returns_400_when_malware_scan_response_is_invalid(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentScanError(
+                "ClamAV returned an invalid scan response."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(
+                object(),
+                authorized_user=user_record_factory(),
+                file=fake_file,
+                id=50,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "ClamAV returned an invalid scan response."
+        assert fake_file.file.closed
+
     def test_returns_404_when_attachment_is_not_found(
         self, monkeypatch, user_record_factory
     ) -> None:

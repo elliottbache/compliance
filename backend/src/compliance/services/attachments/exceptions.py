@@ -47,3 +47,15 @@ class AttachmentUnsupportedMediaTypeError(AttachmentFileError):
 
 class AttachmentTooLargeError(AttachmentCreateError):
     """Raised when attachment file upload is too large."""
+
+
+class AttachmentScanError(Exception):
+    """Base exception for file-scanning failures."""
+
+
+class AttachmentInfectedError(AttachmentScanError):
+    """Raised when malware is detected."""
+
+
+class AttachmentScannerUnavailableError(AttachmentScanError):
+    """Raised when the malware scanner cannot be reached."""

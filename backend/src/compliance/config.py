@@ -16,7 +16,7 @@ AIMode = Literal["mock", "anthropic"]
 
 
 class Settings(BaseSettings):
-    """Application settings for runtime, database, storage, CORS, and AI config."""
+    """Application settings for runtime, database, storage, CORS, AI, and scanning."""
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / "backend" / ".env",
@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     )
     cors_origins: str | None = None
     ai_mode: AIMode = "mock"
+    malware_scanning_enabled: bool = False
+    malware_scanner_host: str = "clamav"
+    malware_scanner_port: int = 3310
 
     @model_validator(mode="before")
     @classmethod
