@@ -41,5 +41,9 @@ class AttachmentFileError(AttachmentCreateError):
     """Raised when attachment file upload or download is invalid."""
 
 
+class AttachmentUnsupportedMediaTypeError(AttachmentFileError):
+    """Raised when an attachment upload uses an unsupported type or extension."""
+
+
 class AttachmentTooLargeError(AttachmentCreateError):
     """Raised when attachment file upload is too large."""

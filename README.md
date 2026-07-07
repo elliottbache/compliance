@@ -249,6 +249,9 @@ The upload/download flow is intentionally split:
 3. Download the stored file by attachment ID.
 4. Archive or restore the attachment metadata when needed.
 
+Uploads reject unsupported MIME types, detected content types, or extensions
+with HTTP 415.
+
 Local demo files should be copied into:
 
 ```text

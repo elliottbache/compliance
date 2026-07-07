@@ -19,6 +19,7 @@ from compliance.services.attachments.exceptions import (
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
     AttachmentTooLargeError,
+    AttachmentUnsupportedMediaTypeError,
 )
 from compliance.services.attachments.files import (
     _UPLOAD_DIR,
@@ -48,6 +49,7 @@ __all__ = [
     "AttachmentRuleNotFoundError",
     "AttachmentSiteNotFoundError",
     "AttachmentTooLargeError",
+    "AttachmentUnsupportedMediaTypeError",
     "_build_attachment_out",
     "_build_finding_history_from_site_attachments",
     "_format_attachments",

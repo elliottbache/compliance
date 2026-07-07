@@ -15,6 +15,7 @@ from compliance.services.attachments.exceptions import (
     AttachmentNotFoundError,
     AttachmentPermissionError,
     AttachmentTooLargeError,
+    AttachmentUnsupportedMediaTypeError,
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -69,19 +70,29 @@ def post_attachment_upload(
         The updated attachment ORM object.
 
     Raises:
-        AttachmentFileError: If the upload size, MIME type, or extension is not
-            accepted.
+        AttachmentFileError: If required upload metadata is missing or invalid.
+        AttachmentUnsupportedMediaTypeError: If the upload MIME type, detected
+            content type, or extension is not accepted.
         AttachmentNotFoundError: If no attachment metadata row exists for the ID.
         AttachmentConflictError: If the file or database update cannot be
             persisted.
     """
-    # check that content type and extension is acceptable
-    if not _validate_file_size_type_and_ext(
-        file_size, file_type, file_name, file_stream
-    ):
+    if not _validate_file_size(file_size):
         raise AttachmentFileError(
             "Attachment could not be uploaded: "
             f"{file_name} with type {file_type} and size {file_size}."
+        )
+
+    if file_type is None or file_name is None or not file_name.strip():
+        raise AttachmentFileError(
+            "Attachment could not be uploaded: "
+            f"{file_name} with type {file_type} and size {file_size}."
+        )
+
+    if not _validate_file_type_and_ext(file_type, file_name, file_stream):
+        raise AttachmentUnsupportedMediaTypeError(
+            "Attachment file type or extension is not supported: "
+            f"{file_name} with type {file_type}."
         )
 
     # fetch metadata
@@ -231,8 +242,37 @@ def _validate_file_size_type_and_ext(
 ) -> bool:
     """Return whether uploaded file metadata and content satisfy upload policy."""
 
-    if not file_size or file_size > allowed_size:
+    if not _validate_file_size(file_size, allowed_size=allowed_size):
         return False
+
+    return _validate_file_type_and_ext(
+        file_type,
+        file_name,
+        file_stream,
+        allowed_types=allowed_types,
+        allowed_extensions=allowed_extensions,
+    )
+
+
+def _validate_file_size(
+    file_size: int | None,
+    *,
+    allowed_size: int = _ALLOWED_SIZE,
+) -> bool:
+    """Return whether an uploaded file size is present and within policy."""
+
+    return bool(file_size) and (file_size or 0) <= allowed_size
+
+
+def _validate_file_type_and_ext(
+    file_type: str | None,
+    file_name: str | None,
+    file_stream: BinaryIO,
+    *,
+    allowed_types: set[str] = _ALLOWED_MIME_TYPES,
+    allowed_extensions: set[str] = _ALLOWED_EXTENSIONS,
+) -> bool:
+    """Return whether uploaded file type, detected content, and extension match policy."""
 
     if file_type is None or file_type not in allowed_types:
         return False

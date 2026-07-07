@@ -26,6 +26,7 @@ from compliance.services.attachments import (
     AttachmentNotFoundError,
     AttachmentPermissionError,
     AttachmentTooLargeError,
+    AttachmentUnsupportedMediaTypeError,
     _format_attachments,
     _format_new_attachment_with_context,
     _validate_file_size_type_and_ext,
@@ -755,12 +756,12 @@ class TestPostAttachmentUpload:
 
         assert result.file_name == "evidence"
 
-    def test_raises_file_error_before_fetching_attachment_when_file_is_invalid(
+    def test_raises_unsupported_media_error_before_fetching_attachment_when_type_is_invalid(
         self,
     ) -> None:
         session = MagicMock()
 
-        with pytest.raises(AttachmentFileError):
+        with pytest.raises(AttachmentUnsupportedMediaTypeError):
             post_attachment_upload(
                 session,
                 attachment_id=50,
@@ -773,7 +774,29 @@ class TestPostAttachmentUpload:
 
         session.get.assert_not_called()
 
-    @pytest.mark.parametrize("file_name", [None, "", "   ", "evidence"])
+    def test_raises_unsupported_media_error_before_fetching_attachment_when_content_type_is_invalid(
+        self, monkeypatch
+    ) -> None:
+        session = MagicMock()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            lambda header_bytes, mime: "application/x-msdownload",
+        )
+
+        with pytest.raises(AttachmentUnsupportedMediaTypeError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=10,
+                file_type="application/pdf",
+                file_name="evidence.pdf",
+                file_stream=_upload_stream(b"data"),
+                user_id=10,
+            )
+
+        session.get.assert_not_called()
+
+    @pytest.mark.parametrize("file_name", [None, "", "   "])
     def test_raises_file_error_before_fetching_attachment_when_file_name_is_invalid(
         self, file_name
     ) -> None:
@@ -792,12 +815,30 @@ class TestPostAttachmentUpload:
 
         session.get.assert_not_called()
 
-    def test_raises_file_error_before_fetching_attachment_for_dangerous_inner_extension(
+    def test_raises_unsupported_media_error_before_fetching_attachment_when_extension_is_missing(
         self,
     ) -> None:
         session = MagicMock()
 
-        with pytest.raises(AttachmentFileError):
+        with pytest.raises(AttachmentUnsupportedMediaTypeError):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=10,
+                file_type="application/pdf",
+                file_name="evidence",
+                file_stream=_upload_stream(b"data"),
+                user_id=10,
+            )
+
+        session.get.assert_not_called()
+
+    def test_raises_unsupported_media_error_before_fetching_attachment_for_dangerous_inner_extension(
+        self,
+    ) -> None:
+        session = MagicMock()
+
+        with pytest.raises(AttachmentUnsupportedMediaTypeError):
             post_attachment_upload(
                 session,
                 attachment_id=50,

@@ -746,11 +746,13 @@ class TestPostAttachmentUploadRouteClient:
 
         assert response.status_code == 422
 
-    def test_route_returns_400_when_upload_file_is_invalid(self, client, monkeypatch):
+    def test_route_returns_415_when_upload_media_type_is_unsupported(
+        self, client, monkeypatch
+    ):
         def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentFileError(
-                "Attachment could not be uploaded: evidence.exe with type "
-                "application/x-msdownload and size 4."
+            raise attachments_router.AttachmentUnsupportedMediaTypeError(
+                "Attachment file type or extension is not supported: "
+                "evidence.exe with type application/x-msdownload."
             )
 
         monkeypatch.setattr(
@@ -765,11 +767,11 @@ class TestPostAttachmentUploadRouteClient:
             files={"file": ("evidence.exe", b"data", "application/x-msdownload")},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 415
         assert response.json() == {
             "detail": (
-                "Attachment could not be uploaded: evidence.exe with type "
-                "application/x-msdownload and size 4."
+                "Attachment file type or extension is not supported: "
+                "evidence.exe with type application/x-msdownload."
             )
         }
 
@@ -843,7 +845,7 @@ class TestPostAttachmentUploadRouteUnit:
         assert result is None
         assert fake_file.file.closed
 
-    def test_returns_400_when_file_is_invalid(
+    def test_returns_415_when_media_type_is_unsupported(
         self, monkeypatch, user_record_factory
     ) -> None:
         fake_file = SimpleNamespace(
@@ -854,9 +856,46 @@ class TestPostAttachmentUploadRouteUnit:
         )
 
         def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentUnsupportedMediaTypeError(
+                "Attachment file type or extension is not supported: "
+                "evidence.exe with type application/x-msdownload."
+            )
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            attachments_router.post_attachment_upload_route(
+                object(),
+                authorized_user=user_record_factory(),
+                file=fake_file,
+                id=50,
+            )
+
+        assert exc_info.value.status_code == 415
+        assert (
+            exc_info.value.detail
+            == "Attachment file type or extension is not supported: "
+            "evidence.exe with type application/x-msdownload."
+        )
+        assert fake_file.file.closed
+
+    def test_returns_400_when_upload_file_metadata_is_invalid(
+        self, monkeypatch, user_record_factory
+    ) -> None:
+        fake_file = SimpleNamespace(
+            filename="",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
             raise attachments_router.AttachmentFileError(
-                "Attachment could not be uploaded: evidence.exe with type "
-                "application/x-msdownload and size 4."
+                "Attachment could not be uploaded:  with type application/pdf and size 4."
             )
 
         monkeypatch.setattr(
@@ -876,8 +915,7 @@ class TestPostAttachmentUploadRouteUnit:
         assert exc_info.value.status_code == 400
         assert (
             exc_info.value.detail
-            == "Attachment could not be uploaded: evidence.exe with type "
-            "application/x-msdownload and size 4."
+            == "Attachment could not be uploaded:  with type application/pdf and size 4."
         )
         assert fake_file.file.closed
 

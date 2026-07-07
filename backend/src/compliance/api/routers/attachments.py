@@ -22,6 +22,7 @@ from compliance.services.attachments import (
     AttachmentRuleNotFoundError,
     AttachmentSiteNotFoundError,
     AttachmentTooLargeError,
+    AttachmentUnsupportedMediaTypeError,
     get_attachment_download,
     get_attachments,
     post_attachment_archived_by_id,
@@ -176,8 +177,9 @@ def post_attachment_upload_route(
         id: Attachment metadata ID supplied as multipart form data.
 
     Raises:
-        HTTPException: If the upload is invalid, the attachment metadata is
-        missing, or the file cannot be persisted.
+        HTTPException: If the upload is invalid, the file type or extension is
+            unsupported, the attachment metadata is missing, or the file cannot
+            be persisted.
     """
     # call attachment upload service
     try:
@@ -190,14 +192,16 @@ def post_attachment_upload_route(
             file_stream=file.file,
             user_id=authorized_user.id,
         )
-    except AttachmentFileError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentPermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except AttachmentTooLargeError as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except AttachmentUnsupportedMediaTypeError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+    except AttachmentFileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:
