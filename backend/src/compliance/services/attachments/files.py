@@ -262,7 +262,7 @@ def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, 
             f"Attachment file does not exist or not found: {attachment.file_path}."
         )
 
-    file_name = attachment.file_name or ""
+    file_name = Path(attachment.file_name).name if attachment.file_name else ""
     file_name += str(file_path.suffix)
 
     return file_name, file_path

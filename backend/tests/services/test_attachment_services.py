@@ -654,6 +654,23 @@ class TestGetAttachmentDownload:
         assert file_name == ".pdf"
         assert file_path == stored_file
 
+    def test_uses_db_id_and_sanitizes_download_file_name(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        stored_file = tmp_path / "trusted-stored-name.pdf"
+        stored_file.write_bytes(b"evidence")
+        db_factory(
+            attachment_overrides={
+                "file_name": "../client/report",
+                "file_path": str(stored_file),
+            },
+        )
+
+        file_name, file_path = get_attachment_download(sqlite_session, 50)
+
+        assert file_name == "report.pdf"
+        assert file_path == stored_file
+
     def test_raises_file_error_when_file_path_is_none(
         self,
     ) -> None:
@@ -770,14 +787,11 @@ class TestPostAttachmentUpload:
             lambda: self.scanner,
         )
 
-    def test_default_upload_dir_is_independent_of_cwd(
-        self, monkeypatch, tmp_path
-    ) -> None:
-        expected_path = Path.home() / ".local" / "share" / "compliance" / "attachments"
-
+    def test_upload_dir_is_independent_of_cwd(self, monkeypatch, tmp_path) -> None:
+        upload_dir = _UPLOAD_DIR
         monkeypatch.chdir(tmp_path)
 
-        assert expected_path == _UPLOAD_DIR
+        assert upload_dir == _UPLOAD_DIR
         assert _UPLOAD_DIR.is_absolute()
 
     def test_stores_uploaded_file_and_updates_attachment_row(
@@ -805,6 +819,34 @@ class TestPostAttachmentUpload:
         assert stored_path.read_bytes() == b"hello world"
         self.scanner.scan.assert_called_once()
 
+    def test_stores_allowed_image_upload(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
+        monkeypatch.setattr(
+            "compliance.services.attachments.files.magic.from_buffer",
+            lambda header_bytes, mime: "image/png",
+        )
+
+        result = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=8,
+            file_type="image/png",
+            file_name="evidence.png",
+            file_stream=_upload_stream(b"\x89PNG\r\n\x1a\n"),
+            user_id=None,
+        )
+
+        stored_path = Path(result.file_path)
+        assert stored_path.parent == tmp_path
+        assert stored_path.suffix == ".png"
+        assert stored_path.read_bytes() == b"\x89PNG\r\n\x1a\n"
+        self.scanner.scan.assert_called_once()
+
     def test_uses_uploaded_file_extension_for_stored_path(
         self, monkeypatch, tmp_path, sqlite_session, db_factory
     ) -> None:
@@ -825,6 +867,69 @@ class TestPostAttachmentUpload:
 
         assert Path(result.file_path).suffix == ".pdf"
         self.scanner.scan.assert_called_once()
+
+    def test_duplicate_original_file_names_use_distinct_stored_paths(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        rows = db_factory()
+        sqlite_session.add(
+            Attachment(
+                id=51,
+                file_name="second evidence",
+                certification_id=rows["certification"].id,
+                description="Second inspection evidence",
+            )
+        )
+        sqlite_session.commit()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
+
+        first = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=5,
+            file_type="application/pdf",
+            file_name="duplicate.pdf",
+            file_stream=_upload_stream(b"first"),
+            user_id=None,
+        )
+        second = post_attachment_upload(
+            sqlite_session,
+            attachment_id=51,
+            file_size=6,
+            file_type="application/pdf",
+            file_name="duplicate.pdf",
+            file_stream=_upload_stream(b"second"),
+            user_id=None,
+        )
+
+        assert first.file_path != second.file_path
+        assert Path(first.file_path).read_bytes() == b"first"
+        assert Path(second.file_path).read_bytes() == b"second"
+
+    def test_path_like_original_file_name_cannot_escape_storage(
+        self, monkeypatch, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        db_factory()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
+
+        result = post_attachment_upload(
+            sqlite_session,
+            attachment_id=50,
+            file_size=4,
+            file_type="application/pdf",
+            file_name="../../outside/evidence.pdf",
+            file_stream=_upload_stream(b"data"),
+            user_id=None,
+        )
+
+        stored_path = Path(result.file_path)
+        assert stored_path.parent == tmp_path
+        assert stored_path.name != "evidence.pdf"
+        assert stored_path.read_bytes() == b"data"
 
     def test_preserves_attachment_display_file_name(
         self, monkeypatch, tmp_path, sqlite_session, db_factory
@@ -864,6 +969,42 @@ class TestPostAttachmentUpload:
             )
 
         self.scanner.scan.assert_called_once_with(file_stream)
+        session.get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("scanner_error", "expected_error"),
+        [
+            (
+                AttachmentInfectedError("Malware detected in uploaded file."),
+                AttachmentInfectedError,
+            ),
+            (
+                AttachmentScannerUnavailableError("ClamAV is unavailable."),
+                AttachmentScannerUnavailableError,
+            ),
+        ],
+    )
+    def test_rejects_scanner_failures_before_writing_files(
+        self, monkeypatch, tmp_path, scanner_error, expected_error
+    ) -> None:
+        session = MagicMock()
+        self.scanner.scan.side_effect = scanner_error
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._UPLOAD_DIR", tmp_path
+        )
+
+        with pytest.raises(expected_error):
+            post_attachment_upload(
+                session,
+                attachment_id=50,
+                file_size=4,
+                file_type="application/pdf",
+                file_name="evidence.pdf",
+                file_stream=_upload_stream(b"data"),
+                user_id=10,
+            )
+
+        assert list(tmp_path.iterdir()) == []
         session.get.assert_not_called()
 
     def test_raises_unsupported_media_error_before_fetching_attachment_when_type_is_invalid(
