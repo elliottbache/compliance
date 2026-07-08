@@ -170,20 +170,20 @@ def post_attachment_upload_route(
     session: SessionDep,
     authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     file: UploadFile,
-    id: Annotated[int, Form()],
+    id: Annotated[int, Form(gt=0)],
 ) -> None:
     """Upload a file for an existing attachment metadata record.
 
     Args:
         session: Database session provided by FastAPI dependency injection.
         file: Uploaded file supplied as multipart form data.
-        id: Attachment metadata ID supplied as multipart form data.
+        id: Positive attachment metadata ID supplied as multipart form data.
 
     Raises:
-        HTTPException: If the upload is invalid, the file type or extension is
-            unsupported, malware is detected, the malware scanner is
-            unavailable, the attachment metadata is missing, or the file cannot
-            be persisted.
+        HTTPException: If the upload form metadata is invalid, the file type or
+            extension is unsupported, malware is detected, the malware scanner
+            is unavailable, the attachment metadata is missing, or the file
+            cannot be persisted.
     """
     # call attachment upload service
     try:

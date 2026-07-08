@@ -746,6 +746,15 @@ class TestPostAttachmentUploadRouteClient:
 
         assert response.status_code == 422
 
+    def test_route_returns_422_when_upload_attachment_id_is_not_positive(self, client):
+        response = client.post(
+            "/attachments/upload",
+            data={"id": "0"},
+            files={"file": ("evidence.pdf", b"data", "application/pdf")},
+        )
+
+        assert response.status_code == 422
+
     def test_route_returns_415_when_upload_media_type_is_unsupported(
         self, client, monkeypatch
     ):

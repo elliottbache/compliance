@@ -252,6 +252,9 @@ The upload/download flow is intentionally split:
 Uploads reject unsupported MIME types, detected content types, or extensions
 with HTTP 415.
 
+Upload form metadata is validated before the service layer runs. A missing or
+non-positive attachment ID returns HTTP 422.
+
 When malware scanning is enabled, uploads are streamed to ClamAV before they
 are persisted. Infected uploads return HTTP 415, scanner outages return HTTP
 503, and invalid scanner responses return HTTP 400.
