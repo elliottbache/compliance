@@ -714,91 +714,60 @@ class TestFileScanners:
 
         assert file_stream.tell() == 0
 
-    def test_clamav_scanner_raises_infected_error_for_found_result(
-        self, monkeypatch
+    @pytest.mark.parametrize(
+        ("scan_result", "expected_error", "match"),
+        [
+            (
+                {"stream": ("FOUND", "Eicar-Test-Signature")},
+                AttachmentInfectedError,
+                "Eicar-Test-Signature",
+            ),
+            (
+                clamd.ResponseError("bad response"),
+                AttachmentScanError,
+                "invalid scan response",
+            ),
+            (
+                clamd.ConnectionError("offline"),
+                AttachmentScannerUnavailableError,
+                "unavailable",
+            ),
+            (
+                clamd.BufferTooLongError("too long"),
+                AttachmentScanError,
+                "stream-size limit",
+            ),
+            ({}, AttachmentScanError, "no scan result"),
+            ({"stream": ("ERROR", "scan failed")}, AttachmentScanError, "scan failed"),
+        ],
+    )
+    def test_clamav_scanner_maps_scan_failures(
+        self, monkeypatch, scan_result, expected_error, match
     ) -> None:
         class FakeClient:
             def instream(self, file_stream):
-                return {"stream": ("FOUND", "Eicar-Test-Signature")}
+                if isinstance(scan_result, Exception):
+                    raise scan_result
+                return scan_result
 
         _install_fake_clamav_client(monkeypatch, FakeClient())
         scanner = ClamAVFileScanner(host="clamav", port=3310)
 
-        with pytest.raises(AttachmentInfectedError, match="Eicar-Test-Signature"):
-            scanner.scan(_upload_stream())
-
-    def test_clamav_scanner_raises_scan_error_for_response_error(
-        self, monkeypatch
-    ) -> None:
-        class FakeClient:
-            def instream(self, file_stream):
-                raise clamd.ResponseError("bad response")
-
-        _install_fake_clamav_client(monkeypatch, FakeClient())
-        scanner = ClamAVFileScanner(host="clamav", port=3310)
-
-        with pytest.raises(AttachmentScanError, match="invalid scan response"):
-            scanner.scan(_upload_stream())
-
-    def test_clamav_scanner_raises_unavailable_error_for_connection_failure(
-        self, monkeypatch
-    ) -> None:
-        class FakeClient:
-            def instream(self, file_stream):
-                raise clamd.ConnectionError("offline")
-
-        _install_fake_clamav_client(monkeypatch, FakeClient())
-        scanner = ClamAVFileScanner(host="clamav", port=3310)
-
-        with pytest.raises(AttachmentScannerUnavailableError, match="unavailable"):
-            scanner.scan(_upload_stream())
-
-    def test_clamav_scanner_raises_scan_error_for_stream_size_limit(
-        self, monkeypatch
-    ) -> None:
-        class FakeClient:
-            def instream(self, file_stream):
-                raise clamd.BufferTooLongError("too long")
-
-        _install_fake_clamav_client(monkeypatch, FakeClient())
-        scanner = ClamAVFileScanner(host="clamav", port=3310)
-
-        with pytest.raises(AttachmentScanError, match="stream-size limit"):
-            scanner.scan(_upload_stream())
-
-    def test_clamav_scanner_raises_scan_error_for_missing_result(
-        self, monkeypatch
-    ) -> None:
-        class FakeClient:
-            def instream(self, file_stream):
-                return {}
-
-        _install_fake_clamav_client(monkeypatch, FakeClient())
-        scanner = ClamAVFileScanner(host="clamav", port=3310)
-
-        with pytest.raises(AttachmentScanError, match="no scan result"):
-            scanner.scan(_upload_stream())
-
-    def test_clamav_scanner_raises_scan_error_for_unknown_status(
-        self, monkeypatch
-    ) -> None:
-        class FakeClient:
-            def instream(self, file_stream):
-                return {"stream": ("ERROR", "scan failed")}
-
-        _install_fake_clamav_client(monkeypatch, FakeClient())
-        scanner = ClamAVFileScanner(host="clamav", port=3310)
-
-        with pytest.raises(AttachmentScanError, match="scan failed"):
+        with pytest.raises(expected_error, match=match):
             scanner.scan(_upload_stream())
 
 
 class TestPostAttachmentUpload:
     @pytest.fixture(autouse=True)
-    def _stub_magic_mime(self, monkeypatch) -> None:
+    def _stub_upload_dependencies(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "compliance.services.attachments.files.magic.from_buffer",
             lambda header_bytes, mime: "application/pdf",
+        )
+        self.scanner = MagicMock()
+        monkeypatch.setattr(
+            "compliance.services.attachments.files._build_file_scanner",
+            lambda: self.scanner,
         )
 
     def test_default_upload_dir_is_independent_of_cwd(
@@ -834,6 +803,7 @@ class TestPostAttachmentUpload:
         assert result.file_path == str(stored_path)
         assert result.uploaded_at is not None
         assert stored_path.read_bytes() == b"hello world"
+        self.scanner.scan.assert_called_once()
 
     def test_uses_uploaded_file_extension_for_stored_path(
         self, monkeypatch, tmp_path, sqlite_session, db_factory
@@ -854,6 +824,7 @@ class TestPostAttachmentUpload:
         )
 
         assert Path(result.file_path).suffix == ".pdf"
+        self.scanner.scan.assert_called_once()
 
     def test_preserves_attachment_display_file_name(
         self, monkeypatch, tmp_path, sqlite_session, db_factory
@@ -874,15 +845,11 @@ class TestPostAttachmentUpload:
         )
 
         assert result.file_name == "evidence"
+        self.scanner.scan.assert_called_once()
 
     def test_scans_upload_before_fetching_attachment(self, monkeypatch) -> None:
         session = MagicMock()
-        scanner = MagicMock()
-        scanner.scan.side_effect = AttachmentScanError("scan failed")
-        monkeypatch.setattr(
-            "compliance.services.attachments.files._build_file_scanner",
-            lambda: scanner,
-        )
+        self.scanner.scan.side_effect = AttachmentScanError("scan failed")
         file_stream = _upload_stream(b"data")
 
         with pytest.raises(AttachmentScanError, match="scan failed"):
@@ -896,7 +863,7 @@ class TestPostAttachmentUpload:
                 user_id=10,
             )
 
-        scanner.scan.assert_called_once_with(file_stream)
+        self.scanner.scan.assert_called_once_with(file_stream)
         session.get.assert_not_called()
 
     def test_raises_unsupported_media_error_before_fetching_attachment_when_type_is_invalid(

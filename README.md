@@ -305,11 +305,9 @@ cp docker/.env.example docker/.env
 
 `docker-compose.yaml` reads `docker/.env` directly for both the PostgreSQL and
 backend containers. Keep `POSTGRES_HOST=postgres` in this file because the
-backend reaches PostgreSQL over the Compose service network.
-
-Docker Compose also starts a private `clamav` service for optional attachment
-malware scanning. The ClamAV port is exposed only to the Compose network and is
-not published on the host.
+backend reaches PostgreSQL over the Compose service network. Local Docker
+development does not start ClamAV by default; keep malware scanning disabled
+unless you add a scanner service yourself.
 
 For offline demos, keep:
 
@@ -320,7 +318,7 @@ SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# Optional ClamAV scanning through the private Compose service.
+# Local development keeps ClamAV scanning disabled by default.
 MALWARE_SCANNING_ENABLED=false
 MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
@@ -446,7 +444,6 @@ Install the project and development dependencies:
 
 ```bash
 sudo apt-get install libmagic1
-sudo apt update && sudo apt install clamav-daemon -y
 python -m pip install -U pip
 pip install -e .[dev]
 ```
@@ -614,6 +611,9 @@ CORS_ORIGINS=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 ANTHROPIC_API_KEY=replace_with_provider_key
+MALWARE_SCANNING_ENABLED=true
+MALWARE_SCANNER_HOST=clamav
+MALWARE_SCANNER_PORT=3310
 ```
 
 For staging, use the same file path on the staging host, but set
@@ -624,7 +624,36 @@ APP_ENV=staging
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGINS=https://your-staging-origin.example
+MALWARE_SCANNING_ENABLED=true
+MALWARE_SCANNER_HOST=clamav
+MALWARE_SCANNER_PORT=3310
 ```
+
+The staging/production Compose file runs a private `clamav` service for
+attachment malware scanning:
+
+```yaml
+clamav:
+  image: clamav/clamav:stable
+  expose:
+    - "3310"
+```
+
+The service uses `expose`, not `ports`, so ClamAV port `3310` is reachable on
+the private Compose network but is not published on the host. Keep
+`MALWARE_SCANNER_HOST=clamav` in `/etc/compliance/.env` for staging and
+production Compose deployments.
+
+If you run ClamAV on the host instead of using the Compose service, install the
+required system packages and set `MALWARE_SCANNER_HOST` to a hostname or address
+reachable from the backend container:
+
+```bash
+sudo apt-get install libmagic1
+sudo apt update && sudo apt install clamav-daemon -y
+```
+
+Do not publish ClamAV port `3310` to the public internet.
 
 `docker-compose.prod.yaml` is the Compose file for both staging and production.
 It reads `/etc/compliance/.env` through each service's `env_file` setting, so do
@@ -756,25 +785,27 @@ included in backup and restore procedures.
 ### ClamAV Malware Scanning
 
 ```ini
-# Keep disabled unless clamd is installed and reachable.
+# Local development keeps scanning disabled unless clamd is installed and reachable.
 MALWARE_SCANNING_ENABLED=false
 
-# Docker Compose uses the private clamav service name.
+# Staging/production Compose uses the private clamav service name.
 # Host-based local development usually uses localhost.
 MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
 ```
 
-Local host development requires ClamAV and libmagic system packages:
+Host-based development with malware scanning enabled requires ClamAV and
+libmagic system packages:
 
 ```bash
 sudo apt-get install libmagic1
 sudo apt update && sudo apt install clamav-daemon -y
 ```
 
-For Docker development, keep `MALWARE_SCANNER_HOST=clamav` because the backend
-contacts ClamAV over the private Compose network. For host-based development,
-use `MALWARE_SCANNER_HOST=localhost` after starting `clamd`.
+For staging and production Docker deployments, keep
+`MALWARE_SCANNER_HOST=clamav` because the backend contacts ClamAV over the
+private Compose network. For host-based development, use
+`MALWARE_SCANNER_HOST=localhost` after starting `clamd`.
 
 ### CORS
 
