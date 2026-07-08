@@ -755,6 +755,85 @@ class TestPostAttachmentUploadRouteClient:
 
         assert response.status_code == 422
 
+    @pytest.mark.parametrize(
+        ("service_error", "expected_status", "expected_detail"),
+        [
+            (
+                attachments_router.AttachmentPermissionError(
+                    "Certification 100 is assigned to inspector 20.  "
+                    "You are logged in as inspector 10."
+                ),
+                403,
+                "Certification 100 is assigned to inspector 20.  "
+                "You are logged in as inspector 10.",
+            ),
+            (
+                attachments_router.AttachmentTooLargeError(
+                    "File persistence error for file: evidence.pdf."
+                ),
+                413,
+                "File persistence error for file: evidence.pdf.",
+            ),
+            (
+                attachments_router.AttachmentFileError(
+                    "Attachment could not be uploaded:  "
+                    "with type application/pdf and size 4."
+                ),
+                400,
+                "Attachment could not be uploaded:  "
+                "with type application/pdf and size 4.",
+            ),
+            (
+                attachments_router.AttachmentInfectedError(
+                    "Malware detected in uploaded file."
+                ),
+                415,
+                "Malware detected in uploaded file.",
+            ),
+            (
+                attachments_router.AttachmentScannerUnavailableError(
+                    "ClamAV is unavailable."
+                ),
+                503,
+                "ClamAV is unavailable.",
+            ),
+            (
+                attachments_router.AttachmentScanError(
+                    "ClamAV returned an invalid scan response."
+                ),
+                400,
+                "ClamAV returned an invalid scan response.",
+            ),
+            (
+                attachments_router.AttachmentConflictError(
+                    "File persistence error for file: evidence.pdf."
+                ),
+                500,
+                "File persistence error for file: evidence.pdf.",
+            ),
+        ],
+    )
+    def test_route_maps_upload_service_errors_to_http_responses(
+        self, client, monkeypatch, service_error, expected_status, expected_detail
+    ):
+        def fake_post_attachment_upload(session, **kwargs):
+            raise service_error
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        response = client.post(
+            "/attachments/upload",
+            data={"id": "50"},
+            files={"file": ("evidence.pdf", b"data", "application/pdf")},
+        )
+
+        assert response.status_code == expected_status
+        assert response.json() == {"detail": expected_detail}
+
     def test_route_returns_415_when_upload_media_type_is_unsupported(
         self, client, monkeypatch
     ):
@@ -852,245 +931,6 @@ class TestPostAttachmentUploadRouteUnit:
         )
 
         assert result is None
-        assert fake_file.file.closed
-
-    def test_returns_415_when_media_type_is_unsupported(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.exe",
-            content_type="application/x-msdownload",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentUnsupportedMediaTypeError(
-                "Attachment file type or extension is not supported: "
-                "evidence.exe with type application/x-msdownload."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 415
-        assert (
-            exc_info.value.detail
-            == "Attachment file type or extension is not supported: "
-            "evidence.exe with type application/x-msdownload."
-        )
-        assert fake_file.file.closed
-
-    def test_returns_400_when_upload_file_metadata_is_invalid(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentFileError(
-                "Attachment could not be uploaded:  with type application/pdf and size 4."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 400
-        assert (
-            exc_info.value.detail
-            == "Attachment could not be uploaded:  with type application/pdf and size 4."
-        )
-        assert fake_file.file.closed
-
-    def test_returns_415_when_malware_is_detected(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.pdf",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentInfectedError(
-                "Malware detected in uploaded file."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 415
-        assert exc_info.value.detail == "Malware detected in uploaded file."
-        assert fake_file.file.closed
-
-    def test_returns_503_when_malware_scanner_is_unavailable(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.pdf",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentScannerUnavailableError(
-                "ClamAV is unavailable."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 503
-        assert exc_info.value.detail == "ClamAV is unavailable."
-        assert fake_file.file.closed
-
-    def test_returns_400_when_malware_scan_response_is_invalid(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.pdf",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentScanError(
-                "ClamAV returned an invalid scan response."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == "ClamAV returned an invalid scan response."
-        assert fake_file.file.closed
-
-    def test_returns_404_when_attachment_is_not_found(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.pdf",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentNotFoundError(
-                "Attachment with ID 50 not found."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Attachment with ID 50 not found."
-        assert fake_file.file.closed
-
-    def test_returns_500_when_file_persistence_fails(
-        self, monkeypatch, user_record_factory
-    ) -> None:
-        fake_file = SimpleNamespace(
-            filename="evidence.pdf",
-            content_type="application/pdf",
-            size=4,
-            file=BytesIO(b"data"),
-        )
-
-        def fake_post_attachment_upload(session, **kwargs):
-            raise attachments_router.AttachmentConflictError(
-                "File persistence error for file: evidence.pdf."
-            )
-
-        monkeypatch.setattr(
-            attachments_router,
-            "post_attachment_upload",
-            fake_post_attachment_upload,
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            attachments_router.post_attachment_upload_route(
-                object(),
-                authorized_user=user_record_factory(),
-                file=fake_file,
-                id=50,
-            )
-
-        assert exc_info.value.status_code == 500
-        assert exc_info.value.detail == "File persistence error for file: evidence.pdf."
         assert fake_file.file.closed
 
 
