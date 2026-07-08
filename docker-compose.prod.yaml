@@ -2,11 +2,11 @@ services:
   postgres:
     image: postgres:16
     environment:
-      PGDATA: /var/lib/compliance/postgresql/data
+      PGDATA: /var/lib/compliance/postgres/data
     env_file:
       - /etc/compliance/.env
     volumes:
-      - /var/lib/compliance/postgres:/var/lib/compliance/postgresql/data
+      - /var/lib/compliance/postgres:/var/lib/compliance/postgres/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:

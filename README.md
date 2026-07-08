@@ -306,8 +306,9 @@ cp docker/.env.example docker/.env
 `docker-compose.yaml` reads `docker/.env` directly for both the PostgreSQL and
 backend containers. Keep `POSTGRES_HOST=postgres` in this file because the
 backend reaches PostgreSQL over the Compose service network. Local Docker
-development does not start ClamAV by default; keep malware scanning disabled
-unless you add a scanner service yourself.
+development uses a Docker named PostgreSQL volume and repo-local demo
+attachments. It does not start ClamAV by default; keep malware scanning
+disabled unless you add a scanner service yourself.
 
 For offline demos, keep:
 
@@ -428,11 +429,11 @@ Default local values:
 APP_ENV=development
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
-POSTGRES_DB=compliance_db
+POSTGRES_DB=compliance_dev
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-ATTACHMENTS_DIR=/path/to/your/compliance/folder/backend/storage/attachments
-CORS_ORIGINS=http://localhost:5173
+ATTACHMENTS_DIR=~/.local/share/compliance/attachments
+CORS_ORIGIN=http://localhost:5173
 AI_MODE=mock
 ANTHROPIC_API_KEY=
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
@@ -454,12 +455,49 @@ the distro PostgreSQL package, one common setup is:
 ```bash
 sudo service postgresql start
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
-sudo -u postgres createdb -O postgres compliance_db
+sudo mkdir -p /var/backups/compliance/development/db
+sudo chown -R "$USER":"$USER" /var/backups/compliance/development
+sudo -u postgres createdb -O postgres compliance_dev
 ```
 
-If `compliance_db` already exists, keep the existing database and continue. The
-backend runs from the host during local development, so `backend/.env` should
-keep `POSTGRES_HOST=localhost`.
+If you already have an older `compliance_db` development database, rename it or
+copy it to `compliance_dev` before continuing. The backend runs from the host
+during local development, so `backend/.env` should keep
+`POSTGRES_HOST=localhost`.
+
+To rename the old host development database in place:
+
+```bash
+sudo service postgresql start
+sudo -u postgres psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'compliance_db' AND pid <> pg_backend_pid();"
+sudo -u postgres psql -d postgres -c "ALTER DATABASE compliance_db RENAME TO compliance_dev;"
+```
+
+To keep the old database and copy it instead:
+
+```bash
+mkdir -p /tmp/compliance-db-move
+sudo -u postgres pg_dump -d compliance_db -Fc > /tmp/compliance-db-move/compliance_db.dump
+sudo -u postgres dropdb --if-exists compliance_dev
+sudo -u postgres createdb -O postgres compliance_dev
+sudo -u postgres pg_restore -d compliance_dev --clean --if-exists /tmp/compliance-db-move/compliance_db.dump
+```
+
+To create a staging database from development on the same host:
+
+```bash
+mkdir -p /tmp/compliance-db-move
+sudo -u postgres pg_dump -d compliance_dev -Fc > /tmp/compliance-db-move/compliance_dev.dump
+sudo -u postgres dropdb --if-exists compliance_staging
+sudo -u postgres createdb -O postgres compliance_staging
+sudo -u postgres pg_restore -d compliance_staging --clean --if-exists /tmp/compliance-db-move/compliance_dev.dump
+```
+
+After confirming the copied databases work, remove the temporary dumps:
+
+```bash
+rm -rf /tmp/compliance-db-move
+```
 
 Run migrations from the repository root:
 
@@ -607,7 +645,7 @@ APP_ENV=production
 POSTGRES_PASSWORD=replace_with_a_strong_database_password
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGINS=https://your-production-origin.example
+CORS_ORIGIN=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 ANTHROPIC_API_KEY=replace_with_provider_key
@@ -616,14 +654,27 @@ MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
 ```
 
-For staging, use the same file path on the staging host, but set
-`APP_ENV=staging`, staging-specific secrets, and the staging frontend origin:
+For staging on the same machine used for development, use environment-specific
+host paths:
+
+```text
+/etc/compliance/staging/.env
+/var/lib/compliance/staging/postgres
+/var/lib/compliance/staging/attachments
+/var/backups/compliance/staging/db
+/var/backups/compliance/staging/attachments
+/var/log/compliance/staging/backend
+```
+
+Use the same container paths as production, but point the staging Compose file
+or override at the staging host directories. Set `APP_ENV=staging`,
+staging-specific secrets, and the staging frontend origin:
 
 ```ini
 APP_ENV=staging
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGINS=https://your-staging-origin.example
+CORS_ORIGIN=https://your-staging-origin.example
 MALWARE_SCANNING_ENABLED=true
 MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
@@ -675,7 +726,7 @@ path belongs in `docker-compose.prod.yaml`, not in the application env file.
 The same Compose file mounts PostgreSQL data from the host:
 
 ```yaml
-/var/lib/compliance/postgres:/var/lib/compliance/postgresql/data
+/var/lib/compliance/postgres:/var/lib/compliance/postgres/data
 ```
 
 For live Anthropic analysis, set `AI_MODE=anthropic` and provide
@@ -685,7 +736,7 @@ When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
 development defaults at startup. The PostgreSQL password must not be
 `postgres`, `AI_MODE` must not be `mock`, `ATTACHMENTS_DIR` must not resolve to
 the current working directory or the default local user storage path, and
-`CORS_ORIGINS` must not be localhost or `*`.
+`CORS_ORIGIN` must not be localhost or `*`.
 
 The staging/production upgrade flow is:
 
@@ -730,12 +781,13 @@ APP_ENV=development
 `APP_ENV` must be one of `development`, `staging`, or `production`.
 Development allows local defaults for quick setup. Staging and production
 enable startup validation that rejects unsafe defaults for database password,
-AI mode, attachment storage, and CORS origins.
+AI mode, attachment storage, and the CORS origin.
 
 Environment files are the source of truth for runtime settings:
 
 - `backend/.env`: host-based local backend development. Use
-  `POSTGRES_HOST=localhost`.
+  `POSTGRES_HOST=localhost`, `POSTGRES_DB=compliance_dev`, and
+  `ATTACHMENTS_DIR=~/.local/share/compliance/attachments`.
 - `docker/.env`: local Docker Compose development with `docker-compose.yaml`.
   Use `POSTGRES_HOST=postgres` and `ATTACHMENTS_DIR=/app/data/attachments`.
 - `/etc/compliance/.env`: staging and production deployments with
@@ -776,11 +828,11 @@ ATTACHMENTS_DIR=/path/to/attachments
 ```
 
 Uploaded attachment files are stored under `ATTACHMENTS_DIR`. For host-based
-local development this can point at `backend/storage/attachments`. For local
-Docker, staging, and production, set `ATTACHMENTS_DIR=/app/data/attachments`
-because that is the path inside the backend container. The host-side persistent
-directory or volume is configured in the relevant Compose file and should be
-included in backup and restore procedures.
+local development, use `~/.local/share/compliance/attachments`. For local Docker,
+staging, and production, set `ATTACHMENTS_DIR=/app/data/attachments` because
+that is the path inside the backend container. The host-side persistent directory
+or volume is configured in the relevant Compose file and should be included in
+backup and restore procedures.
 
 ### ClamAV Malware Scanning
 
@@ -810,12 +862,12 @@ private Compose network. For host-based development, use
 ### CORS
 
 ```ini
-CORS_ORIGINS=http://localhost:5173
+CORS_ORIGIN=http://localhost:5173
 ```
 
-`CORS_ORIGINS` defines the frontend origins allowed to call the backend. Local
-development normally uses the Vite origin shown above. Staging and production
-must use explicit deployed frontend origins, not localhost or `*`.
+`CORS_ORIGIN` defines the exact frontend origin allowed to call the backend.
+Local development normally uses the Vite origin shown above. Staging and
+production must use the deployed frontend origin, not localhost or `*`.
 
 ### Auth
 

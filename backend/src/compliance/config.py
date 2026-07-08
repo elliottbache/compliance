@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     attachments_dir: Path = (
         Path.home() / ".local" / "share" / "compliance" / "attachments"
     )
-    cors_origins: str | None = None
+    cors_origin: str | None = None
     ai_mode: AIMode = "mock"
     malware_scanning_enabled: bool = False
     malware_scanner_host: str = "clamav"
@@ -97,9 +97,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "For production and staging environments, attachments directory must not be current directory nor be in the current user's .local folder.  Set this in .env file.  Check /etc/compliance/.env."
                 )
-            if self.cors_origins in ["http://localhost:5173", "*"]:
+            if self.cors_origin in ["http://localhost:5173", "*"]:
                 raise ValueError(
-                    "For production and staging environments, CORS origins should not be localhost or *.  Set this in .env file.  Check /etc/compliance/.env."
+                    "For production and staging environments, CORS origin should not be localhost or *.  Set this in .env file.  Check /etc/compliance/.env."
                 )
 
         return self

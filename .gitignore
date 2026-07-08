@@ -32,7 +32,9 @@ backend/storage/attachments/*
 
 ### SQLAlchemy & Environment ###
 # Sensitive configuration (credentials, DB URLs)
-.env
+backend/.env*
+!backend/.env.example
+.env*
 instance/
 
 ### IDEs & OS ###
