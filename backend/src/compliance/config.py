@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     )
     cors_origin: str | None = None
     ai_mode: AIMode = "mock"
+    anthropic_api_key: str | None = None
+    ai_log_prompts: bool = True
     malware_scanning_enabled: bool = False
     malware_scanner_host: str = "clamav"
     malware_scanner_port: int = 3310
@@ -87,6 +89,10 @@ class Settings(BaseSettings):
             if self.ai_mode == "mock":
                 raise ValueError(
                     "For production and staging environments, AI mode must not be mock.  Set this in .env file.  Check /etc/compliance/.env."
+                )
+            if self.ai_log_prompts:
+                raise ValueError(
+                    "For production and staging environments, AI prompt logging must be disabled.  Set AI_LOG_PROMPTS=false in .env file.  Check /etc/compliance/.env."
                 )
             attach_dir = self.attachments_dir.expanduser().resolve()
             if (

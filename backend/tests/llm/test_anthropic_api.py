@@ -539,7 +539,12 @@ class TestExtractTextFromResponse:
 
 
 class TestCreateErrorMessage:
-    def test_builds_error_message_with_context(self) -> None:
+    def test_builds_error_message_with_context(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.llm.anthropic_api.settings",
+            SimpleNamespace(ai_log_prompts=True),
+        )
+
         result = _create_error_message(
             case_info="case-1",
             ai_model="claude-test",
@@ -554,6 +559,26 @@ class TestCreateErrorMessage:
         assert "user text" in result
         assert "response text" in result
         assert str(anthropic_api._MAX_TOKENS) in result
+
+    def test_redacts_prompts_when_prompt_logging_is_disabled(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.llm.anthropic_api.settings",
+            SimpleNamespace(ai_log_prompts=False),
+        )
+
+        result = _create_error_message(
+            case_info="case-1",
+            ai_model="claude-test",
+            system_context="system text",
+            user_message="user text",
+            response="response text",
+        )
+
+        assert "system=[redacted]" in result
+        assert "user_message=[redacted]" in result
+        assert "system text" not in result
+        assert "user text" not in result
+        assert "response text" in result
 
 
 class TestParseMessageToString:

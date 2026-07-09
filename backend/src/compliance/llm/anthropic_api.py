@@ -18,6 +18,7 @@ from pydantic import BaseModel, ValidationError
 from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
 
 from compliance._helpers import ROOT_DIR
+from compliance.config import settings
 
 _MAX_TOKENS = 5000
 _DEFAULT_PROMPT_VERSION = "v0.1"
@@ -144,8 +145,11 @@ def call_model[
             f"{response_model}"
         )
 
-    logger.debug(f"system_context: {system_context}")
-    logger.debug(f"user_message: {user_message}")
+    if settings.ai_log_prompts:
+        logger.debug(f"system_context: {system_context}")
+        logger.debug(f"user_message: {user_message}")
+    else:
+        logger.debug("AI prompt logging is disabled.")
 
     load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
 
@@ -343,6 +347,8 @@ def _create_error_message(
     response: str,
 ) -> str:
     """Build a detailed log message for a failed model response."""
+    system_context = system_context if settings.ai_log_prompts else "[redacted]"
+    user_message = user_message if settings.ai_log_prompts else "[redacted]"
     return (
         f"Model failed for case: {case_info}, model={ai_model}"
         f" max_tokens={_MAX_TOKENS}, system={system_context},"

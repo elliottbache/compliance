@@ -317,6 +317,7 @@ For offline demos, keep:
 
 ```ini
 AI_MODE=mock
+AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
@@ -332,6 +333,7 @@ For live Anthropic analysis, set:
 
 ```ini
 AI_MODE=anthropic
+AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
@@ -438,6 +440,7 @@ POSTGRES_PORT=5432
 ATTACHMENTS_DIR=~/.local/share/compliance/attachments
 CORS_ORIGIN=http://localhost:5173
 AI_MODE=mock
+AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
@@ -651,6 +654,7 @@ ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGIN=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
+AI_LOG_PROMPTS=false
 ANTHROPIC_API_KEY=replace_with_provider_key
 MALWARE_SCANNING_ENABLED=true
 MALWARE_SCANNER_HOST=clamav
@@ -678,6 +682,9 @@ APP_ENV=staging
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGIN=https://your-staging-origin.example
+AI_MODE=anthropic
+AI_LOG_PROMPTS=false
+ANTHROPIC_API_KEY=replace_with_staging_provider_key
 MALWARE_SCANNING_ENABLED=true
 MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
@@ -737,9 +744,9 @@ For live Anthropic analysis, set `AI_MODE=anthropic` and provide
 
 When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
 development defaults at startup. The PostgreSQL password must not be
-`postgres`, `AI_MODE` must not be `mock`, `ATTACHMENTS_DIR` must not resolve to
-the current working directory or the default local user storage path, and
-`CORS_ORIGIN` must not be localhost or `*`.
+`postgres`, `AI_MODE` must not be `mock`, `AI_LOG_PROMPTS` must be `false`,
+`ATTACHMENTS_DIR` must not resolve to the current working directory or the
+default local user storage path, and `CORS_ORIGIN` must not be localhost or `*`.
 
 The staging/production upgrade flow is:
 
@@ -889,11 +896,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES
 
 ```ini
 AI_MODE=mock
+AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
 ```
 
 Use `AI_MODE=anthropic` and a valid `ANTHROPIC_API_KEY` for live provider calls.
 Mock mode is the safer default for local demos and automated tests.
+`AI_LOG_PROMPTS=true` is acceptable in development for prompt debugging, but
+staging and production must keep `AI_LOG_PROMPTS=false`.
 
 ## Testing And Quality
 

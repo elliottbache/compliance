@@ -77,6 +77,7 @@ class TestSettingsEnvironmentValidation:
             "ATTACHMENTS_DIR",
             "CORS_ORIGIN",
             "AI_MODE",
+            "AI_LOG_PROMPTS",
             "ANTHROPIC_API_KEY",
             "SECRET_KEY",
             "ALGORITHM",
@@ -100,6 +101,7 @@ class TestSettingsEnvironmentValidation:
                 "ATTACHMENTS_DIR": str(tmp_path),
                 "CORS_ORIGIN": "https://compliance.example.com",
                 "AI_MODE": "anthropic",
+                "AI_LOG_PROMPTS": "false",
                 "ANTHROPIC_API_KEY": "test-api-key",
                 "SECRET_KEY": "test-secret-key",
                 "ALGORITHM": "HS256",
@@ -117,6 +119,8 @@ class TestSettingsEnvironmentValidation:
         assert settings.postgres_db == "compliance_db"
         assert settings.postgres_port == 5432
         assert settings.attachments_dir == tmp_path
+        assert settings.ai_log_prompts is False
+        assert settings.anthropic_api_key == "test-api-key"
 
     def test_allows_safe_production_settings(self, tmp_path) -> None:
         settings = Settings(
@@ -126,6 +130,7 @@ class TestSettingsEnvironmentValidation:
             attachments_dir=tmp_path,
             cors_origin="https://compliance.example.com",
             ai_mode="anthropic",
+            ai_log_prompts=False,
             _env_file=None,
         )
 
@@ -149,6 +154,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_log_prompts=False,
                 _env_file=None,
             )
 
@@ -164,6 +170,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=attachments_dir,
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_log_prompts=False,
                 _env_file=None,
             )
 
@@ -180,6 +187,7 @@ class TestSettingsEnvironmentValidation:
                 / "attachments",
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_log_prompts=False,
                 _env_file=None,
             )
 
@@ -192,6 +200,20 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin="https://staging.compliance.example.com",
                 ai_mode="mock",
+                ai_log_prompts=False,
+                _env_file=None,
+            )
+
+    def test_rejects_prompt_logging_in_deployed_envs(self, tmp_path) -> None:
+        with pytest.raises(ValueError, match="AI prompt logging"):
+            Settings(
+                app_env="production",
+                database_url="postgresql+psycopg2://user:secret@db/app",
+                postgres_password="not-postgres",  # noqa: S106
+                attachments_dir=tmp_path,
+                cors_origin="https://compliance.example.com",
+                ai_mode="anthropic",
+                ai_log_prompts=True,
                 _env_file=None,
             )
 
@@ -207,5 +229,6 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin=cors_origin,
                 ai_mode="anthropic",
+                ai_log_prompts=False,
                 _env_file=None,
             )

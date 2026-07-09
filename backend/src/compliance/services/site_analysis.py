@@ -2,8 +2,8 @@
 
 import json
 import logging
-import os
 
+from compliance.config import settings
 from compliance.llm.anthropic_api import call_model
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
@@ -41,7 +41,7 @@ def summarize_previous_visits(
         json.JSONDecodeError: If the model returns invalid JSON that cannot
             be recovered.
     """
-    ai_mode = os.getenv("AI_MODE", "mock").lower()
+    ai_mode = settings.ai_mode
 
     if ai_mode == "mock":
         return _mock_site_analysis(site_history)
@@ -49,7 +49,7 @@ def summarize_previous_visits(
     if ai_mode != "anthropic":
         raise ValueError(f"Unsupported AI_MODE: {ai_mode}")
 
-    if not os.getenv("ANTHROPIC_API_KEY"):
+    if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when AI_MODE=anthropic.")
 
     system_context = _build_site_analysis_system_prompt()
