@@ -11,7 +11,12 @@ from anthropic import (
     APITimeoutError,
 )
 from anthropic.types import TextBlock
+from compliance.llm._helpers import (
+    _create_error_message,
+    _log_validation_error_messages,
+)
 from compliance.llm.anthropic_api import (
+    AnthropicAIProvider,
     LLMContextWindowExceededError,
     LLMMaxTokensError,
     LLMPauseTurnError,
@@ -21,12 +26,9 @@ from compliance.llm.anthropic_api import (
     LLMToolUseError,
     _convert_base_model_to_json_schema,
     _convert_response_to_model_type,
-    _create_error_message,
     _extract_text_from_response,
-    _log_validation_error_messages,
     _parse_message_to_string,
     _stop_after_attempts_by_error,
-    call_model,
 )
 from pydantic import BaseModel, ValidationError
 from tenacity import wait_none
@@ -115,7 +117,7 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            result = call_model(
+            result = AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 response_model=ExampleModel,
@@ -140,7 +142,7 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 response_model=ExampleModel,
@@ -165,7 +167,7 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 response_model=ExampleModel,
@@ -189,7 +191,7 @@ class TestCallModel:
                 return_value=schema,
             ),
         ):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -219,7 +221,7 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            result = call_model(
+            result = AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -230,7 +232,7 @@ class TestCallModel:
 
     def test_raises_type_error_when_response_model_is_not_pydantic_model(self) -> None:
         with pytest.raises(TypeError, match="Pydantic BaseModel"):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -252,7 +254,8 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            result = call_model.retry_with(wait=wait_none())(
+            result = AnthropicAIProvider.call_model.retry_with(wait=wait_none())(
+                AnthropicAIProvider(),
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -281,7 +284,7 @@ class TestCallModel:
                 return_value={"type": "object"},
             ),
         ):
-            result = call_model(
+            result = AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -329,7 +332,7 @@ class TestCallModel:
             ),
             pytest.raises(error_type, match=match),
         ):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -357,7 +360,7 @@ class TestCallModel:
                 match="exceeded the max_tokens limit",
             ),
         ):
-            call_model(
+            AnthropicAIProvider().call_model(
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -393,7 +396,8 @@ class TestCallModel:
             ),
             pytest.raises(type(errors[-1])),
         ):
-            call_model.retry_with(wait=wait_none())(
+            AnthropicAIProvider.call_model.retry_with(wait=wait_none())(
+                AnthropicAIProvider(),
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -417,7 +421,8 @@ class TestCallModel:
             ),
             pytest.raises(RuntimeError, match="boom"),
         ):
-            call_model.retry_with(wait=wait_none())(
+            AnthropicAIProvider.call_model.retry_with(wait=wait_none())(
+                AnthropicAIProvider(),
                 "system text",
                 "user text",
                 ai_model="claude-test",
@@ -541,7 +546,7 @@ class TestExtractTextFromResponse:
 class TestCreateErrorMessage:
     def test_builds_error_message_with_context(self, monkeypatch) -> None:
         monkeypatch.setattr(
-            "compliance.llm.anthropic_api.settings",
+            "compliance.llm._helpers.settings",
             SimpleNamespace(ai_log_prompts=True),
         )
 
@@ -551,6 +556,7 @@ class TestCreateErrorMessage:
             system_context="system text",
             user_message="user text",
             response="response text",
+            max_tokens=anthropic_api._MAX_TOKENS,
         )
 
         assert "case-1" in result
@@ -562,7 +568,7 @@ class TestCreateErrorMessage:
 
     def test_redacts_prompts_when_prompt_logging_is_disabled(self, monkeypatch) -> None:
         monkeypatch.setattr(
-            "compliance.llm.anthropic_api.settings",
+            "compliance.llm._helpers.settings",
             SimpleNamespace(ai_log_prompts=False),
         )
 
@@ -572,6 +578,7 @@ class TestCreateErrorMessage:
             system_context="system text",
             user_message="user text",
             response="response text",
+            max_tokens=anthropic_api._MAX_TOKENS,
         )
 
         assert "system=[redacted]" in result
@@ -612,7 +619,7 @@ class TestLogValidationErrorMessages:
             ],
         )
 
-        with patch("compliance.llm.anthropic_api.logger.debug") as mock_debug:
+        with patch("compliance.llm._helpers.logger.debug") as mock_debug:
             _log_validation_error_messages(error)
 
         assert mock_debug.call_count == 2
@@ -623,7 +630,7 @@ class TestLogValidationErrorMessages:
             [{"type": "missing", "loc": ("value",), "input": {}}],
         )
 
-        with patch("compliance.llm.anthropic_api.logger.debug") as mock_debug:
+        with patch("compliance.llm._helpers.logger.debug") as mock_debug:
             _log_validation_error_messages(error)
 
         logged_message = mock_debug.call_args[0][0]

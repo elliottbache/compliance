@@ -267,13 +267,19 @@ backend/storage/attachments/
 
 ## AI Site Analysis
 
-The site-analysis service can run in two modes:
+The site-analysis service can run in three modes:
 
 - `AI_MODE=mock`: deterministic offline analysis for demos and tests.
 - `AI_MODE=anthropic`: live Anthropic-backed analysis with structured response
   validation.
+- `AI_MODE=local`: live Ollama-backed analysis with structured response
+  validation.
 
-The Anthropic adapter:
+Live AI modes require `AI_MODEL`. Use an Anthropic model name when
+`AI_MODE=anthropic`, or a locally installed Ollama model name when
+`AI_MODE=local`.
+
+The live provider adapters:
 
 - sends a schema-constrained site-history request;
 - validates the response against Pydantic `SiteAnalysis` models;
@@ -317,8 +323,13 @@ For offline demos, keep:
 
 ```ini
 AI_MODE=mock
+AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TIMEOUT_SECONDS=300
+OLLAMA_NUM_CTX=4096
+OLLAMA_TEMPERATURE=0.2
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -333,11 +344,23 @@ For live Anthropic analysis, set:
 
 ```ini
 AI_MODE=anthropic
+AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 SECRET_KEY=replace_with_a_long_random_secret_for_local_auth
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+For local Ollama-backed analysis, set:
+
+```ini
+AI_MODE=local
+AI_MODEL=qwen3:4b
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TIMEOUT_SECONDS=300
+OLLAMA_NUM_CTX=4096
+OLLAMA_TEMPERATURE=0.2
 ```
 
 Start the stack:
@@ -654,6 +677,7 @@ ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGIN=https://your-production-origin.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
+AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
 ANTHROPIC_API_KEY=replace_with_provider_key
 MALWARE_SCANNING_ENABLED=true
@@ -683,6 +707,7 @@ POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
 CORS_ORIGIN=https://your-staging-origin.example
 AI_MODE=anthropic
+AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
 ANTHROPIC_API_KEY=replace_with_staging_provider_key
 MALWARE_SCANNING_ENABLED=true
@@ -739,12 +764,17 @@ The same Compose file mounts PostgreSQL data from the host:
 /var/lib/compliance/postgres:/var/lib/compliance/postgres/data
 ```
 
-For live Anthropic analysis, set `AI_MODE=anthropic` and provide
-`ANTHROPIC_API_KEY`. Only enable live AI mode when the deployment owner has approved outbound provider calls for the data being analyzed.  Be sure to contact Anthropic to enable a Zero Data Retention agreement if you handle sensitive client data.  If handling health data, make sure to sign a Business Associate Agreement. 
+For live Anthropic analysis, set `AI_MODE=anthropic`, provide `AI_MODEL`, and
+provide `ANTHROPIC_API_KEY`. For local Ollama analysis, set `AI_MODE=local`
+and provide `AI_MODEL`. Only enable live AI mode when the deployment owner has
+approved outbound provider calls for the data being analyzed. Be sure to contact
+Anthropic to enable a Zero Data Retention agreement if you handle sensitive
+client data. If handling health data, make sure to sign a Business Associate
+Agreement.
 
 When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
 development defaults at startup. The PostgreSQL password must not be
-`postgres`, `AI_MODE` must not be `mock`, `AI_LOG_PROMPTS` must be `false`,
+`postgres`, `AI_MODE` must not be `mock`, `AI_MODEL` must be set, `AI_LOG_PROMPTS` must be `false`,
 `ATTACHMENTS_DIR` must not resolve to the current working directory or the
 default local user storage path, and `CORS_ORIGIN` must not be localhost or `*`.
 
@@ -896,12 +926,19 @@ ACCESS_TOKEN_EXPIRE_MINUTES
 
 ```ini
 AI_MODE=mock
+AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TIMEOUT_SECONDS=300
+OLLAMA_NUM_CTX=4096
+OLLAMA_TEMPERATURE=0.2
 ```
 
-Use `AI_MODE=anthropic` and a valid `ANTHROPIC_API_KEY` for live provider calls.
-Mock mode is the safer default for local demos and automated tests.
+Use `AI_MODE=anthropic` with an Anthropic model in `AI_MODEL` and a valid
+`ANTHROPIC_API_KEY` for live Anthropic calls. Use `AI_MODE=local` with a local
+Ollama model in `AI_MODEL` for local provider calls. Mock mode is the safer
+default for local demos and automated tests.
 `AI_LOG_PROMPTS=true` is acceptable in development for prompt debugging, but
 staging and production must keep `AI_LOG_PROMPTS=false`.
 
@@ -965,11 +1002,12 @@ GitHub Pages deployment is configured in `.github/workflows/pages.yaml`.
 
 ## Anthropic Error Policy
 
-Live AI analysis uses `compliance.llm.anthropic_api.call_model` to send a
-structured-output request to Anthropic and validate the response against a
-Pydantic schema. The adapter separates transport/API retry behavior from model
-stop-reason handling so operational failures, schema failures, and provider stop
-states remain distinguishable.
+Live Anthropic analysis uses `AnthropicAIProvider` to send a structured-output
+request to Anthropic and validate the response against a Pydantic schema. The
+module still exposes `compliance.llm.anthropic_api.call_model` as a compatibility
+wrapper for existing callers. The adapter separates transport/API retry behavior
+from model stop-reason handling so operational failures, schema failures, and
+provider stop states remain distinguishable.
 
 ### Some Anthropic errors
 ```text

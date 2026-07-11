@@ -28,7 +28,8 @@ dependencies = [
   "pwdlib[argon2]==0.3.0",
   "pyjwt==2.13.0",
   "python-magic==0.4.27",
-  "clamd==1.0.2"
+  "clamd==1.0.2",
+  "ollama==0.4.7"
 ]
 
 # Optional extras for dev tools

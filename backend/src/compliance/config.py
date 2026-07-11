@@ -12,7 +12,7 @@ from sqlalchemy import URL
 from compliance._helpers import ROOT_DIR
 
 AppEnv = Literal["development", "staging", "production"]
-AIMode = Literal["mock", "anthropic"]
+AIMode = Literal["mock", "anthropic", "local"]
 
 
 class Settings(BaseSettings):
@@ -38,8 +38,13 @@ class Settings(BaseSettings):
     )
     cors_origin: str | None = None
     ai_mode: AIMode = "mock"
+    ai_model: str | None = None
     anthropic_api_key: str | None = None
     ai_log_prompts: bool = True
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_timeout_seconds: int = 300
+    ollama_num_ctx: int = 4096
+    ollama_temperature: float = 0.2
     malware_scanning_enabled: bool = False
     malware_scanner_host: str = "clamav"
     malware_scanner_port: int = 3310
@@ -80,7 +85,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_envs(self) -> "Settings":
-        """Reject unsafe staging and production configuration values."""
+        """Reject missing live-AI models and unsafe deployed settings."""
+        if self.ai_mode != "mock" and not self.ai_model:
+            raise ValueError("AI_MODEL is required when AI_MODE is anthropic or local.")
+
         if self.app_env in ["staging", "production"]:
             if self.postgres_password in ["postgres", ""]:
                 raise ValueError(

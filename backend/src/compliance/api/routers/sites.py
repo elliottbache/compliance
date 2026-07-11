@@ -3,6 +3,7 @@
 from json import JSONDecodeError
 from typing import Annotated
 
+import httpx
 from anthropic import APIError
 from compliance._helpers import validate_llm_references
 from compliance.api.deps import SessionDep
@@ -266,6 +267,11 @@ def _create_site_analysis(session: Session, site_id: int) -> SiteAnalysis:
         raise HTTPException(
             status_code=502,
             detail=f"AI analysis failed for site {site_id}.",
+        ) from exc
+    except httpx.ReadTimeout as exc:
+        raise HTTPException(
+            status_code=504,
+            detail=f"AI analysis taking too long for site {site_id}.  Consider adding more seconds to timeout in .env.",
         ) from exc
 
     if not validate_llm_references(site_analysis, site_history):

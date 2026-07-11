@@ -19,6 +19,13 @@ from tenacity import RetryCallState, retry, retry_if_exception_type, wait_expone
 
 from compliance._helpers import ROOT_DIR
 from compliance.config import settings
+from compliance.llm._helpers import (
+    LLMMaxTokensError,
+    LLMStopReasonError,
+    LLMTokenBudgetExceededError,
+    LLMToolUseError,
+    raise_or_create_format_repair_prompt,
+)
 
 _MAX_TOKENS = 5000
 _DEFAULT_PROMPT_VERSION = "v0.1"
@@ -28,20 +35,8 @@ logger = logging.getLogger(__name__)
 _DOTENV_PATH = ROOT_DIR / "backend" / ".env"
 
 
-class LLMStopReasonError(RuntimeError):
-    """Base error for Anthropic responses that stop before valid output is returned."""
-
-
 class LLMResponseContentError(RuntimeError):
     """Raised when a response uses content this adapter cannot parse."""
-
-
-class LLMMaxTokensError(LLMStopReasonError):
-    """Raised when Anthropic stops because the response reached max_tokens."""
-
-
-class LLMToolUseError(LLMStopReasonError):
-    """Raised when Anthropic requests tool use that this adapter cannot handle."""
 
 
 class LLMPauseTurnError(LLMStopReasonError):
@@ -54,10 +49,6 @@ class LLMRefusalError(LLMStopReasonError):
 
 class LLMContextWindowExceededError(LLMStopReasonError):
     """Raised when Anthropic reports that the model context window was exceeded."""
-
-
-class LLMTokenBudgetExceededError(LLMStopReasonError):
-    """Raised when continuation attempts exceed the adapter token budget."""
 
 
 def _stop_after_attempts_by_error(retry_state: RetryCallState) -> bool:
@@ -94,133 +85,138 @@ def _stop_after_attempts_by_error(retry_state: RetryCallState) -> bool:
     return retry_state.attempt_number >= 1
 
 
-@retry(
-    stop=_stop_after_attempts_by_error,  # Dynamically change the max attempts based on the exception type
-    wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
-    retry=retry_if_exception_type(
-        (
-            APIConnectionError,
-            APITimeoutError,
-            APIStatusError,
-        )
-    ),
-    reraise=True,  # Throw original exception if all fail
-)
-def call_model[
-    T: BaseModel
-](
-    system_context: str,
-    user_message: str,
-    *,
-    response_model: type[T],
-    ai_model: str = _DEFAULT_AI_MODEL,
-    prompt_version: str = _DEFAULT_PROMPT_VERSION,
-    case_info: str = "",
-) -> T:
-    """Call Anthropic and parse the response into a Pydantic model.
+class AnthropicAIProvider:
+    """Structured-output provider backed by Anthropic Messages."""
 
-    Args:
-        system_context: System prompt that defines model behavior.
-        user_message: User prompt containing the task input.
-        response_model: Pydantic model class used to validate the response.
-        ai_model: Anthropic model name to call.
-        prompt_version: Version label for the prompt used.
-        case_info: Optional case identifier used in failure logs.
-
-    Returns:
-        The validated structured response.
-
-    Raises:
-        TypeError: If response_model is not a Pydantic model class.
-        ValidationError: If the model output cannot be parsed into the response
-            model even after a retry.
-        json.JSONDecodeError: If the model returns invalid JSON that cannot be
-            recovered.
-    """
-    if not isinstance(response_model, type) or not issubclass(
-        response_model, BaseModel
-    ):
-        raise TypeError(
-            "Type for calling structured model is not a Pydantic BaseModel: "
-            f"{response_model}"
-        )
-
-    if settings.ai_log_prompts:
-        logger.debug(f"system_context: {system_context}")
-        logger.debug(f"user_message: {user_message}")
-    else:
-        logger.debug("AI prompt logging is disabled.")
-
-    load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
-
-    client = anthropic.Anthropic()
-    remaining_tokens = (
-        _MAX_TOKENS  # start a counter to make sure we don't use too many tokens
+    @retry(
+        stop=_stop_after_attempts_by_error,  # Dynamically change the max attempts based on the exception type
+        wait=wait_exponential(multiplier=1, min=2, max=32),  # Wait 2s, 4s, 8s, 16s...
+        retry=retry_if_exception_type(
+            (
+                APIConnectionError,
+                APITimeoutError,
+                APIStatusError,
+            )
+        ),
+        reraise=True,  # Throw original exception if all fail
     )
-    schema = _convert_base_model_to_json_schema(response_model)
-    messages: list[MessageParam] = [
-        {
-            "role": "user",
-            "content": user_message,
+    def call_model[
+        T: BaseModel
+    ](
+        self,
+        system_context: str,
+        user_message: str,
+        *,
+        response_model: type[T],
+        ai_model: str = _DEFAULT_AI_MODEL,
+        prompt_version: str = _DEFAULT_PROMPT_VERSION,
+        case_info: str = "",
+    ) -> T:
+        """Call Anthropic and parse the response into a Pydantic model.
+
+        Args:
+            system_context: System prompt that defines model behavior.
+            user_message: User prompt containing the task input.
+            response_model: Pydantic model class used to validate the response.
+            ai_model: Anthropic model name to call.
+            prompt_version: Version label for the prompt used.
+            case_info: Optional case identifier used in failure logs.
+
+        Returns:
+            The validated structured response.
+
+        Raises:
+            TypeError: If response_model is not a Pydantic model class.
+            ValidationError: If the model output cannot be parsed into the response
+                model even after a retry.
+            json.JSONDecodeError: If the model returns invalid JSON that cannot be
+                recovered.
+        """
+        if not isinstance(response_model, type) or not issubclass(
+            response_model, BaseModel
+        ):
+            raise TypeError(
+                "Type for calling structured model is not a Pydantic BaseModel: "
+                f"{response_model}"
+            )
+
+        if settings.ai_log_prompts:
+            logger.debug(f"system_context: {system_context}")
+            logger.debug(f"user_message: {user_message}")
+        else:
+            logger.debug("AI prompt logging is disabled.")
+
+        load_dotenv(dotenv_path=_DOTENV_PATH, override=False)
+
+        client = anthropic.Anthropic()
+        remaining_tokens = (
+            _MAX_TOKENS  # start a counter to make sure we don't use too many tokens
+        )
+        schema = _convert_base_model_to_json_schema(response_model)
+        messages: list[MessageParam] = [
+            {
+                "role": "user",
+                "content": user_message,
+            }
+        ]
+        output_config: OutputConfigParam = {
+            "format": {"type": "json_schema", "schema": schema},
         }
-    ]
-    output_config: OutputConfigParam = {
-        "format": {"type": "json_schema", "schema": schema},
-    }
-    added_context = ""
-    response: Message | None = None
-    output: T | None
-    structured_output: T
+        added_context = ""
+        response: Message | None = None
+        output: T | None
+        structured_output: T
 
-    while True:
-        if remaining_tokens < 0:
-            raise LLMTokenBudgetExceededError(
-                f"Claude exceeded the max_tokens limit of {_MAX_TOKENS}."
-            )
+        while True:
+            if remaining_tokens < 0:
+                raise LLMTokenBudgetExceededError(
+                    f"Claude exceeded the max_tokens limit of {_MAX_TOKENS}."
+                )
 
-        try:
-            response = client.messages.create(
-                model=ai_model,
-                max_tokens=remaining_tokens,
-                system=system_context,
-                messages=messages,
-                output_config=output_config,
-            )
-            remaining_tokens -= response.usage.output_tokens
+            try:
+                response = client.messages.create(
+                    model=ai_model,
+                    max_tokens=remaining_tokens,
+                    system=system_context,
+                    messages=messages,
+                    output_config=output_config,
+                )
+                remaining_tokens -= response.usage.output_tokens
 
-            output = _convert_response_to_structured_output(
-                response=response,
-                response_model=response_model,
-                messages=messages,
-                user_message=user_message,
-                system_context=system_context,
-            )
-            if output is not None:
-                structured_output = output
-                break
+                output = _convert_response_to_structured_output(
+                    response=response,
+                    response_model=response_model,
+                    messages=messages,
+                    user_message=user_message,
+                    system_context=system_context,
+                )
+                if output is not None:
+                    structured_output = output
+                    break
 
-        except (json.JSONDecodeError, ValidationError) as exc:
-            if response is None:
-                raise
-            added_context = _raise_or_modify_message_for_format_exception(
-                exc,
-                system_context=system_context,
-                user_message=user_message,
-                added_context=added_context,
-                response_model=response_model,
-                ai_model=ai_model,
-                case_info=case_info,
-                response=response,
-                messages=messages,
-            )
+            except (json.JSONDecodeError, ValidationError) as exc:
+                if response is None:
+                    raise
+                added_context = raise_or_create_format_repair_prompt(
+                    exc,
+                    system_context=system_context,
+                    user_message=user_message,
+                    added_context=added_context,
+                    response_model=response_model,
+                    ai_model=ai_model,
+                    case_info=case_info,
+                    response_text=_parse_message_to_string(response),
+                    max_tokens=_MAX_TOKENS,
+                )
+                messages = [{"role": "user", "content": added_context + user_message}]
 
-    logger.info(
-        f"Timestamp: {datetime.now()}, "
-        f"model: {ai_model}, prompt version: {prompt_version}"
-    )
-    logger.debug(f"response: {_parse_message_to_string(response)}")
+        logger.info(
+            f"Timestamp: {datetime.now()}, "
+            f"model: {ai_model}, prompt version: {prompt_version}"
+        )
+        logger.debug(f"response: {_parse_message_to_string(response)}")
 
-    return structured_output
+        return structured_output
 
 
 def _convert_response_to_structured_output[
@@ -268,47 +264,6 @@ def _convert_response_to_structured_output[
     return None  # just in case catch-all that shouldn't occur
 
 
-def _raise_or_modify_message_for_format_exception[
-    T: BaseModel
-](
-    exc: ValidationError | json.JSONDecodeError,
-    *,
-    system_context: str,
-    user_message: str,
-    added_context: str,
-    response_model: type[T],
-    ai_model: str,
-    case_info: str,
-    response: Message,
-    messages: list[MessageParam],
-) -> str:
-    """Log invalid structured output and add one schema-repair prompt."""
-    logger.warning(
-        _create_error_message(
-            case_info=case_info,
-            ai_model=ai_model,
-            system_context=system_context,
-            user_message=user_message,
-            response=_parse_message_to_string(response),
-        )
-    )
-    if isinstance(exc, ValidationError):
-        _log_validation_error_messages(exc)
-
-    # only allow one retry for response format errors
-    if added_context:
-        raise exc
-
-    added_context = (
-        "Your previous response did not match the required schema. I got "
-        f"{exc.__class__.__name__}: {exc}. Return only valid structured output matching "
-        f"{response_model} in json format. Original message:"
-    )
-    messages.append({"role": "user", "content": added_context + user_message})
-
-    return added_context
-
-
 def _convert_base_model_to_json_schema(model_class: type[BaseModel]) -> dict[str, Any]:
     """Generate an Anthropic-compatible JSON schema from a Pydantic model."""
     schema = model_class.model_json_schema()
@@ -338,24 +293,6 @@ def _extract_text_from_response(response: Message) -> str:
         raise LLMResponseContentError("LLM response content is not parseable text.")
 
 
-def _create_error_message(
-    *,
-    case_info: str,
-    ai_model: str,
-    system_context: str,
-    user_message: str,
-    response: str,
-) -> str:
-    """Build a detailed log message for a failed model response."""
-    system_context = system_context if settings.ai_log_prompts else "[redacted]"
-    user_message = user_message if settings.ai_log_prompts else "[redacted]"
-    return (
-        f"Model failed for case: {case_info}, model={ai_model}"
-        f" max_tokens={_MAX_TOKENS}, system={system_context},"
-        f" \nand user_message={user_message}\nresponse: {response}"
-    )
-
-
 def _parse_message_to_string(response: Message | None) -> str:
     """Return the first response text block as a string, or an empty string."""
     return (
@@ -365,13 +302,3 @@ def _parse_message_to_string(response: Message | None) -> str:
         )
         else ""
     )
-
-
-def _log_validation_error_messages(err: ValidationError) -> None:
-    """Log each individual field-level validation error from a ValidationError."""
-    for error in err.errors():
-        logger.debug(
-            f"Error type: {error['type']}\n"
-            f"Location:   {error['loc']}\n"
-            f"Faulty data: {error['input']}"
-        )

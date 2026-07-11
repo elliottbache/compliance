@@ -1,20 +1,40 @@
-"""Site-history analysis service with mock and Anthropic-backed modes."""
+"""Site-history analysis service with mock and live AI provider modes."""
 
 import json
 import logging
+from typing import Protocol
 
-from compliance.config import settings
-from compliance.llm.anthropic_api import call_model
+from compliance.config import Settings, settings
+from compliance.llm.anthropic_api import AnthropicAIProvider
+from compliance.llm.qwen_api import QwenAIProvider
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class AIProvider(Protocol):
+    """Protocol implemented by structured-output AI provider adapters."""
+
+    def call_model[
+        T: BaseModel
+    ](
+        self,
+        system_context: str,
+        user_message: str,
+        *,
+        response_model: type[T],
+        ai_model: str,
+        prompt_version: str,
+        case_info: str = "",
+    ) -> T: ...
 
 
 def summarize_previous_visits(
     site_history: SiteHistory,
     *,
-    ai_model: str = "claude-haiku-4-5-20251001",
+    ai_model: str | None = None,
     prompt_version: str = "v1.3",
     case_info: str = "",
 ) -> SiteAnalysis:
@@ -26,7 +46,8 @@ def summarize_previous_visits(
 
     Args:
         site_history: Site history data to summarize and analyze.
-        ai_model: Name or ID of the Anthropic model to use for the analysis.
+        ai_model: Optional model override. Defaults to the configured AI_MODEL
+            for the active provider.
         prompt_version: Version label for the site-analysis prompt.
         case_info: Optional metadata or identifier for the current case,
             used primarily for error logging. Defaults to an empty string.
@@ -46,23 +67,38 @@ def summarize_previous_visits(
     if ai_mode == "mock":
         return _mock_site_analysis(site_history)
 
-    if ai_mode != "anthropic":
+    if ai_mode not in {"anthropic", "local"}:
         raise ValueError(f"Unsupported AI_MODE: {ai_mode}")
 
-    if not settings.anthropic_api_key:
+    if ai_mode == "anthropic" and not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required when AI_MODE=anthropic.")
+
+    ai_provider = _build_ai_provider(settings)
+    selected_ai_model = ai_model or settings.ai_model
+    if selected_ai_model is None:
+        raise RuntimeError("AI_MODEL is required when AI_MODE is not mock.")
 
     system_context = _build_site_analysis_system_prompt()
     user_message = _build_site_analysis_user_message(site_history)
 
-    return call_model(
+    return ai_provider.call_model(
         system_context,
         user_message,
         response_model=SiteAnalysis,
-        ai_model=ai_model,
+        ai_model=selected_ai_model,
         prompt_version=prompt_version,
         case_info=case_info,
     )
+
+
+def _build_ai_provider(settings: Settings) -> AIProvider:
+    """Return the configured live AI provider adapter."""
+    if settings.ai_mode == "anthropic":
+        return AnthropicAIProvider()
+    elif settings.ai_mode == "local":
+        return QwenAIProvider()
+
+    raise ValueError(f"Unsupported AI_MODE: {settings.ai_mode}")
 
 
 def _mock_site_analysis(site_history: SiteHistory) -> SiteAnalysis:

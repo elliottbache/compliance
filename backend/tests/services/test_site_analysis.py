@@ -1,9 +1,8 @@
 import json
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-import compliance.llm.anthropic_api as anthropic_api
 import pytest
 from compliance.llm.schemas import (
     SiteAnalysis,
@@ -47,11 +46,17 @@ def site_history() -> SiteHistory:
 
 @pytest.fixture
 def site_analysis_settings(monkeypatch):
-    def _settings(*, ai_mode: str = "mock", anthropic_api_key: str | None = None):
+    def _settings(
+        *,
+        ai_mode: str = "mock",
+        ai_model: str | None = None,
+        anthropic_api_key: str | None = None,
+    ):
         monkeypatch.setattr(
             "compliance.services.site_analysis.settings",
             SimpleNamespace(
                 ai_mode=ai_mode,
+                ai_model=ai_model,
                 anthropic_api_key=anthropic_api_key,
                 ai_log_prompts=False,
             ),
@@ -64,31 +69,41 @@ class TestSummarizePreviousVisits:
     def test_builds_site_analysis_prompt_and_calls_structured_model(
         self, site_history, site_analysis_factory, site_analysis_settings
     ) -> None:
-        site_analysis_settings(ai_mode="anthropic", anthropic_api_key="test-key")
+        site_analysis_settings(
+            ai_mode="anthropic",
+            ai_model="claude-test",
+            anthropic_api_key="test-key",
+        )
         site_analysis = site_analysis_factory()
+        provider = MagicMock()
+        provider.call_model.return_value = site_analysis
 
         with patch(
-            "compliance.services.site_analysis.call_model",
-            return_value=site_analysis,
-        ) as mock_call_model:
+            "compliance.services.site_analysis.AnthropicAIProvider",
+            return_value=provider,
+        ):
             result = summarize_previous_visits(site_history)
 
         assert result == site_analysis
-        assert mock_call_model.call_args.kwargs["response_model"] is SiteAnalysis
-        assert mock_call_model.call_args.kwargs["ai_model"] == (
-            anthropic_api._DEFAULT_AI_MODEL
-        )
+        assert provider.call_model.call_args.kwargs["response_model"] is SiteAnalysis
+        assert provider.call_model.call_args.kwargs["ai_model"] == "claude-test"
 
     def test_passes_provided_ai_model_and_case_info(
         self, site_history, site_analysis_factory, site_analysis_settings
     ) -> None:
-        site_analysis_settings(ai_mode="anthropic", anthropic_api_key="test-key")
+        site_analysis_settings(
+            ai_mode="anthropic",
+            ai_model="claude-default",
+            anthropic_api_key="test-key",
+        )
         site_analysis = site_analysis_factory()
+        provider = MagicMock()
+        provider.call_model.return_value = site_analysis
 
         with patch(
-            "compliance.services.site_analysis.call_model",
-            return_value=site_analysis,
-        ) as mock_call_model:
+            "compliance.services.site_analysis.AnthropicAIProvider",
+            return_value=provider,
+        ):
             result = summarize_previous_visits(
                 site_history,
                 ai_model="claude-test",
@@ -97,16 +112,36 @@ class TestSummarizePreviousVisits:
             )
 
         assert result == site_analysis
-        assert mock_call_model.call_args.kwargs["ai_model"] == "claude-test"
-        assert mock_call_model.call_args.kwargs["prompt_version"] == "v-custom"
-        assert mock_call_model.call_args.kwargs["case_info"] == "case-1"
+        assert provider.call_model.call_args.kwargs["ai_model"] == "claude-test"
+        assert provider.call_model.call_args.kwargs["prompt_version"] == "v-custom"
+        assert provider.call_model.call_args.kwargs["case_info"] == "case-1"
+
+    def test_uses_local_provider_for_local_ai_mode(
+        self, site_history, site_analysis_factory, site_analysis_settings
+    ) -> None:
+        site_analysis_settings(ai_mode="local", ai_model="qwen-test")
+        site_analysis = site_analysis_factory()
+        provider = MagicMock()
+        provider.call_model.return_value = site_analysis
+
+        with patch(
+            "compliance.services.site_analysis.QwenAIProvider",
+            return_value=provider,
+        ):
+            result = summarize_previous_visits(site_history)
+
+        assert result == site_analysis
+        assert provider.call_model.call_args.kwargs["ai_model"] == "qwen-test"
 
     def test_returns_mock_analysis_by_default(
         self, site_history, site_analysis_settings
     ) -> None:
         site_analysis_settings(ai_mode="mock")
 
-        with patch("compliance.services.site_analysis.call_model") as mock_call_model:
+        with (
+            patch("compliance.services.site_analysis.AnthropicAIProvider") as anthropic,
+            patch("compliance.services.site_analysis.QwenAIProvider") as qwen,
+        ):
             result = summarize_previous_visits(site_history)
 
         assert result.site_id == 71
@@ -116,14 +151,15 @@ class TestSummarizePreviousVisits:
         assert result.missing_information == []
         assert result.needs_human_review == []
         assert result.suggestions == []
-        mock_call_model.assert_not_called()
+        anthropic.assert_not_called()
+        qwen.assert_not_called()
 
     def test_raises_for_unsupported_ai_mode(
         self, site_history, site_analysis_settings
     ) -> None:
-        site_analysis_settings(ai_mode="local")
+        site_analysis_settings(ai_mode="unsupported")
 
-        with pytest.raises(ValueError, match="Unsupported AI_MODE: local"):
+        with pytest.raises(ValueError, match="Unsupported AI_MODE: unsupported"):
             summarize_previous_visits(site_history)
 
     def test_requires_api_key_for_anthropic_mode(
@@ -132,6 +168,14 @@ class TestSummarizePreviousVisits:
         site_analysis_settings(ai_mode="anthropic")
 
         with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY is required"):
+            summarize_previous_visits(site_history)
+
+    def test_requires_ai_model_for_live_ai_mode(
+        self, site_history, site_analysis_settings
+    ) -> None:
+        site_analysis_settings(ai_mode="local")
+
+        with pytest.raises(RuntimeError, match="AI_MODEL is required"):
             summarize_previous_visits(site_history)
 
 

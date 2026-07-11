@@ -101,6 +101,7 @@ class TestSettingsEnvironmentValidation:
                 "ATTACHMENTS_DIR": str(tmp_path),
                 "CORS_ORIGIN": "https://compliance.example.com",
                 "AI_MODE": "anthropic",
+                "AI_MODEL": "claude-test",
                 "AI_LOG_PROMPTS": "false",
                 "ANTHROPIC_API_KEY": "test-api-key",
                 "SECRET_KEY": "test-secret-key",
@@ -130,6 +131,7 @@ class TestSettingsEnvironmentValidation:
             attachments_dir=tmp_path,
             cors_origin="https://compliance.example.com",
             ai_mode="anthropic",
+            ai_model="claude-test",
             ai_log_prompts=False,
             _env_file=None,
         )
@@ -154,6 +156,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_model="claude-test",
                 ai_log_prompts=False,
                 _env_file=None,
             )
@@ -170,6 +173,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=attachments_dir,
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_model="claude-test",
                 ai_log_prompts=False,
                 _env_file=None,
             )
@@ -187,6 +191,7 @@ class TestSettingsEnvironmentValidation:
                 / "attachments",
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_model="claude-test",
                 ai_log_prompts=False,
                 _env_file=None,
             )
@@ -204,6 +209,11 @@ class TestSettingsEnvironmentValidation:
                 _env_file=None,
             )
 
+    @pytest.mark.parametrize("ai_mode", ["anthropic", "local"])
+    def test_rejects_missing_ai_model_for_live_ai_modes(self, ai_mode) -> None:
+        with pytest.raises(ValueError, match="AI_MODEL is required"):
+            Settings(ai_mode=ai_mode, ai_model=None, _env_file=None)
+
     def test_rejects_prompt_logging_in_deployed_envs(self, tmp_path) -> None:
         with pytest.raises(ValueError, match="AI prompt logging"):
             Settings(
@@ -213,6 +223,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin="https://compliance.example.com",
                 ai_mode="anthropic",
+                ai_model="claude-test",
                 ai_log_prompts=True,
                 _env_file=None,
             )
@@ -229,6 +240,7 @@ class TestSettingsEnvironmentValidation:
                 attachments_dir=tmp_path,
                 cors_origin=cors_origin,
                 ai_mode="anthropic",
+                ai_model="claude-test",
                 ai_log_prompts=False,
                 _env_file=None,
             )
