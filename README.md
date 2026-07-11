@@ -92,7 +92,7 @@ backend/
 │   ├── api/                 FastAPI app, route modules, dependencies
 │   ├── auth/                JWT, password, current-user, and role helpers
 │   ├── db/                  SQLAlchemy models and DB session access
-│   ├── llm/                 Anthropic adapter and structured output schemas
+│   ├── llm/                 AI provider adapters and structured output schemas
 │   ├── services/            Business logic and query composition
 │   └── schemas.py           Cross-service output schemas
 └── tests/                   Backend test suite
@@ -685,21 +685,22 @@ MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
 ```
 
-For staging on the same machine used for development, use environment-specific
-host paths:
+For staging and production, use `docker-compose.prod.yaml` on separate servers.
+Each server keeps its own `/etc/compliance/.env`, persistent data, backups, and
+logs. Because staging and production do not share a host, the Compose file can
+use the same host paths in both environments without collisions:
 
 ```text
-/etc/compliance/staging/.env
-/var/lib/compliance/staging/postgres
-/var/lib/compliance/staging/attachments
-/var/backups/compliance/staging/db
-/var/backups/compliance/staging/attachments
-/var/log/compliance/staging/backend
+/etc/compliance/.env
+/var/lib/compliance/postgres
+/var/lib/compliance/attachments
+/var/backups/compliance/db
+/var/backups/compliance/attachments
+/var/log/compliance/backend
 ```
 
-Use the same container paths as production, but point the staging Compose file
-or override at the staging host directories. Set `APP_ENV=staging`,
-staging-specific secrets, and the staging frontend origin:
+On the staging server, set `APP_ENV=staging`, staging-specific secrets, and the
+staging frontend origin in `/etc/compliance/.env`:
 
 ```ini
 APP_ENV=staging
@@ -727,7 +728,7 @@ clamav:
 
 The service uses `expose`, not `ports`, so ClamAV port `3310` is reachable on
 the private Compose network but is not published on the host. Keep
-`MALWARE_SCANNER_HOST=clamav` in `/etc/compliance/.env` for staging and
+`MALWARE_SCANNER_HOST=clamav` in the environment file for staging and
 production Compose deployments.
 
 If you run ClamAV on the host instead of using the Compose service, install the
@@ -741,12 +742,11 @@ sudo apt update && sudo apt install clamav-daemon -y
 
 Do not publish ClamAV port `3310` to the public internet.
 
-`docker-compose.prod.yaml` is the Compose file for both staging and production.
-It reads `/etc/compliance/.env` through each service's `env_file` setting, so do
-not rely on `docker compose --env-file` for deployment secrets. If staging and
-production run on the same host, use separate Compose projects and a
-staging-specific Compose override so each environment points at its own env file
-and persistent volumes.
+`docker-compose.prod.yaml` reads `/etc/compliance/.env` through each service's
+`env_file` setting. Do not rely on `docker compose --env-file` for deployment
+secrets because each service declares its own `env_file`. On the staging server,
+`/etc/compliance/.env` should contain `APP_ENV=staging`; on the production
+server, it should contain `APP_ENV=production`.
 
 The staging/production Compose file mounts host attachment storage at
 `/app/data/attachments` inside the backend container:
@@ -755,8 +755,8 @@ The staging/production Compose file mounts host attachment storage at
 /var/lib/compliance/attachments:/app/data/attachments
 ```
 
-Keep `ATTACHMENTS_DIR=/app/data/attachments` in `/etc/compliance/.env`; the host
-path belongs in `docker-compose.prod.yaml`, not in the application env file.
+Keep `ATTACHMENTS_DIR=/app/data/attachments` in deployment environment files;
+the host path belongs in the Compose file, not in the application env file.
 
 The same Compose file mounts PostgreSQL data from the host:
 
@@ -831,8 +831,9 @@ Environment files are the source of truth for runtime settings:
 - `docker/.env`: local Docker Compose development with `docker-compose.yaml`.
   Use `POSTGRES_HOST=postgres` and `ATTACHMENTS_DIR=/app/data/attachments`.
 - `/etc/compliance/.env`: staging and production deployments with
-  `docker-compose.prod.yaml`. Use `APP_ENV=staging` or `APP_ENV=production`,
-  `POSTGRES_HOST=postgres`, and `ATTACHMENTS_DIR=/app/data/attachments`.
+  `docker-compose.prod.yaml`. Use `APP_ENV=staging` on the staging server or
+  `APP_ENV=production` on the production server. Use `POSTGRES_HOST=postgres`
+  and `ATTACHMENTS_DIR=/app/data/attachments`.
 
 The Compose files intentionally keep secrets and deployment values out of
 `environment` blocks. `docker-compose.yaml` points services at `docker/.env`;
