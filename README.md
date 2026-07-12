@@ -757,6 +757,10 @@ The staging/production Compose file mounts host attachment storage at
 
 Keep `ATTACHMENTS_DIR=/app/data/attachments` in deployment environment files;
 the host path belongs in the Compose file, not in the application env file.
+When using `docker-compose.prod.yaml`, do not put host-mode values such as
+`POSTGRES_HOST=localhost` or `ATTACHMENTS_DIR=/var/lib/compliance/attachments`
+in `/etc/compliance/.env`; those values are only appropriate for a backend
+process running directly on the host.
 
 The same Compose file mounts PostgreSQL data from the host:
 
@@ -813,6 +817,48 @@ Do not load tutorial seed data into a production database.
 
 ### Backup And Restore Scripts
 
+Production backups should be automatic, copied off the application server, and
+periodically restore-tested. Manual external-drive copies can be useful as an
+extra layer, but they should not be the only backup process.
+
+Use this baseline protocol:
+
+1. Run database and attachment backups daily.
+2. Copy the resulting files to off-server storage.
+3. Keep a retention window, such as 7-14 daily backups, 4-8 weekly backups, and
+   6-12 monthly backups.
+4. Encrypt backups before storing them with a third party.
+5. Restore-test backups into staging or a temporary environment at least
+   monthly.
+6. Monitor backup failures instead of relying on manual log checks.
+
+The backup scripts live in `scripts/`. If you deploy from the repository under
+`/opt/compliance/app`, no extra installation step is needed beyond making sure
+the scripts are executable:
+
+```bash
+cd /opt/compliance/app
+chmod +x scripts/backup-db.sh scripts/backup-attachments.sh
+chmod +x scripts/restore-db.sh scripts/restore-attachments.sh
+```
+
+For Docker staging/production deployments, the server needs Docker Compose,
+`tar`, and access to `/etc/compliance/.env`, `/var/lib/compliance`, and
+`/var/backups/compliance`. For host-mode database backups, install PostgreSQL
+client tools on the host:
+
+```bash
+sudo apt update
+sudo apt install postgresql-client tar
+```
+
+Create the backup directories if they do not already exist:
+
+```bash
+sudo mkdir -p /var/backups/compliance/db
+sudo mkdir -p /var/backups/compliance/attachments
+```
+
 Deployment backup scripts default to the staging/production Docker layout:
 
 ```bash
@@ -824,6 +870,22 @@ These read `/etc/compliance/.env`, use `docker-compose.prod.yaml`, write databas
 backups under `/var/backups/compliance/db`, and write attachment backups under
 `/var/backups/compliance/attachments`.
 
+Check the planned actions before running a real backup:
+
+```bash
+scripts/backup-db.sh --dry-run
+scripts/backup-attachments.sh --dry-run
+```
+
+Then run the backups and confirm files were created:
+
+```bash
+scripts/backup-db.sh
+scripts/backup-attachments.sh
+ls -lh /var/backups/compliance/db
+ls -lh /var/backups/compliance/attachments
+```
+
 Restore commands are destructive and require `--confirm-restore`:
 
 ```bash
@@ -833,6 +895,46 @@ scripts/restore-attachments.sh --file /var/backups/compliance/attachments/compli
 
 Attachment restore moves the current attachment directory aside to a
 timestamped `.pre-restore.*` directory before extracting the archive.
+
+Before a real restore, use `--dry-run` with the exact backup files you intend to
+restore:
+
+```bash
+scripts/restore-db.sh --file /var/backups/compliance/db/compliance-db-compliance_prod-20260101T120000Z.dump --confirm-restore --dry-run
+scripts/restore-attachments.sh --file /var/backups/compliance/attachments/compliance-attachments-20260101T120000Z.tar.gz --confirm-restore --dry-run
+```
+
+To verify that backups actually work, restore a recent backup into staging or a
+temporary environment and check:
+
+```bash
+curl -f http://localhost:8000/health/live
+curl -f http://localhost:8000/health/ready
+```
+
+Also confirm that representative database records and uploaded attachments are
+available through the application. A backup that has not been restore-tested is
+only an assumption.
+
+Automate daily local backups with cron or a systemd timer. A simple cron entry
+for the deployment user can run both scripts and append logs:
+
+```cron
+15 2 * * * cd /opt/compliance/app && scripts/backup-db.sh >> /var/log/compliance/backup.log 2>&1
+30 2 * * * cd /opt/compliance/app && scripts/backup-attachments.sh >> /var/log/compliance/backup.log 2>&1
+```
+
+Local backups protect against application mistakes, but not server loss or disk
+failure. Copy `/var/backups/compliance` to off-server storage after each backup.
+For example, if `rclone` is configured with a remote named `backups`:
+
+```bash
+rclone sync /var/backups/compliance backups:compliance-backups/production
+```
+
+Use an encrypted backup tool such as `restic` or `borg` when storing sensitive
+data with a third party, and configure failure notifications with email,
+systemd timer status, or an external heartbeat service.
 
 For host-based development databases, use host mode with the backend env file:
 
