@@ -601,7 +601,7 @@ Use this path for staging or production Docker deployments, not for routine
 local development. Staging and production deployments should use strong secrets,
 persistent storage, backups, and an explicit migration step.
 
-Recommended production filesystem layout:
+Recommended staging/production filesystem layout:
 
 ```text
 /opt/compliance/
@@ -796,7 +796,8 @@ Example commands for the current Compose setup:
 
 ```bash
 docker compose -f docker-compose.prod.yaml up -d postgres
-docker compose -f docker-compose.prod.yaml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > compliance_db_backup.sql
+scripts/backup-db.sh
+scripts/backup-attachments.sh
 docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
 docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
 docker compose -f docker-compose.prod.yaml up -d --build
@@ -809,6 +810,41 @@ echoing it to the terminal. If an active admin user already exists, it exits
 successfully without creating another admin.
 
 Do not load tutorial seed data into a production database.
+
+### Backup And Restore Scripts
+
+Deployment backup scripts default to the staging/production Docker layout:
+
+```bash
+scripts/backup-db.sh
+scripts/backup-attachments.sh
+```
+
+These read `/etc/compliance/.env`, use `docker-compose.prod.yaml`, write database
+backups under `/var/backups/compliance/db`, and write attachment backups under
+`/var/backups/compliance/attachments`.
+
+Restore commands are destructive and require `--confirm-restore`:
+
+```bash
+scripts/restore-db.sh --file /var/backups/compliance/db/compliance-db-compliance_prod-20260101T120000Z.dump --confirm-restore
+scripts/restore-attachments.sh --file /var/backups/compliance/attachments/compliance-attachments-20260101T120000Z.tar.gz --confirm-restore
+```
+
+Attachment restore moves the current attachment directory aside to a
+timestamped `.pre-restore.*` directory before extracting the archive.
+
+For host-based development databases, use host mode with the backend env file:
+
+```bash
+scripts/backup-db.sh --mode host --env-file backend/.env --output-dir /tmp
+scripts/backup-attachments.sh --mode host --env-file backend/.env --output-dir /tmp
+scripts/restore-db.sh --mode host --env-file backend/.env --file /tmp/compliance-db-compliance_dev-20260101T120000Z.dump --confirm-restore
+scripts/restore-attachments.sh --mode host --env-file backend/.env --file /tmp/compliance-attachments-20260101T120000Z.tar.gz --confirm-restore
+```
+
+Use `--dry-run` on any backup or restore script to print the planned actions
+without changing files or databases.
 
 ## Configuration
 
