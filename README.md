@@ -627,6 +627,7 @@ Recommended staging/production filesystem layout:
 
 /var/lib/compliance/
 ├── attachments/               Host attachment storage mounted into the backend
+├── caddy/                     Caddy certificates, state, and config cache
 └── postgres/                  Host PostgreSQL data storage mounted into postgres
 
 /var/backups/compliance/
@@ -649,6 +650,8 @@ Create the host directories:
 sudo mkdir -p /opt/compliance
 sudo mkdir -p /etc/compliance
 sudo mkdir -p /var/lib/compliance/attachments
+sudo mkdir -p /var/lib/compliance/caddy/data
+sudo mkdir -p /var/lib/compliance/caddy/config
 sudo mkdir -p /var/lib/compliance/postgres
 sudo mkdir -p /var/backups/compliance/db
 sudo mkdir -p /var/backups/compliance/attachments
@@ -684,10 +687,11 @@ especially:
 
 ```ini
 APP_ENV=production
+COMPLIANCE_HOSTNAME=your-production-hostname.example
 POSTGRES_PASSWORD=replace_with_a_strong_database_password
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGIN=https://your-production-origin.example
+CORS_ORIGIN=https://your-production-hostname.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
@@ -717,9 +721,10 @@ staging frontend origin in `/etc/compliance/.env`:
 
 ```ini
 APP_ENV=staging
+COMPLIANCE_HOSTNAME=your-staging-hostname.example
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGIN=https://your-staging-origin.example
+CORS_ORIGIN=https://your-staging-hostname.example
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
@@ -760,6 +765,66 @@ Do not publish ClamAV port `3310` to the public internet.
 secrets because each service declares its own `env_file`. On the staging server,
 `/etc/compliance/.env` should contain `APP_ENV=staging`; on the production
 server, it should contain `APP_ENV=production`.
+
+The frontend container in `docker-compose.prod.yaml` is the public Caddy reverse
+proxy. It serves the built Vite frontend over HTTPS for `COMPLIANCE_HOSTNAME`
+and forwards `/api/*` requests to FastAPI on the private Docker network. Caddy
+strips the `/api` prefix before proxying, so the backend keeps its existing
+route paths such as `/clients`, `/auth/token`, and `/health/live`.
+
+Production Compose publishes only Caddy's ports `80` and `443`. PostgreSQL and
+FastAPI use Docker `expose`, so they are reachable by other Compose services
+but are not published on the host. Use `docker compose exec` for database or
+backend maintenance instead of connecting to host ports.
+
+Caddy uses `tls internal`, which creates a local Caddy certificate authority.
+Client machines may need to trust the root certificate stored under the Caddy
+data volume, for example
+`/var/lib/compliance/caddy/data/caddy/pki/authorities/local/root.crt`, to avoid
+browser certificate warnings on the internal hostname.
+
+To make the service reachable by client machines on the LAN, configure the
+deployment server and local network to agree on the same hostname. For example,
+to keep the internal name `compliance.internal`, set:
+
+```ini
+COMPLIANCE_HOSTNAME=compliance.internal
+CORS_ORIGIN=https://compliance.internal
+```
+
+Then add an internal DNS record that points the hostname to the deployment
+server's actual LAN IP. Find the server's LAN IP on the deployment server with:
+
+```bash
+hostname -I
+```
+
+For example, if the deployment server's LAN IP is `192.168.1.50`, create this
+DNS record:
+
+```text
+compliance.internal A 192.168.1.50
+```
+
+Use the real server IP from the client network, not the example value above. If
+the server's LAN IP is `10.0.10.15`, the record should be:
+
+```text
+compliance.internal A 10.0.10.15
+```
+
+The exact place to add this record depends on the client network. Common
+options are the router's local DNS settings, Pi-hole, AdGuard Home, Windows
+Server DNS, or `dnsmasq`. Client machines should be able to resolve the name
+without editing each browser or workstation hosts file:
+
+```bash
+nslookup compliance.internal
+```
+
+Also allow inbound `80/tcp` and `443/tcp` to the deployment server in the
+server firewall or network firewall. Docker publishes only those Caddy ports;
+backend and PostgreSQL ports remain private to the Compose network.
 
 The staging/production Compose file mounts host attachment storage at
 `/app/data/attachments` inside the backend container:
@@ -818,8 +883,8 @@ scripts/backup-attachments.sh
 docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
 docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
 docker compose -f docker-compose.prod.yaml up -d --build
-curl -f http://localhost:8000/health/live
-curl -f http://localhost:8000/health/ready
+curl -f https://your-production-hostname.example/api/health/live
+curl -f https://your-production-hostname.example/api/health/ready
 ```
 
 The first-admin bootstrap command prompts for the password twice without
@@ -921,8 +986,8 @@ To verify that backups actually work, restore a recent backup into staging or a
 temporary environment and check:
 
 ```bash
-curl -f http://localhost:8000/health/live
-curl -f http://localhost:8000/health/ready
+curl -f https://your-staging-hostname.example/api/health/live
+curl -f https://your-staging-hostname.example/api/health/ready
 ```
 
 Also confirm that representative database records and uploaded attachments are
@@ -984,7 +1049,8 @@ Environment files are the source of truth for runtime settings:
 - `/etc/compliance/.env`: staging and production deployments with
   `docker-compose.prod.yaml`. Use `APP_ENV=staging` on the staging server or
   `APP_ENV=production` on the production server. Use `POSTGRES_HOST=postgres`
-  and `ATTACHMENTS_DIR=/app/data/attachments`.
+  and `ATTACHMENTS_DIR=/app/data/attachments`. Set `COMPLIANCE_HOSTNAME` to
+  the internal DNS name or server name that users will open in their browsers.
 
 The Compose files intentionally keep secrets and deployment values out of
 `environment` blocks. `docker-compose.yaml` points services at `docker/.env`;
@@ -1059,7 +1125,8 @@ CORS_ORIGIN=http://localhost:5173
 
 `CORS_ORIGIN` defines the exact frontend origin allowed to call the backend.
 Local development normally uses the Vite origin shown above. Staging and
-production must use the deployed frontend origin, not localhost or `*`.
+production must use `https://` plus `COMPLIANCE_HOSTNAME`, not localhost or
+`*`.
 
 ### Auth
 
@@ -1275,9 +1342,8 @@ backed up, restored, secured, and operated without developer intervention.
 
 ### Security
 
-- Replace development servers with production serving: run the backend under a
-  production ASGI server such as Gunicorn/Uvicorn and serve the built frontend
-  through a reverse proxy or static web server instead of Vite.
+- Replace the backend development server with a production ASGI server such as
+  Gunicorn/Uvicorn.
 - Reject insecure default secrets at startup. Production installs must provide a
   strong `SECRET_KEY`, database password, and first-admin credentials.
 - Add a password reset/change workflow, password policy, login throttling or
@@ -1307,9 +1373,8 @@ backed up, restored, secured, and operated without developer intervention.
 
 ### Deployment And Operations
 
-- Add reverse proxy configuration, health checks, persistent storage, backups,
-  and restore testing. Add HTTPS/TLS when the app is accessed over a network
-  rather than only through localhost or a trusted internal channel.
+- Expand deployment health checks, persistent storage validation, backups, and
+  restore testing.
 - Add deployment automation around the explicit backup-first migration step.
 - Add deployment gates, migration review, rollback plans, dependency pinning,
   image scanning, and release artifact checksums.
