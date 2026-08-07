@@ -42,6 +42,7 @@ privacy, deployment, and operational work.
 - Archive/restore behavior for main domain records.
 - JWT-based authentication with role-based authorization.
 - Hierarchical roles: `admin > inspector > reviewer > viewer`.
+- Persistent audit events for traceable business and security actions.
 - AI site-history analysis with deterministic mock mode and optional Anthropic
   mode.
 - Backend, service, database, auth, and LLM tests with pytest.
@@ -150,6 +151,8 @@ The backend exposes route groups for:
 - `/findings`: list, create, archive, and restore findings.
 - `/attachments`: list metadata, create metadata, upload files, download files,
   archive, and restore attachments.
+- `/audit-events`: admin-only audit event listing with actor, action, target,
+  and date-range filters.
 - `/health/live`: liveness probe for the running API process.
 - `/health/ready`: readiness probe for database reachability, migration state,
   model/migration drift, and attachment storage availability.
@@ -254,6 +257,10 @@ The upload/download flow is intentionally split:
 2. Upload a file for an attachment.
 3. Download the stored file by attachment ID.
 4. Archive or restore the attachment metadata when needed.
+
+Downloads use the attachment display name plus the stored file extension. When
+no display name is available, the browser-facing filename falls back to
+`attachment_{id}`, for example `attachment_50.txt`.
 
 Uploads reject unsupported MIME types, detected content types, or extensions
 with HTTP 415.
@@ -1279,7 +1286,8 @@ backed up, restored, secured, and operated without developer intervention.
   scanning, quarantine, safe filenames, and path hiding.
 - Move attachment storage to a configured persistent directory or volume outside
   the source tree and include it in backup/restore procedures.
-- Add rate limiting, request size limits, audit logging, and config-driven CORS.
+- Add rate limiting, request size limits, config-driven CORS, and retention or
+  export policies for audit logs.
 - Use least-privilege database users for runtime access, with a separate
   migration/owner path where needed.
 - Disable debug logging in production and redact sensitive values, prompts,
@@ -1305,9 +1313,8 @@ backed up, restored, secured, and operated without developer intervention.
 - Add deployment automation around the explicit backup-first migration step.
 - Add deployment gates, migration review, rollback plans, dependency pinning,
   image scanning, and release artifact checksums.
-- Add structured audit events for create, update, archive, restore, upload,
-  download, authentication, authorization failure, user administration, and
-  AI-analysis actions.
+- Expand audit operations with retention policy, export tooling, and coverage
+  for future update/delete workflows as they are added.
 - Add a production runbook for install, configure, create first admin,
   start/stop/restart, upgrade, backup, restore, rotate secrets, collect logs,
   diagnose failed logins, recover from database downtime, recover from full
@@ -1328,6 +1335,27 @@ backed up, restored, secured, and operated without developer intervention.
 
 ## Version History
 
+### v0.4.0 - Audit trail baseline
+
+- Added persistent `AuditEvent` records with controlled action and target-type
+  enums.
+- Added admin-only `/audit-events` listing with actor, action, target, and
+  date-range filters.
+- Recorded audit events for key finding, certification, attachment, user,
+  authentication, authorization, and AI-analysis workflows.
+- Updated attachment downloads to use a stable fallback filename when
+  attachment metadata has no display name.
+- Aligned API schema exports with service schemas to avoid duplicate Pydantic
+  model classes.
+
+### v0.3.0 - Production deployment readiness
+
+- Added staging and production Docker deployment documentation and environment
+  guidance.
+- Added backup and restore scripts for PostgreSQL data and attachment storage.
+- Added local, disabled, and Anthropic AI mode configuration guidance.
+- Hardened staging restore deployment checks.
+
 ### v0.2.0 - Authentication and authorization
 
 - Added JWT authentication and role-based authorization.
@@ -1346,11 +1374,6 @@ backed up, restored, secured, and operated without developer intervention.
 - Added user creation fields for role and active status.
 - Updated route and service tests for protected user, finding, attachment, and
   administrative workflows.
-
-### Current Development
-
-- Preparing deployment and production-readiness documentation for client-server
-  installs.
 
 ### v0.1.1 - Anthropic API reliability patch
 

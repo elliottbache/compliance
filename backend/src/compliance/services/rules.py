@@ -147,9 +147,16 @@ def post_rule_archived_by_id(
         session: Database session used to retrieve and update the rule.
         rule_id: Primary key for the rule to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``record.archived`` audit event is written in the
+            same transaction.
 
     Returns:
         The rule ORM object, or ``None`` if no matching rule exists.
+
+    Side effects:
+        Archives the rule, records ``record.archived`` when ``actor`` is
+        provided, and commits the session when the rule changes.
     """
     result = archive_record_by_id(session, Rule, rule_id, archive_request)
     if result.record is None:
@@ -184,9 +191,16 @@ def post_rule_restored_by_id(
     Args:
         session: Database session used to retrieve and update the rule.
         rule_id: Primary key for the rule to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``record.restored`` audit event is written in the
+            same transaction.
 
     Returns:
         The rule ORM object, or ``None`` if no matching rule exists.
+
+    Side effects:
+        Restores the rule, records ``record.restored`` when ``actor`` is
+        provided, and commits the session when the rule changes.
     """
     result = restore_record_by_id(session, Rule, rule_id)
     if result.record is None:

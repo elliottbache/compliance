@@ -28,7 +28,12 @@ def get_audit_events_route(
     limit: Annotated[int | None, Query(ge=1, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[AuditEventOut]:
-    """Return audit events with optional filters."""
+    """Return admin-only audit events filtered by actor, action, target, and date.
+
+    Raises:
+        HTTPException: If both date bounds are supplied and ``created_from`` is
+            after ``created_to``.
+    """
     if (
         created_from is not None
         and created_to is not None

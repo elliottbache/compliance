@@ -264,13 +264,24 @@ def post_new_finding(
     Args:
         session: Database session used to add and commit the finding.
         finding: Finding creation data validated by the API layer.
+        actor: Optional authenticated user responsible for the creation. When
+            provided, the actor is used for authorization and a
+            ``finding.created`` audit event is written in the same transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The created finding serialized with certification, regulation, rule, and
         linked attachment context.
 
+    Side effects:
+        Persists the finding, creates any finding-attachment links, and records
+        ``finding.created`` when ``actor`` is provided.
+
     Raises:
         FindingMissingCertificationError: If the certification ID does not exist.
+        FindingPermissionError: If the current user is not assigned to the
+            finding's certification.
         FindingMissingRuleError: If the rule ID does not exist.
         FindingMissingAttachmentError: If a linked attachment ID does not exist.
         FindingAttachmentCertificationMismatchError: If a linked attachment
@@ -389,10 +400,19 @@ def post_finding_archived_by_id(
         session: Database session used to retrieve and update the finding.
         finding_id: Primary key for the finding to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, the actor is used for authorization and a
+            ``finding.archived`` audit event is written in the same transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The archived finding with context, or ``None`` if no matching finding
         exists.
+
+    Side effects:
+        Archives the finding, records ``finding.archived`` when ``actor`` is
+        provided, and commits the session when the finding changes.
     """
     finding = session.get(Finding, finding_id)
     if finding is None:
@@ -449,10 +469,19 @@ def post_finding_restored_by_id(
     Args:
         session: Database session used to retrieve and update the finding.
         finding_id: Primary key for the finding to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, the actor is used for authorization and a
+            ``finding.restored`` audit event is written in the same transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The restored finding with context, or ``None`` if no matching finding
         exists.
+
+    Side effects:
+        Restores the finding, records ``finding.restored`` when ``actor`` is
+        provided, and commits the session when the finding changes.
     """
     finding = session.get(Finding, finding_id)
     if finding is None:

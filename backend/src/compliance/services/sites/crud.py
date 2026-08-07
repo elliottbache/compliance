@@ -116,9 +116,16 @@ def post_site_archived_by_id(
         session: Database session used to retrieve and update the site.
         site_id: Primary key for the site to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``record.archived`` audit event is written in the
+            same transaction.
 
     Returns:
         The site ORM object, or ``None`` if no matching site exists.
+
+    Side effects:
+        Archives the site, records ``record.archived`` when ``actor`` is
+        provided, and commits the session when the site changes.
     """
     result = archive_record_by_id(session, Site, site_id, archive_request)
     if result.record is None:
@@ -152,9 +159,16 @@ def post_site_restored_by_id(
     Args:
         session: Database session used to retrieve and update the site.
         site_id: Primary key for the site to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``record.restored`` audit event is written in the
+            same transaction.
 
     Returns:
         The site ORM object, or ``None`` if no matching site exists.
+
+    Side effects:
+        Restores the site, records ``record.restored`` when ``actor`` is
+        provided, and commits the session when the site changes.
     """
     result = restore_record_by_id(session, Site, site_id)
     if result.record is None:

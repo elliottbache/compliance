@@ -227,6 +227,10 @@ def post_new_attachment(
         session: Database session used to validate related records and persist
             the attachment metadata.
         attachment: Attachment metadata validated by the API layer.
+        actor: Optional authenticated user responsible for the creation. When
+            provided, the actor is used for authorization.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The created attachment metadata with certification and regulation
@@ -235,6 +239,8 @@ def post_new_attachment(
     Raises:
         AttachmentCertificationNotFoundError: If the parent certification does
             not exist.
+        AttachmentPermissionError: If the current user is not assigned to the
+            attachment's certification.
         AttachmentFindingNotFoundError: If a requested linked finding does not
             exist.
         AttachmentFindingCertificationMismatchError: If a requested finding
@@ -326,10 +332,19 @@ def post_attachment_archived_by_id(
         session: Database session used to retrieve and update the attachment.
         attachment_id: Primary key for the attachment to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, the actor is used for authorization and a
+            ``record.archived`` audit event is written in the same transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The archived attachment with context, or ``None`` if no matching
         attachment exists.
+
+    Side effects:
+        Archives the attachment, records ``record.archived`` when ``actor`` is
+        provided, and commits the session when the attachment changes.
     """
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
@@ -385,10 +400,19 @@ def post_attachment_restored_by_id(
     Args:
         session: Database session used to retrieve and update the attachment.
         attachment_id: Primary key for the attachment to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, the actor is used for authorization and a
+            ``record.restored`` audit event is written in the same transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The restored attachment with context, or ``None`` if no matching
         attachment exists.
+
+    Side effects:
+        Restores the attachment, records ``record.restored`` when ``actor`` is
+        provided, and commits the session when the attachment changes.
     """
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:

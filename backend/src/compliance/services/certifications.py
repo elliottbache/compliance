@@ -141,9 +141,16 @@ def post_new_certification(
     Args:
         session: Database session used to add and commit the certification.
         certification: Certification creation data validated by the API layer.
+        actor: Optional authenticated user responsible for the creation. When
+            provided, a ``certification.created`` audit event is written in the
+            same transaction.
 
     Returns:
         The created Certification ORM object.
+
+    Side effects:
+        Persists the certification and records ``certification.created`` when
+        ``actor`` is provided.
 
     Raises:
         CertificationCertifierNotFoundError: If the certifier ID does not exist.
@@ -232,10 +239,18 @@ def post_certification_archived_by_id(
         session: Database session used to retrieve and update the certification.
         certification_id: Primary key for the certification to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``certification.archived`` audit event is written
+            in the same transaction.
 
     Returns:
         The certification ORM object, or ``None`` if no matching certification
         exists.
+
+    Side effects:
+        Archives the certification, records ``certification.archived`` when
+        ``actor`` is provided, and commits the session when the certification
+        changes.
     """
     result = archive_record_by_id(
         session, Certification, certification_id, archive_request
@@ -273,10 +288,18 @@ def post_certification_restored_by_id(
     Args:
         session: Database session used to retrieve and update the certification.
         certification_id: Primary key for the certification to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``certification.restored`` audit event is written
+            in the same transaction.
 
     Returns:
         The certification ORM object, or ``None`` if no matching certification
         exists.
+
+    Side effects:
+        Restores the certification, records ``certification.restored`` when
+        ``actor`` is provided, and commits the session when the certification
+        changes.
     """
     result = restore_record_by_id(session, Certification, certification_id)
     if result.record is None:

@@ -140,9 +140,16 @@ def post_regulation_archived_by_id(
         session: Database session used to retrieve and update the regulation.
         regulation_id: Primary key for the regulation to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``record.archived`` audit event is written in the
+            same transaction.
 
     Returns:
         The regulation ORM object, or ``None`` if no matching regulation exists.
+
+    Side effects:
+        Archives the regulation, records ``record.archived`` when ``actor`` is
+        provided, and commits the session when the regulation changes.
     """
     result = archive_record_by_id(session, Regulation, regulation_id, archive_request)
     if result.record is None:
@@ -176,9 +183,16 @@ def post_regulation_restored_by_id(
     Args:
         session: Database session used to retrieve and update the regulation.
         regulation_id: Primary key for the regulation to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``record.restored`` audit event is written in the
+            same transaction.
 
     Returns:
         The regulation ORM object, or ``None`` if no matching regulation exists.
+
+    Side effects:
+        Restores the regulation, records ``record.restored`` when ``actor`` is
+        provided, and commits the session when the regulation changes.
     """
     result = restore_record_by_id(session, Regulation, regulation_id)
     if result.record is None:

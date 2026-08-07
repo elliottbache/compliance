@@ -49,7 +49,7 @@ def get_users(
         limit: Maximum number of users to return. If ``None``, all
             users are returned.
         offset: Number of users to skip before returning results.
-        include_inactive: When true, include archived users in addition to active users.
+        include_inactive: When true, include inactive users in addition to active users.
 
     Returns:
         User ORM objects, or an empty list if no users exist.
@@ -70,9 +70,16 @@ def post_new_user(
     Args:
         session: Database session used to add and commit the user.
         user: User data validated by the API layer.
+        actor: Optional authenticated user responsible for the creation. When
+            provided, a ``user.created`` audit event is written in the same
+            transaction.
 
     Returns:
-        The created User ORM object.
+        The created public user DTO.
+
+    Side effects:
+        Hashes the password, persists the user, and records ``user.created``
+        when ``actor`` is provided.
 
     Raises:
         UserEmailConflictError: If the email already exists.

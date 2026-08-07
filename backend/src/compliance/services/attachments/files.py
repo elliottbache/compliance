@@ -134,11 +134,23 @@ def post_attachment_upload(
         file_size: Size of the uploaded file in bytes.
         file_type: MIME type reported for the uploaded file. The content is
             also inspected before the file is stored.
-        file_name: Original uploaded filename, used only to derive the extension.
+        file_name: Original uploaded filename, used to validate the extension,
+            derive the stored suffix, and record safe audit metadata.
         file_stream: Binary stream containing the uploaded file content.
+        actor: Optional authenticated user responsible for the upload. When
+            provided, the actor is used for authorization and an
+            ``attachment.uploaded`` audit event is written in the same
+            transaction.
+        user_id: Legacy inspector ID used for authorization when ``actor`` is
+            unavailable.
 
     Returns:
         The updated attachment ORM object.
+
+    Side effects:
+        Stores the uploaded file, updates attachment metadata, records
+        ``attachment.uploaded`` when ``actor`` is provided, and commits the
+        session.
 
     Raises:
         AttachmentFileError: If required upload metadata is missing or invalid.
@@ -150,6 +162,8 @@ def post_attachment_upload(
         AttachmentScanError: If ClamAV returns an invalid or unexpected scan
             response.
         AttachmentNotFoundError: If no attachment metadata row exists for the ID.
+        AttachmentPermissionError: If the current user is not assigned to the
+            attachment's certification.
         AttachmentConflictError: If the file or database update cannot be
             persisted.
     """
@@ -260,9 +274,18 @@ def get_attachment_download(
     Args:
         session: Database session used to retrieve the attachment metadata.
         attachment_id: Primary key of the attachment to download.
+        actor: Optional authenticated user responsible for the download. When
+            provided, an ``attachment.downloaded`` audit event is written in the
+            same transaction.
 
     Returns:
-        The browser-facing filename and the stored filesystem path.
+        The browser-facing filename and the stored filesystem path. The
+        filename uses the attachment display name plus the stored suffix, or
+        ``attachment_{id}`` plus the suffix when no display name is available.
+
+    Side effects:
+        Records ``attachment.downloaded`` and commits the session when
+        ``actor`` is provided.
 
     Raises:
         AttachmentNotFoundError: If no attachment exists for the supplied ID.

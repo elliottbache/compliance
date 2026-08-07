@@ -109,9 +109,16 @@ def post_certifier_archived_by_id(
         session: Database session used to retrieve and update the certifier.
         certifier_id: Primary key for the certifier to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``record.archived`` audit event is written in the
+            same transaction.
 
     Returns:
         The certifier ORM object, or ``None`` if no matching certifier exists.
+
+    Side effects:
+        Archives the certifier, records ``record.archived`` when ``actor`` is
+        provided, and commits the session when the certifier changes.
     """
     result = archive_record_by_id(session, Certifier, certifier_id, archive_request)
     if result.record is None:
@@ -145,9 +152,16 @@ def post_certifier_restored_by_id(
     Args:
         session: Database session used to retrieve and update the certifier.
         certifier_id: Primary key for the certifier to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``record.restored`` audit event is written in the
+            same transaction.
 
     Returns:
         The certifier ORM object, or ``None`` if no matching certifier exists.
+
+    Side effects:
+        Restores the certifier, records ``record.restored`` when ``actor`` is
+        provided, and commits the session when the certifier changes.
     """
     result = restore_record_by_id(session, Certifier, certifier_id)
     if result.record is None:

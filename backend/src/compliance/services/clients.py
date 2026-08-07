@@ -112,14 +112,18 @@ def post_client_archived_by_nif(
         session: Database session used to retrieve and update the client.
         nif: Unique fiscal identifier for the client to archive.
         archive_request: Archive metadata containing an optional reason.
+        actor: Optional authenticated user responsible for the archive action.
+            When provided, a ``record.archived`` audit event is written in the
+            same transaction.
 
     Returns:
         The client ORM object, or ``None`` if no matching client exists.
 
     Side effects:
         Sets ``archived_at`` to the current UTC time, stores a stripped archive
-        reason when provided, and commits the session. Already archived clients
-        are returned unchanged.
+        reason when provided, records ``record.archived`` when ``actor`` is
+        provided, and commits the session. Already archived clients are
+        returned unchanged.
     """
     result = archive_record_by_id(session, Client, nif, archive_request)
     if result.record is None:
@@ -153,14 +157,17 @@ def post_client_restored_by_nif(
     Args:
         session: Database session used to retrieve and update the client.
         nif: Unique fiscal identifier for the client to restore.
+        actor: Optional authenticated user responsible for the restore action.
+            When provided, a ``record.restored`` audit event is written in the
+            same transaction.
 
     Returns:
         The client ORM object, or ``None`` if no matching client exists.
 
     Side effects:
         Clears ``archived_at`` and ``archive_reason`` and commits the session
-        when the client is currently archived. Active clients are returned
-        unchanged.
+        when the client is currently archived. Records ``record.restored`` when
+        ``actor`` is provided. Active clients are returned unchanged.
     """
 
     result = restore_record_by_id(session, Client, nif)
