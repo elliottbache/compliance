@@ -30,6 +30,22 @@ def upgrade() -> None:
         sa.Column("target_id", sa.String(length=80), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("context", sa.JSON(), nullable=False),
+        sa.CheckConstraint(
+            "action IN ('finding.created', 'finding.updated', "
+            "'finding.archived', 'finding.restored', 'attachment.uploaded', "
+            "'attachment.downloaded', 'certification.created', "
+            "'certification.updated', 'certification.archived', "
+            "'certification.restored', 'record.archived', 'record.restored', "
+            "'ai.analysis_requested', 'ai.report_generated', 'user.created', "
+            "'user.disabled', 'login.success', 'login.failed', "
+            "'authorization.failed')",
+            name=op.f("ck_audit_events_action_check"),
+        ),
+        sa.CheckConstraint(
+            "target_type IN ('finding', 'attachment', 'certification', "
+            "'record', 'ai', 'user', 'auth')",
+            name=op.f("ck_audit_events_target_type_check"),
+        ),
         sa.ForeignKeyConstraint(
             ["actor_user_id"],
             ["users.id"],

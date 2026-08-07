@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 import pytest
 from compliance.db.models import (
     Attachment,
+    AuditAction,
     AuditEvent,
+    AuditTargetType,
     Certification,
     Certifier,
     Client,
@@ -13,6 +15,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
+from sqlalchemy import CheckConstraint
 
 
 def test_finding_attachments_primary_key_excludes_certification_id() -> None:
@@ -40,6 +43,57 @@ def test_audit_event_created_at_column_is_timezone_aware() -> None:
     created_at_column = AuditEvent.__table__.columns["created_at"]
 
     assert created_at_column.type.timezone is True
+
+
+def test_audit_action_values_are_defined() -> None:
+    assert {action.value for action in AuditAction} == {
+        "finding.created",
+        "finding.updated",
+        "finding.archived",
+        "finding.restored",
+        "attachment.uploaded",
+        "attachment.downloaded",
+        "certification.created",
+        "certification.updated",
+        "certification.archived",
+        "certification.restored",
+        "record.archived",
+        "record.restored",
+        "ai.analysis_requested",
+        "ai.report_generated",
+        "user.created",
+        "user.disabled",
+        "login.success",
+        "login.failed",
+        "authorization.failed",
+    }
+
+
+def test_audit_target_type_values_are_defined() -> None:
+    assert {target_type.value for target_type in AuditTargetType} == {
+        "finding",
+        "attachment",
+        "certification",
+        "record",
+        "ai",
+        "user",
+        "auth",
+    }
+
+
+def test_audit_event_action_and_target_type_check_constraints_exist() -> None:
+    check_constraints = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in AuditEvent.__table__.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+
+    assert "ck_audit_events_action_check" in check_constraints
+    assert "ck_audit_events_target_type_check" in check_constraints
+    assert "finding.created" in check_constraints["ck_audit_events_action_check"]
+    assert "authorization.failed" in check_constraints["ck_audit_events_action_check"]
+    assert "certification" in check_constraints["ck_audit_events_target_type_check"]
+    assert "auth" in check_constraints["ck_audit_events_target_type_check"]
 
 
 def test_audit_event_filter_indexes_exist() -> None:

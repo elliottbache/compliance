@@ -31,6 +31,48 @@ class Role(PyEnum):
     VIEWER = "viewer"
 
 
+class AuditAction(PyEnum):
+    """Allowed audit event action names."""
+
+    FINDING_CREATED = "finding.created"
+    FINDING_UPDATED = "finding.updated"
+    FINDING_ARCHIVED = "finding.archived"
+    FINDING_RESTORED = "finding.restored"
+    ATTACHMENT_UPLOADED = "attachment.uploaded"
+    ATTACHMENT_DOWNLOADED = "attachment.downloaded"
+    CERTIFICATION_CREATED = "certification.created"
+    CERTIFICATION_UPDATED = "certification.updated"
+    CERTIFICATION_ARCHIVED = "certification.archived"
+    CERTIFICATION_RESTORED = "certification.restored"
+    RECORD_ARCHIVED = "record.archived"
+    RECORD_RESTORED = "record.restored"
+    AI_ANALYSIS_REQUESTED = "ai.analysis_requested"
+    AI_REPORT_GENERATED = "ai.report_generated"
+    USER_CREATED = "user.created"
+    USER_DISABLED = "user.disabled"
+    LOGIN_SUCCESS = "login.success"
+    LOGIN_FAILED = "login.failed"
+    AUTHORIZATION_FAILED = "authorization.failed"
+
+
+class AuditTargetType(PyEnum):
+    """Allowed audit event target categories."""
+
+    FINDING = "finding"
+    ATTACHMENT = "attachment"
+    CERTIFICATION = "certification"
+    RECORD = "record"
+    AI = "ai"
+    USER = "user"
+    AUTH = "auth"
+
+
+_AUDIT_ACTION_VALUES = ", ".join(f"'{action.value}'" for action in AuditAction)
+_AUDIT_TARGET_TYPE_VALUES = ", ".join(
+    f"'{target_type.value}'" for target_type in AuditTargetType
+)
+
+
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy ORM models."""
 
@@ -62,6 +104,14 @@ class AuditEvent(Base):
 
     __tablename__ = "audit_events"
     __table_args__ = (
+        CheckConstraint(
+            f"action IN ({_AUDIT_ACTION_VALUES})",
+            name="action_check",
+        ),
+        CheckConstraint(
+            f"target_type IN ({_AUDIT_TARGET_TYPE_VALUES})",
+            name="target_type_check",
+        ),
         Index("ix_audit_events_actor_user_id", "actor_user_id"),
         Index("ix_audit_events_actor_email", "actor_email"),
         Index("ix_audit_events_action", "action"),
@@ -74,8 +124,8 @@ class AuditEvent(Base):
     # when accounts are disabled, changed, or absent for unauthenticated events.
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     actor_email: Mapped[str | None] = mapped_column(String(80))
-    action: Mapped[str] = mapped_column(String(80))
-    target_type: Mapped[str] = mapped_column(String(80))
+    action: Mapped[AuditAction] = mapped_column(String(80))
+    target_type: Mapped[AuditTargetType] = mapped_column(String(80))
     target_id: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
