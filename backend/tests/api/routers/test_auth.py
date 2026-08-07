@@ -1,8 +1,9 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from compliance.api.routers.auth import post_auth_token_route
+from compliance.db.models import AuditAction
 from fastapi import HTTPException
 
 
@@ -12,7 +13,7 @@ def _form_data(username: str, password: str) -> SimpleNamespace:
 
 class TestPostAuthTokenRoute:
     def test_returns_bearer_token_for_active_user(self) -> None:
-        session = object()
+        session = MagicMock()
         user = SimpleNamespace(id=42, email="alice@example.com", is_active=True)
 
         with (
@@ -35,9 +36,14 @@ class TestPostAuthTokenRoute:
             session, "alice@example.com", "correct-password"
         )
         mock_create_access_token.assert_called_once_with("alice@example.com")
+        audit_event = session.add.call_args.args[0]
+        assert audit_event.action == AuditAction.LOGIN_SUCCESS
+        assert audit_event.actor_user_id == 42
+        assert audit_event.actor_email == "alice@example.com"
+        session.commit.assert_called_once_with()
 
     def test_raises_unauthorized_when_credentials_are_invalid(self) -> None:
-        session = object()
+        session = MagicMock()
 
         with (
             patch(
@@ -54,9 +60,15 @@ class TestPostAuthTokenRoute:
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Incorrect username or password"
         mock_create.assert_not_called()
+        audit_event = session.add.call_args.args[0]
+        assert audit_event.action == AuditAction.LOGIN_FAILED
+        assert audit_event.actor_user_id is None
+        assert audit_event.actor_email == "alice@example.com"
+        assert audit_event.context == {"reason": "invalid_credentials"}
+        session.commit.assert_called_once_with()
 
     def test_raises_forbidden_when_user_is_inactive(self) -> None:
-        session = object()
+        session = MagicMock()
         user = SimpleNamespace(id=42, email="alice@example.com", is_active=False)
 
         with (
@@ -74,3 +86,9 @@ class TestPostAuthTokenRoute:
         assert exc_info.value.status_code == 403
         assert exc_info.value.detail == "Forbidden access"
         mock_create.assert_not_called()
+        audit_event = session.add.call_args.args[0]
+        assert audit_event.action == AuditAction.LOGIN_FAILED
+        assert audit_event.actor_user_id == 42
+        assert audit_event.actor_email == "alice@example.com"
+        assert audit_event.context == {"reason": "inactive_user"}
+        session.commit.assert_called_once_with()

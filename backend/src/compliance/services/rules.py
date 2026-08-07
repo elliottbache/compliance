@@ -1,9 +1,12 @@
 """Rule service functions for listing, creation, archive, and restore."""
 
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Regulation,
     Rule,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
@@ -14,6 +17,7 @@ from compliance.services.schemas import (
     ArchiveRequest,
     RuleCreate,
     RuleOut,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -131,7 +135,11 @@ def post_new_rule(session: Session, rule: RuleCreate) -> Rule:
 
 
 def post_rule_archived_by_id(
-    session: Session, rule_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    rule_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Rule | None:
     """Archive a rule by ID.
 
@@ -143,10 +151,34 @@ def post_rule_archived_by_id(
     Returns:
         The rule ORM object, or ``None`` if no matching rule exists.
     """
-    return archive_record_by_id(session, Rule, rule_id, archive_request)
+    result = archive_record_by_id(session, Rule, rule_id, archive_request)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=rule_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "rule",
+                    "rule_id": rule_id,
+                    "regulation_id": result.record.regulation_id,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
-def post_rule_restored_by_id(session: Session, rule_id: int) -> Rule | None:
+def post_rule_restored_by_id(
+    session: Session, rule_id: int, *, actor: UserOut | None = None
+) -> Rule | None:
     """Restore an archived rule by ID.
 
     Args:
@@ -156,4 +188,25 @@ def post_rule_restored_by_id(session: Session, rule_id: int) -> Rule | None:
     Returns:
         The rule ORM object, or ``None`` if no matching rule exists.
     """
-    return restore_record_by_id(session, Rule, rule_id)
+    result = restore_record_by_id(session, Rule, rule_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=rule_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "rule",
+                    "rule_id": rule_id,
+                    "regulation_id": result.record.regulation_id,
+                },
+            )
+        session.commit()
+
+    return result.record

@@ -45,6 +45,7 @@ from compliance.services.attachments import (
 )
 from compliance.services.attachments.files import ClamAVFileScanner, NoOpFileScanner
 from compliance.services.attachments.formatting import format_attachment
+from compliance.services.lifecycle import LifecycleResult
 from compliance.services.schemas import (
     ArchiveRequest,
     AttachmentCreate,
@@ -1341,8 +1342,7 @@ class TestPostAttachmentArchivedById:
             assert attachment_id == 50
             attachment.archived_at = datetime.now(UTC)
             attachment.archive_reason = archive_request.archive_reason
-            session.commit()
-            return attachment
+            return LifecycleResult(record=attachment, changed=True)
 
         def fake_get_attachment_by_id(session_arg, attachment_id, *, include_archived):
             assert session_arg is session
@@ -1462,8 +1462,7 @@ class TestPostAttachmentRestoredById:
             assert attachment_id == 50
             attachment.archived_at = None
             attachment.archive_reason = None
-            session.commit()
-            return attachment
+            return LifecycleResult(record=attachment, changed=True)
 
         monkeypatch.setattr(
             "compliance.services.attachments.crud.restore_record_by_id",

@@ -14,9 +14,11 @@ from compliance.api.schemas import (
     SiteOut,
 )
 from compliance.auth.authorization import require_role
-from compliance.db.models import Role
+from compliance.config import settings
+from compliance.db.models import AuditAction, AuditTargetType, Role
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
+from compliance.services.audit import record_audit_event
 from compliance.services.schemas import UserOut
 from compliance.services.site_analysis import (
     summarize_previous_visits,
@@ -188,14 +190,16 @@ def post_new_site_route(
 @router.post("/{site_id}/archive", status_code=200)
 def post_site_archived_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     site_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> SiteOut:
     """Archive one site by ID."""
     archive_request = archive_request or ArchiveRequest()
 
-    site = post_site_archived_by_id(session, site_id, archive_request=archive_request)
+    site = post_site_archived_by_id(
+        session, site_id, archive_request=archive_request, actor=authorized_user
+    )
     if site is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
 
@@ -205,11 +209,11 @@ def post_site_archived_by_id_route(
 @router.post("/{site_id}/restore", status_code=200)
 def post_site_restored_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     site_id: Annotated[int, Path(ge=1)],
 ) -> SiteOut:
     """Restore one archived site by ID."""
-    site = post_site_restored_by_id(session, site_id)
+    site = post_site_restored_by_id(session, site_id, actor=authorized_user)
     if site is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
 
@@ -219,7 +223,7 @@ def post_site_restored_by_id_route(
 @router.post("/{site_id}/analysis")
 def create_site_analysis_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
     site_id: int,
 ) -> SiteAnalysis:
     """Generate an AI analysis for one site's certification history.
@@ -238,7 +242,23 @@ def create_site_analysis_route(
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    return _create_site_analysis(session, site_id)
+    site_analysis = _create_site_analysis(session, site_id)
+    record_audit_event(
+        session,
+        action=AuditAction.AI_ANALYSIS_REQUESTED,
+        target_type=AuditTargetType.AI,
+        target_id=site_id,
+        actor_user_id=authorized_user.id,
+        actor_email=authorized_user.email,
+        context={
+            "site_id": site_id,
+            "ai_mode": settings.ai_mode,
+            "ai_model": settings.ai_model,
+        },
+    )
+    session.commit()
+
+    return site_analysis
 
 
 def _create_site_analysis(session: Session, site_id: int) -> SiteAnalysis:

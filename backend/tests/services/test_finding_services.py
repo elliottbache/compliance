@@ -25,6 +25,7 @@ from compliance.services.findings import (
     post_finding_restored_by_id,
     post_new_finding,
 )
+from compliance.services.lifecycle import LifecycleResult
 from compliance.services.schemas import (
     ArchiveRequest,
     FindingAttachmentOut,
@@ -637,8 +638,7 @@ class TestPostFindingArchivedById:
             assert finding_id == 1
             finding.archived_at = datetime.now(UTC)
             finding.archive_reason = archive_request.archive_reason
-            session.commit()
-            return finding
+            return LifecycleResult(record=finding, changed=True)
 
         def fake_get_finding_by_id(session_arg, finding_id, *, include_archived):
             assert session_arg is session
@@ -738,7 +738,7 @@ class TestPostFindingRestoredById:
             archive_reason="resolved",
         )
         certification = SimpleNamespace(inspector_id=10)
-        session.get.return_value = certification
+        session.get.side_effect = [finding, certification]
         expected = object()
 
         def fake_restore_record_by_id(session_arg, model, finding_id):
@@ -747,8 +747,7 @@ class TestPostFindingRestoredById:
             assert finding_id == 1
             finding.archived_at = None
             finding.archive_reason = None
-            session.commit()
-            return finding
+            return LifecycleResult(record=finding, changed=True)
 
         monkeypatch.setattr(
             "compliance.services.findings.restore_record_by_id",
@@ -763,7 +762,7 @@ class TestPostFindingRestoredById:
 
         assert result is expected
         assert_restored_record(finding)
-        session.get.assert_called_once_with(Certification, 100)
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
         session.commit.assert_called_once_with()
 
     def test_restore_raises_when_certification_does_not_exist(
@@ -771,11 +770,13 @@ class TestPostFindingRestoredById:
     ) -> None:
         session = MagicMock()
         finding = SimpleNamespace(certification_id=100)
-        session.get.return_value = None
+        session.get.side_effect = [finding, None]
 
         monkeypatch.setattr(
             "compliance.services.findings.restore_record_by_id",
-            lambda session_arg, model, finding_id: finding,
+            lambda session_arg, model, finding_id: LifecycleResult(
+                record=finding, changed=True
+            ),
         )
 
         with pytest.raises(
@@ -784,7 +785,7 @@ class TestPostFindingRestoredById:
         ):
             post_finding_restored_by_id(session, 1, user_id=10)
 
-        session.get.assert_called_once_with(Certification, 100)
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
         session.commit.assert_not_called()
 
     def test_restore_raises_when_certification_belongs_to_another_inspector(
@@ -792,11 +793,13 @@ class TestPostFindingRestoredById:
     ) -> None:
         session = MagicMock()
         finding = SimpleNamespace(certification_id=100)
-        session.get.return_value = SimpleNamespace(inspector_id=11)
+        session.get.side_effect = [finding, SimpleNamespace(inspector_id=11)]
 
         monkeypatch.setattr(
             "compliance.services.findings.restore_record_by_id",
-            lambda session_arg, model, finding_id: finding,
+            lambda session_arg, model, finding_id: LifecycleResult(
+                record=finding, changed=True
+            ),
         )
 
         with pytest.raises(
@@ -808,7 +811,7 @@ class TestPostFindingRestoredById:
         ):
             post_finding_restored_by_id(session, 1, user_id=10)
 
-        session.get.assert_called_once_with(Certification, 100)
+        assert session.get.call_args_list == [((Finding, 1),), ((Certification, 100),)]
         session.commit.assert_not_called()
 
     def test_returns_none_when_finding_does_not_exist(self) -> None:

@@ -1,5 +1,6 @@
 """Shared archive, restore, visibility, and constraint helpers for services."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
@@ -8,6 +9,14 @@ from compliance.db.models import Certification, Certifier, Client, Regulation, S
 from compliance.services.schemas import ArchiveRequest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+
+@dataclass(frozen=True)
+class LifecycleResult:
+    """Result for an archive or restore mutation."""
+
+    record: Any | None
+    changed: bool
 
 
 def get_constraint_name(exc: IntegrityError) -> str | None:
@@ -26,7 +35,7 @@ def get_constraint_name(exc: IntegrityError) -> str | None:
 
 def archive_record_by_id(
     session: Session, model: type[Any], record_id: Any, archive_request: ArchiveRequest
-) -> Any | None:
+) -> LifecycleResult:
     """Archive one ORM record by primary key.
 
     Args:
@@ -36,16 +45,15 @@ def archive_record_by_id(
         archive_request: Archive metadata containing an optional reason.
 
     Returns:
-        The ORM record, or ``None`` when no record exists for the primary key.
+        The ORM record and whether the archive state changed.
 
     Side effects:
         Sets ``archived_at`` to the current UTC time, stores a stripped archive
-        reason when provided, and commits the session. Already archived records
-        are returned unchanged.
+        reason when provided. Already archived records are returned unchanged.
     """
     record = session.get(model, record_id)
     if record is None:
-        return None
+        return LifecycleResult(record=None, changed=False)
 
     if record.archived_at is None:
         record.archived_at = datetime.now(UTC)
@@ -53,14 +61,14 @@ def archive_record_by_id(
         record.archive_reason = (
             archive_reason.strip() or None if archive_reason else None
         )
-        session.commit()
+        return LifecycleResult(record=record, changed=True)
 
-    return record
+    return LifecycleResult(record=record, changed=False)
 
 
 def restore_record_by_id(
     session: Session, model: type[Any], record_id: Any
-) -> Any | None:
+) -> LifecycleResult:
     """Restore one archived ORM record by primary key.
 
     Args:
@@ -69,23 +77,22 @@ def restore_record_by_id(
         record_id: Primary-key value for the record.
 
     Returns:
-        The ORM record, or ``None`` when no record exists for the primary key.
+        The ORM record and whether the restore state changed.
 
     Side effects:
-        Clears ``archived_at`` and ``archive_reason`` and commits the session
-        when the record is currently archived. Active records are returned
-        unchanged.
+        Clears ``archived_at`` and ``archive_reason`` when the record is
+        currently archived. Active records are returned unchanged.
     """
     record = session.get(model, record_id)
     if record is None:
-        return None
+        return LifecycleResult(record=None, changed=False)
 
     if record.archived_at is not None:
         record.archived_at = None
         record.archive_reason = None
-        session.commit()
+        return LifecycleResult(record=record, changed=True)
 
-    return record
+    return LifecycleResult(record=record, changed=False)
 
 
 def record_is_visible(record: Any, include_archived: bool) -> bool:

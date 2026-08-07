@@ -12,7 +12,8 @@ from compliance.auth.authentication import (
     decode_access_token,
     oauth2_scheme,
 )
-from compliance.db.models import Role
+from compliance.db.models import AuditAction, AuditTargetType, Role
+from compliance.services.audit import record_audit_event
 from compliance.services.schemas import UserOut
 
 _ROLE_RANK = {
@@ -63,10 +64,23 @@ def require_role(minimum_role: Role) -> Callable[..., UserOut]:
     """Return a dependency that requires the given role or a higher role."""
 
     def dependency(
+        session: SessionDep,
         user: UserOut = Depends(get_active_user),  # noqa: B008
     ) -> UserOut:
         """Validate that the active user has at least the configured role."""
         if _ROLE_RANK[user.role] < _ROLE_RANK[minimum_role]:
+            record_audit_event(
+                session,
+                action=AuditAction.AUTHORIZATION_FAILED,
+                target_type=AuditTargetType.AUTH,
+                actor_user_id=user.id,
+                actor_email=user.email,
+                context={
+                    "required_role": minimum_role.value,
+                    "actual_role": user.role.value,
+                },
+            )
+            session.commit()
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",

@@ -108,7 +108,7 @@ def post_new_finding_route(
             another integrity conflict prevents creation.
     """
     try:
-        new_finding = post_new_finding(session, finding, authorized_user.id)
+        new_finding = post_new_finding(session, finding, authorized_user)
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
@@ -164,7 +164,7 @@ def post_finding_archived_by_id_route(
             session,
             finding_id,
             archive_request=archive_request,
-            user_id=authorized_user.id,
+            actor=authorized_user,
         )
 
     except FindingMissingCertificationError as err:
@@ -196,7 +196,7 @@ def post_finding_restored_by_id_route(
     """Restore one archived finding by ID."""
     try:
         finding = post_finding_restored_by_id(
-            session, finding_id, user_id=authorized_user.id
+            session, finding_id, actor=authorized_user
         )
 
     except FindingMissingCertificationError as err:

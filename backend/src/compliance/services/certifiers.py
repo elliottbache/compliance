@@ -1,8 +1,11 @@
 """Certifier service functions for listing, creation, archive, and restore."""
 
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Certifier,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
@@ -11,6 +14,7 @@ from compliance.services.lifecycle import (
 from compliance.services.schemas import (
     ArchiveRequest,
     CertifierCreate,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -93,7 +97,11 @@ def post_new_certifier(session: Session, certifier: CertifierCreate) -> Certifie
 
 
 def post_certifier_archived_by_id(
-    session: Session, certifier_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    certifier_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Certifier | None:
     """Archive a certifier by ID.
 
@@ -105,11 +113,32 @@ def post_certifier_archived_by_id(
     Returns:
         The certifier ORM object, or ``None`` if no matching certifier exists.
     """
-    return archive_record_by_id(session, Certifier, certifier_id, archive_request)
+    result = archive_record_by_id(session, Certifier, certifier_id, archive_request)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=certifier_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "certifier",
+                    "certifier_id": certifier_id,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
 def post_certifier_restored_by_id(
-    session: Session, certifier_id: int
+    session: Session, certifier_id: int, *, actor: UserOut | None = None
 ) -> Certifier | None:
     """Restore an archived certifier by ID.
 
@@ -120,4 +149,21 @@ def post_certifier_restored_by_id(
     Returns:
         The certifier ORM object, or ``None`` if no matching certifier exists.
     """
-    return restore_record_by_id(session, Certifier, certifier_id)
+    result = restore_record_by_id(session, Certifier, certifier_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=certifier_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={"record_type": "certifier", "certifier_id": certifier_id},
+            )
+        session.commit()
+
+    return result.record

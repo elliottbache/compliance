@@ -1,13 +1,14 @@
 """Site CRUD service functions for listing, creation, archive, and restore."""
 
-from compliance.db.models import Client, Site
+from compliance.db.models import AuditAction, AuditTargetType, Client, Site
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
     record_is_visible,
     restore_record_by_id,
 )
-from compliance.services.schemas import ArchiveRequest, SiteCreate
+from compliance.services.schemas import ArchiveRequest, SiteCreate, UserOut
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -103,7 +104,11 @@ def post_new_site(session: Session, site: SiteCreate) -> Site:
 
 
 def post_site_archived_by_id(
-    session: Session, site_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    site_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Site | None:
     """Archive a site by ID.
 
@@ -115,10 +120,33 @@ def post_site_archived_by_id(
     Returns:
         The site ORM object, or ``None`` if no matching site exists.
     """
-    return archive_record_by_id(session, Site, site_id, archive_request)
+    result = archive_record_by_id(session, Site, site_id, archive_request)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=site_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "site",
+                    "site_id": site_id,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
-def post_site_restored_by_id(session: Session, site_id: int) -> Site | None:
+def post_site_restored_by_id(
+    session: Session, site_id: int, *, actor: UserOut | None = None
+) -> Site | None:
     """Restore an archived site by ID.
 
     Args:
@@ -128,4 +156,21 @@ def post_site_restored_by_id(session: Session, site_id: int) -> Site | None:
     Returns:
         The site ORM object, or ``None`` if no matching site exists.
     """
-    return restore_record_by_id(session, Site, site_id)
+    result = restore_record_by_id(session, Site, site_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=site_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={"record_type": "site", "site_id": site_id},
+            )
+        session.commit()
+
+    return result.record

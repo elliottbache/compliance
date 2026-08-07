@@ -152,12 +152,13 @@ class TestArchiveRecordById:
             ArchiveRequest(archive_reason=" duplicate site "),
         )
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is True
         assert record.archived_at is not None
         assert record.archived_at.tzinfo is UTC
         assert record.archive_reason == "duplicate site"
         session.get.assert_called_once_with(SimpleNamespace, 71)
-        session.commit.assert_called_once_with()
+        session.commit.assert_not_called()
 
     def test_archives_record_with_empty_archive_reason_as_none(self) -> None:
         session = MagicMock()
@@ -171,10 +172,11 @@ class TestArchiveRecordById:
             ArchiveRequest(archive_reason=""),
         )
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is True
         assert record.archived_at is not None
         assert record.archive_reason is None
-        session.commit.assert_called_once_with()
+        session.commit.assert_not_called()
 
     def test_archives_record_with_omitted_archive_reason_as_none(self) -> None:
         session = MagicMock()
@@ -188,10 +190,11 @@ class TestArchiveRecordById:
             ArchiveRequest(),
         )
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is True
         assert record.archived_at is not None
         assert record.archive_reason is None
-        session.commit.assert_called_once_with()
+        session.commit.assert_not_called()
 
     def test_archives_record_with_whitespace_only_archive_reason_as_none(self) -> None:
         session = MagicMock()
@@ -205,10 +208,11 @@ class TestArchiveRecordById:
             ArchiveRequest(archive_reason="   "),
         )
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is True
         assert record.archived_at is not None
         assert record.archive_reason is None
-        session.commit.assert_called_once_with()
+        session.commit.assert_not_called()
 
     def test_returns_none_when_record_does_not_exist(self) -> None:
         session = MagicMock()
@@ -221,7 +225,8 @@ class TestArchiveRecordById:
             ArchiveRequest(archive_reason="missing"),
         )
 
-        assert result is None
+        assert result.record is None
+        assert result.changed is False
         session.get.assert_called_once_with(SimpleNamespace, 999)
         session.commit.assert_not_called()
 
@@ -241,7 +246,8 @@ class TestArchiveRecordById:
             ArchiveRequest(archive_reason="new reason"),
         )
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is False
         assert record.archived_at == archived_at
         assert record.archive_reason == "existing reason"
         session.commit.assert_not_called()
@@ -258,11 +264,12 @@ class TestRestoreRecordById:
 
         result = restore_record_by_id(session, SimpleNamespace, 71)
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is True
         assert record.archived_at is None
         assert record.archive_reason is None
         session.get.assert_called_once_with(SimpleNamespace, 71)
-        session.commit.assert_called_once_with()
+        session.commit.assert_not_called()
 
     def test_returns_active_record_unchanged(self) -> None:
         session = MagicMock()
@@ -271,7 +278,8 @@ class TestRestoreRecordById:
 
         result = restore_record_by_id(session, SimpleNamespace, 71)
 
-        assert result is record
+        assert result.record is record
+        assert result.changed is False
         assert record.archived_at is None
         assert record.archive_reason is None
         session.commit.assert_not_called()
@@ -282,7 +290,8 @@ class TestRestoreRecordById:
 
         result = restore_record_by_id(session, SimpleNamespace, 999)
 
-        assert result is None
+        assert result.record is None
+        assert result.changed is False
         session.get.assert_called_once_with(SimpleNamespace, 999)
         session.commit.assert_not_called()
 

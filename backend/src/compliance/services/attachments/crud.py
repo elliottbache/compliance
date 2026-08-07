@@ -2,6 +2,8 @@
 
 from compliance.db.models import (
     Attachment,
+    AuditAction,
+    AuditTargetType,
     Certification,
     Client,
     Finding,
@@ -24,6 +26,7 @@ from compliance.services.attachments.formatting import (
     _format_new_attachment_with_context,
     format_attachment,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     record_is_visible,
@@ -34,6 +37,7 @@ from compliance.services.schemas import (
     AttachmentCreate,
     AttachmentOut,
     AttachmentWithContextOut,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -204,7 +208,11 @@ def get_attachment_by_id(
 
 
 def post_new_attachment(
-    session: Session, attachment: AttachmentCreate, user_id: int
+    session: Session,
+    attachment: AttachmentCreate,
+    actor: UserOut | None = None,
+    *,
+    user_id: int | None = None,
 ) -> AttachmentOut:
     """Persist a new attachment metadata record and optional finding links.
 
@@ -242,6 +250,7 @@ def post_new_attachment(
         "uploaded_at": None,
     }
     new_attachment = Attachment(**orm_data)
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, attachment.certification_id)
@@ -251,9 +260,9 @@ def post_new_attachment(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise AttachmentPermissionError(
-            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
     # check if findings exist
@@ -308,7 +317,8 @@ def post_attachment_archived_by_id(
     attachment_id: int,
     *,
     archive_request: ArchiveRequest,
-    user_id: int,
+    actor: UserOut | None = None,
+    user_id: int | None = None,
 ) -> AttachmentWithContextOut | None:
     """Archive an attachment by ID.
 
@@ -324,6 +334,7 @@ def post_attachment_archived_by_id(
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
         return None
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, attachment.certification_id)
@@ -333,21 +344,41 @@ def post_attachment_archived_by_id(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise AttachmentPermissionError(
-            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
-    attachment = archive_record_by_id(
-        session, Attachment, attachment_id, archive_request
-    )
-    if attachment is None:
+    result = archive_record_by_id(session, Attachment, attachment_id, archive_request)
+    if result.record is None:
         return None
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=attachment_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "attachment",
+                    "attachment_id": attachment_id,
+                    "certification_id": attachment.certification_id,
+                    "filename": attachment.file_name,
+                    "archive_reason": attachment.archive_reason,
+                },
+            )
+        session.commit()
     return get_attachment_by_id(session, attachment_id, include_archived=True)
 
 
 def post_attachment_restored_by_id(
-    session: Session, attachment_id: int, user_id: int
+    session: Session,
+    attachment_id: int,
+    actor: UserOut | None = None,
+    *,
+    user_id: int | None = None,
 ) -> AttachmentWithContextOut | None:
     """Restore an archived attachment by ID.
 
@@ -362,6 +393,7 @@ def post_attachment_restored_by_id(
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
         return None
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, attachment.certification_id)
@@ -371,12 +403,29 @@ def post_attachment_restored_by_id(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise AttachmentPermissionError(
-            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
-    attachment = restore_record_by_id(session, Attachment, attachment_id)
-    if attachment is None:
+    result = restore_record_by_id(session, Attachment, attachment_id)
+    if result.record is None:
         return None
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=attachment_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "attachment",
+                    "attachment_id": attachment_id,
+                    "certification_id": attachment.certification_id,
+                    "filename": attachment.file_name,
+                },
+            )
+        session.commit()
     return get_attachment_by_id(session, attachment_id, include_archived=True)

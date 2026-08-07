@@ -8,7 +8,7 @@ from uuid import uuid4
 import clamd
 import magic
 from compliance.config import settings
-from compliance.db.models import Attachment, Certification
+from compliance.db.models import Attachment, AuditAction, AuditTargetType, Certification
 from compliance.services.attachments.exceptions import (
     AttachmentCertificationNotFoundError,
     AttachmentConflictError,
@@ -21,6 +21,8 @@ from compliance.services.attachments.exceptions import (
     AttachmentTooLargeError,
     AttachmentUnsupportedMediaTypeError,
 )
+from compliance.services.audit import record_audit_event
+from compliance.services.schemas import UserOut
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -121,7 +123,8 @@ def post_attachment_upload(
     file_type: str | None,
     file_name: str | None,
     file_stream: BinaryIO,
-    user_id: int,
+    actor: UserOut | None = None,
+    user_id: int | None = None,
 ) -> Attachment:
     """Persist an uploaded file for an existing attachment metadata record.
 
@@ -170,6 +173,7 @@ def post_attachment_upload(
 
     scanner = _build_file_scanner()
     scanner.scan(file_stream)
+    current_user_id = actor.id if actor is not None else user_id
 
     # fetch metadata
     attachment = session.get(Attachment, attachment_id)
@@ -184,9 +188,9 @@ def post_attachment_upload(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise AttachmentPermissionError(
-            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {attachment.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
     # extract extension
@@ -207,6 +211,22 @@ def post_attachment_upload(
         attachment.uploaded_at = datetime.now(UTC)
 
         session.add(attachment)
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.ATTACHMENT_UPLOADED,
+                target_type=AuditTargetType.ATTACHMENT,
+                target_id=attachment.id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "attachment_id": attachment.id,
+                    "certification_id": attachment.certification_id,
+                    "filename": file_name,
+                    "content_type": file_type,
+                    "file_size": file_size,
+                },
+            )
         session.commit()
         session.refresh(attachment)
 
@@ -232,7 +252,9 @@ def post_attachment_upload(
     return attachment
 
 
-def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, Path]:
+def get_attachment_download(
+    session: Session, attachment_id: int, *, actor: UserOut | None = None
+) -> tuple[str, Path]:
     """Return the download name and stored file path for an attachment.
 
     Args:
@@ -264,6 +286,22 @@ def get_attachment_download(session: Session, attachment_id: int) -> tuple[str, 
 
     file_name = Path(attachment.file_name).name if attachment.file_name else ""
     file_name += str(file_path.suffix)
+
+    if actor is not None:
+        record_audit_event(
+            session,
+            action=AuditAction.ATTACHMENT_DOWNLOADED,
+            target_type=AuditTargetType.ATTACHMENT,
+            target_id=attachment.id,
+            actor_user_id=actor.id,
+            actor_email=actor.email,
+            context={
+                "attachment_id": attachment.id,
+                "certification_id": attachment.certification_id,
+                "filename": file_name,
+            },
+        )
+        session.commit()
 
     return file_name, file_path
 

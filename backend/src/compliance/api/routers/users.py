@@ -51,7 +51,7 @@ def get_users_route(
 def post_new_user_route(
     session: SessionDep,
     user: UserCreate,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
 ) -> UserOut:
     """Create a new user record.
 
@@ -68,7 +68,7 @@ def post_new_user_route(
             conflicts with an existing record.
     """
     try:
-        new_user = post_new_user(session, user)
+        new_user = post_new_user(session, user, actor=authorized_user)
 
     except UserEmailConflictError as err:
         raise HTTPException(

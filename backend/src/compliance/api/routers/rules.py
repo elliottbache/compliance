@@ -110,14 +110,16 @@ def post_new_rule_route(
 @router.post("/{rule_id}/archive", status_code=200)
 def post_rule_archived_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     rule_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> RuleOut:
     """Archive one rule by ID."""
     archive_request = archive_request or ArchiveRequest()
 
-    rule = post_rule_archived_by_id(session, rule_id, archive_request=archive_request)
+    rule = post_rule_archived_by_id(
+        session, rule_id, archive_request=archive_request, actor=authorized_user
+    )
     if rule is None:
         raise HTTPException(status_code=404, detail=f"Rule does not exist: {rule_id}.")
 
@@ -127,11 +129,11 @@ def post_rule_archived_by_id_route(
 @router.post("/{rule_id}/restore", status_code=200)
 def post_rule_restored_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     rule_id: Annotated[int, Path(ge=1)],
 ) -> RuleOut:
     """Restore one archived rule by ID."""
-    rule = post_rule_restored_by_id(session, rule_id)
+    rule = post_rule_restored_by_id(session, rule_id, actor=authorized_user)
     if rule is None:
         raise HTTPException(status_code=404, detail=f"Rule does not exist: {rule_id}.")
 

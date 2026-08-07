@@ -79,7 +79,7 @@ def get_certifications_route(
 @router.post("", status_code=201)
 def post_new_certification_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certification: CertificationCreate,
 ) -> CertificationOut:
     """Create a new certification record.
@@ -96,7 +96,9 @@ def post_new_certification_route(
             another integrity conflict prevents creation.
     """
     try:
-        new_certification = post_new_certification(session, certification)
+        new_certification = post_new_certification(
+            session, certification, actor=authorized_user
+        )
 
     except CertificationCertifierNotFoundError as err:
         raise HTTPException(
@@ -137,7 +139,7 @@ def post_new_certification_route(
 @router.post("/{certification_id}/archive", status_code=200)
 def post_certification_archived_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certification_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> CertificationOut:
@@ -145,7 +147,10 @@ def post_certification_archived_by_id_route(
     archive_request = archive_request or ArchiveRequest()
 
     certification = post_certification_archived_by_id(
-        session, certification_id, archive_request=archive_request
+        session,
+        certification_id,
+        archive_request=archive_request,
+        actor=authorized_user,
     )
     if certification is None:
         raise HTTPException(
@@ -159,11 +164,13 @@ def post_certification_archived_by_id_route(
 @router.post("/{certification_id}/restore", status_code=200)
 def post_certification_restored_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certification_id: Annotated[int, Path(ge=1)],
 ) -> CertificationOut:
     """Restore one archived certification by ID."""
-    certification = post_certification_restored_by_id(session, certification_id)
+    certification = post_certification_restored_by_id(
+        session, certification_id, actor=authorized_user
+    )
     if certification is None:
         raise HTTPException(
             status_code=404,

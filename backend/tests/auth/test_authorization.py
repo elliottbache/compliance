@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from compliance.auth.authorization import (
@@ -7,7 +7,7 @@ from compliance.auth.authorization import (
     get_current_user,
     require_role,
 )
-from compliance.db.models import Role
+from compliance.db.models import AuditAction, Role
 from compliance.services.schemas import UserInDB, UserOut
 from fastapi import HTTPException
 
@@ -66,22 +66,38 @@ class TestGetActiveUser:
 
 class TestRequireRole:
     def test_allows_matching_role(self, user_record_factory) -> None:
+        session = MagicMock()
         user = UserOut.model_validate(user_record_factory(role=Role.REVIEWER))
         dependency = require_role(Role.REVIEWER)
 
-        assert dependency(user) is user
+        assert dependency(session, user) is user
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
 
     def test_allows_higher_role(self, user_record_factory) -> None:
+        session = MagicMock()
         user = UserOut.model_validate(user_record_factory(role=Role.ADMIN))
         dependency = require_role(Role.REVIEWER)
 
-        assert dependency(user) is user
+        assert dependency(session, user) is user
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
 
     def test_raises_for_lower_role(self, user_record_factory) -> None:
+        session = MagicMock()
         user = UserOut.model_validate(user_record_factory(role=Role.VIEWER))
         dependency = require_role(Role.REVIEWER)
 
         with pytest.raises(HTTPException) as exc_info:
-            dependency(user)
+            dependency(session, user)
 
         assert exc_info.value.status_code == 403
+        audit_event = session.add.call_args.args[0]
+        assert audit_event.action == AuditAction.AUTHORIZATION_FAILED
+        assert audit_event.actor_user_id == user.id
+        assert audit_event.actor_email == user.email
+        assert audit_event.context == {
+            "required_role": Role.REVIEWER.value,
+            "actual_role": Role.VIEWER.value,
+        }
+        session.commit.assert_called_once_with()

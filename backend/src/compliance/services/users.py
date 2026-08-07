@@ -5,9 +5,12 @@ from datetime import UTC, datetime
 
 from compliance.auth.authentication import _hash_password
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Role,
     User,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     get_constraint_name,
 )
@@ -59,7 +62,9 @@ def get_users(
     return list(session.execute(stmt).scalars().all())
 
 
-def post_new_user(session: Session, user: UserCreate) -> UserOut:
+def post_new_user(
+    session: Session, user: UserCreate, *, actor: UserOut | None = None
+) -> UserOut:
     """Persist a new user record.
 
     Args:
@@ -81,6 +86,21 @@ def post_new_user(session: Session, user: UserCreate) -> UserOut:
 
     try:
         session.add(new_user)
+        session.flush()
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.USER_CREATED,
+                target_type=AuditTargetType.USER,
+                target_id=new_user.id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "user_id": new_user.id,
+                    "email": new_user.email,
+                    "role": new_user.role.value,
+                },
+            )
         session.commit()
 
     except IntegrityError as exc:

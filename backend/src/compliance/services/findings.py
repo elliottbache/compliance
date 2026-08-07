@@ -4,6 +4,8 @@ from collections.abc import Mapping, Sequence
 
 from compliance.db.models import (
     Attachment,
+    AuditAction,
+    AuditTargetType,
     Certification,
     Client,
     Finding,
@@ -12,6 +14,7 @@ from compliance.db.models import (
     Rule,
     Site,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     certification_parent_chain_is_visible,
@@ -23,6 +26,7 @@ from compliance.services.schemas import (
     FindingAttachmentOut,
     FindingCreate,
     FindingOut,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -245,7 +249,11 @@ def get_finding_by_id(
 
 
 def post_new_finding(
-    session: Session, finding: FindingCreate, user_id: int
+    session: Session,
+    finding: FindingCreate,
+    actor: UserOut | None = None,
+    *,
+    user_id: int | None = None,
 ) -> FindingOut:
     """Persist a new finding record and optional attachment links.
 
@@ -272,6 +280,7 @@ def post_new_finding(
     finding_dict = finding.model_dump(exclude={"attachment_ids"})
     new_finding = Finding(**finding_dict)
     attachment_ids = finding.attachment_ids
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, finding.certification_id)
@@ -281,9 +290,9 @@ def post_new_finding(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise FindingPermissionError(
-            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
     # check if rule exists
@@ -340,6 +349,21 @@ def post_new_finding(
         )
         results = session.execute(stmt).mappings().all()
         finding_out = _format_findings(results)[0]
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.FINDING_CREATED,
+                target_type=AuditTargetType.FINDING,
+                target_id=new_finding.id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "finding_id": new_finding.id,
+                    "certification_id": new_finding.certification_id,
+                    "rule_id": new_finding.rule_id,
+                    "attachment_ids": list(attachment_ids or []),
+                },
+            )
 
         session.commit()
 
@@ -352,7 +376,12 @@ def post_new_finding(
 
 
 def post_finding_archived_by_id(
-    session: Session, finding_id: int, *, archive_request: ArchiveRequest, user_id: int
+    session: Session,
+    finding_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
+    user_id: int | None = None,
 ) -> FindingOut | None:
     """Archive a finding by ID.
 
@@ -368,6 +397,7 @@ def post_finding_archived_by_id(
     finding = session.get(Finding, finding_id)
     if finding is None:
         return None
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, finding.certification_id)
@@ -377,20 +407,42 @@ def post_finding_archived_by_id(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise FindingPermissionError(
-            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
 
-    finding = archive_record_by_id(session, Finding, finding_id, archive_request)
-    if finding is None:
+    result = archive_record_by_id(session, Finding, finding_id, archive_request)
+    if result.record is None:
         return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.FINDING_ARCHIVED,
+                target_type=AuditTargetType.FINDING,
+                target_id=finding_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "finding_id": finding_id,
+                    "certification_id": finding.certification_id,
+                    "rule_id": finding.rule_id,
+                    "archive_reason": finding.archive_reason,
+                },
+            )
+        session.commit()
 
     return get_finding_by_id(session, finding_id, include_archived=True)
 
 
 def post_finding_restored_by_id(
-    session: Session, finding_id: int, *, user_id: int
+    session: Session,
+    finding_id: int,
+    *,
+    actor: UserOut | None = None,
+    user_id: int | None = None,
 ) -> FindingOut | None:
     """Restore an archived finding by ID.
 
@@ -402,9 +454,10 @@ def post_finding_restored_by_id(
         The restored finding with context, or ``None`` if no matching finding
         exists.
     """
-    finding = restore_record_by_id(session, Finding, finding_id)
+    finding = session.get(Finding, finding_id)
     if finding is None:
         return None
+    current_user_id = actor.id if actor is not None else user_id
 
     # check if certification exists
     certification = session.get(Certification, finding.certification_id)
@@ -414,10 +467,31 @@ def post_finding_restored_by_id(
         )
 
     # check if certification belongs to current user
-    if certification.inspector_id != user_id:
+    if certification.inspector_id != current_user_id:
         raise FindingPermissionError(
-            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {user_id}."
+            f"Certification {finding.certification_id} is assigned to inspector {certification.inspector_id}.  You are logged in as inspector {current_user_id}."
         )
+
+    result = restore_record_by_id(session, Finding, finding_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.FINDING_RESTORED,
+                target_type=AuditTargetType.FINDING,
+                target_id=finding_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "finding_id": finding_id,
+                    "certification_id": finding.certification_id,
+                    "rule_id": finding.rule_id,
+                },
+            )
+        session.commit()
 
     return get_finding_by_id(session, finding_id, include_archived=True)
 

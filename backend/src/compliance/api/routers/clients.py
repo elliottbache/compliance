@@ -93,7 +93,7 @@ def post_new_client_route(
 @router.post("/{nif}/archive", status_code=200)
 def post_client_archived_by_nif_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     nif: Annotated[str, Path(min_length=9, max_length=9)],
     archive_request: ArchiveRequest | None = None,
 ) -> ClientOut:
@@ -113,7 +113,9 @@ def post_client_archived_by_nif_route(
 
     archive_request = archive_request or ArchiveRequest()
 
-    client = post_client_archived_by_nif(session, nif, archive_request=archive_request)
+    client = post_client_archived_by_nif(
+        session, nif, archive_request=archive_request, actor=authorized_user
+    )
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
 
@@ -123,7 +125,7 @@ def post_client_archived_by_nif_route(
 @router.post("/{nif}/restore", status_code=200)
 def post_client_restored_by_nif_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     nif: Annotated[str, Path(min_length=9, max_length=9)],
 ) -> ClientOut:
     """Restore one archived client by NIF.
@@ -139,7 +141,7 @@ def post_client_restored_by_nif_route(
         HTTPException: If no client exists for the requested NIF.
     """
 
-    client = post_client_restored_by_nif(session, nif)
+    client = post_client_restored_by_nif(session, nif, actor=authorized_user)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
 

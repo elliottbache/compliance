@@ -1,8 +1,11 @@
 """Client service functions for listing, creation, archive, and restore."""
 
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Client,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
@@ -11,6 +14,7 @@ from compliance.services.lifecycle import (
 from compliance.services.schemas import (
     ArchiveRequest,
     ClientCreate,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -96,7 +100,11 @@ def post_new_client(session: Session, client: ClientCreate) -> Client:
 
 
 def post_client_archived_by_nif(
-    session: Session, nif: str, *, archive_request: ArchiveRequest
+    session: Session,
+    nif: str,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Client | None:
     """Archive a client by NIF.
 
@@ -113,10 +121,33 @@ def post_client_archived_by_nif(
         reason when provided, and commits the session. Already archived clients
         are returned unchanged.
     """
-    return archive_record_by_id(session, Client, nif, archive_request)
+    result = archive_record_by_id(session, Client, nif, archive_request)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=nif,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "client",
+                    "nif": nif,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
-def post_client_restored_by_nif(session: Session, nif: str) -> Client | None:
+def post_client_restored_by_nif(
+    session: Session, nif: str, *, actor: UserOut | None = None
+) -> Client | None:
     """Restore an archived client by NIF.
 
     Args:
@@ -132,4 +163,21 @@ def post_client_restored_by_nif(session: Session, nif: str) -> Client | None:
         unchanged.
     """
 
-    return restore_record_by_id(session, Client, nif)
+    result = restore_record_by_id(session, Client, nif)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=nif,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={"record_type": "client", "nif": nif},
+            )
+        session.commit()
+
+    return result.record

@@ -3,6 +3,8 @@
 import logging
 
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Certification,
     Certifier,
     Client,
@@ -10,6 +12,7 @@ from compliance.db.models import (
     Site,
     User,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
@@ -19,6 +22,7 @@ from compliance.services.lifecycle import (
 from compliance.services.schemas import (
     ArchiveRequest,
     CertificationCreate,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -123,7 +127,10 @@ def get_certifications(
 
 
 def post_new_certification(
-    session: Session, certification: CertificationCreate
+    session: Session,
+    certification: CertificationCreate,
+    *,
+    actor: UserOut | None = None,
 ) -> Certification:
     """Persist a new certification record.
 
@@ -162,6 +169,23 @@ def post_new_certification(
 
     try:
         session.add(new_certification)
+        session.flush()
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.CERTIFICATION_CREATED,
+                target_type=AuditTargetType.CERTIFICATION,
+                target_id=new_certification.id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "certification_id": new_certification.id,
+                    "site_id": new_certification.site_id,
+                    "regulation_id": new_certification.regulation_id,
+                    "certifier_id": new_certification.certifier_id,
+                    "inspector_id": new_certification.inspector_id,
+                },
+            )
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -196,7 +220,11 @@ def post_new_certification(
 
 
 def post_certification_archived_by_id(
-    session: Session, certification_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    certification_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Certification | None:
     """Archive a certification by ID.
 
@@ -209,13 +237,36 @@ def post_certification_archived_by_id(
         The certification ORM object, or ``None`` if no matching certification
         exists.
     """
-    return archive_record_by_id(
+    result = archive_record_by_id(
         session, Certification, certification_id, archive_request
     )
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.CERTIFICATION_ARCHIVED,
+                target_type=AuditTargetType.CERTIFICATION,
+                target_id=certification_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "certification_id": certification_id,
+                    "site_id": result.record.site_id,
+                    "regulation_id": result.record.regulation_id,
+                    "certifier_id": result.record.certifier_id,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
 def post_certification_restored_by_id(
-    session: Session, certification_id: int
+    session: Session, certification_id: int, *, actor: UserOut | None = None
 ) -> Certification | None:
     """Restore an archived certification by ID.
 
@@ -227,4 +278,26 @@ def post_certification_restored_by_id(
         The certification ORM object, or ``None`` if no matching certification
         exists.
     """
-    return restore_record_by_id(session, Certification, certification_id)
+    result = restore_record_by_id(session, Certification, certification_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.CERTIFICATION_RESTORED,
+                target_type=AuditTargetType.CERTIFICATION,
+                target_id=certification_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "certification_id": certification_id,
+                    "site_id": result.record.site_id,
+                    "regulation_id": result.record.regulation_id,
+                    "certifier_id": result.record.certifier_id,
+                },
+            )
+        session.commit()
+
+    return result.record

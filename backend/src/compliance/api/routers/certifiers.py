@@ -87,7 +87,7 @@ def post_new_certifier_route(
 @router.post("/{certifier_id}/archive", status_code=200)
 def post_certifier_archived_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certifier_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> CertifierOut:
@@ -95,7 +95,7 @@ def post_certifier_archived_by_id_route(
     archive_request = archive_request or ArchiveRequest()
 
     certifier = post_certifier_archived_by_id(
-        session, certifier_id, archive_request=archive_request
+        session, certifier_id, archive_request=archive_request, actor=authorized_user
     )
     if certifier is None:
         raise HTTPException(
@@ -108,11 +108,13 @@ def post_certifier_archived_by_id_route(
 @router.post("/{certifier_id}/restore", status_code=200)
 def post_certifier_restored_by_id_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certifier_id: Annotated[int, Path(ge=1)],
 ) -> CertifierOut:
     """Restore one archived certifier by ID."""
-    certifier = post_certifier_restored_by_id(session, certifier_id)
+    certifier = post_certifier_restored_by_id(
+        session, certifier_id, actor=authorized_user
+    )
     if certifier is None:
         raise HTTPException(
             status_code=404, detail=f"Certifier does not exist: {certifier_id}."

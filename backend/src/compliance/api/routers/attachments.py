@@ -97,7 +97,7 @@ def get_attachments_route(
 @router.get("/{attachment_id}/download")
 def get_attachment_download_route(
     session: SessionDep,
-    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
+    authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     attachment_id: Annotated[int, Path(ge=1)],
 ) -> FileResponse:
     """Download the stored file for one attachment.
@@ -115,7 +115,9 @@ def get_attachment_download_route(
     """
 
     try:
-        file_name, file_path = get_attachment_download(session, attachment_id)
+        file_name, file_path = get_attachment_download(
+            session, attachment_id, actor=authorized_user
+        )
 
     except AttachmentNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -150,7 +152,7 @@ def post_new_attachment_route(
             attachment conflicts with existing stored data.
     """
     try:
-        new_attachment = post_new_attachment(session, attachment, authorized_user.id)
+        new_attachment = post_new_attachment(session, attachment, authorized_user)
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentFindingNotFoundError as exc:
@@ -194,7 +196,7 @@ def post_attachment_upload_route(
             file_type=file.content_type,
             file_name=file.filename,
             file_stream=file.file,
-            user_id=authorized_user.id,
+            actor=authorized_user,
         )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -235,7 +237,7 @@ def post_attachment_archived_by_id_route(
             session,
             attachment_id,
             archive_request=archive_request,
-            user_id=authorized_user.id,
+            actor=authorized_user,
         )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -259,7 +261,7 @@ def post_attachment_restored_by_id_route(
     """Restore one archived attachment by ID."""
     try:
         attachment = post_attachment_restored_by_id(
-            session, attachment_id, user_id=authorized_user.id
+            session, attachment_id, actor=authorized_user
         )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

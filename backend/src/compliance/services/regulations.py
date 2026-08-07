@@ -1,10 +1,13 @@
 """Regulation service functions for listing, creation, archive, and restore."""
 
 from compliance.db.models import (
+    AuditAction,
+    AuditTargetType,
     Certification,
     Certifier,
     Regulation,
 )
+from compliance.services.audit import record_audit_event
 from compliance.services.lifecycle import (
     archive_record_by_id,
     get_constraint_name,
@@ -15,6 +18,7 @@ from compliance.services.schemas import (
     ArchiveRequest,
     RegulationCreate,
     RegulationOut,
+    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -124,7 +128,11 @@ def post_new_regulation(session: Session, regulation: RegulationCreate) -> Regul
 
 
 def post_regulation_archived_by_id(
-    session: Session, regulation_id: int, *, archive_request: ArchiveRequest
+    session: Session,
+    regulation_id: int,
+    *,
+    archive_request: ArchiveRequest,
+    actor: UserOut | None = None,
 ) -> Regulation | None:
     """Archive a regulation by ID.
 
@@ -136,11 +144,32 @@ def post_regulation_archived_by_id(
     Returns:
         The regulation ORM object, or ``None`` if no matching regulation exists.
     """
-    return archive_record_by_id(session, Regulation, regulation_id, archive_request)
+    result = archive_record_by_id(session, Regulation, regulation_id, archive_request)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_ARCHIVED,
+                target_type=AuditTargetType.RECORD,
+                target_id=regulation_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={
+                    "record_type": "regulation",
+                    "regulation_id": regulation_id,
+                    "archive_reason": result.record.archive_reason,
+                },
+            )
+        session.commit()
+
+    return result.record
 
 
 def post_regulation_restored_by_id(
-    session: Session, regulation_id: int
+    session: Session, regulation_id: int, *, actor: UserOut | None = None
 ) -> Regulation | None:
     """Restore an archived regulation by ID.
 
@@ -151,4 +180,21 @@ def post_regulation_restored_by_id(
     Returns:
         The regulation ORM object, or ``None`` if no matching regulation exists.
     """
-    return restore_record_by_id(session, Regulation, regulation_id)
+    result = restore_record_by_id(session, Regulation, regulation_id)
+    if result.record is None:
+        return None
+
+    if result.changed:
+        if actor is not None:
+            record_audit_event(
+                session,
+                action=AuditAction.RECORD_RESTORED,
+                target_type=AuditTargetType.RECORD,
+                target_id=regulation_id,
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                context={"record_type": "regulation", "regulation_id": regulation_id},
+            )
+        session.commit()
+
+    return result.record

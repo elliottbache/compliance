@@ -5,7 +5,7 @@ from compliance.db.models import Base
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, object_session
 
-_SQLITE_UTC_DATETIME_FIELDS = ("archived_at", "uploaded_at")
+_SQLITE_UTC_DATETIME_FIELDS = ("archived_at", "created_at", "uploaded_at")
 
 
 def _normalize_sqlite_datetimes(instance) -> None:
