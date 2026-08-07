@@ -2,12 +2,15 @@
 
 from datetime import date, datetime
 from enum import StrEnum as PyEnum
+from typing import Any
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     MetaData,
     String,
     UniqueConstraint,
@@ -52,6 +55,30 @@ class User(Base):
     user_certification_rel: Mapped[list["Certification"]] = relationship(
         back_populates="certification_user_rel"
     )
+
+
+class AuditEvent(Base):
+    """Represents an immutable audit trail event for important backend actions."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_actor_user_id", "actor_user_id"),
+        Index("ix_audit_events_actor_email", "actor_email"),
+        Index("ix_audit_events_action", "action"),
+        Index("ix_audit_events_created_at", "created_at"),
+        Index("ix_audit_events_target_type_target_id", "target_type", "target_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Keep a nullable FK for joins plus an email snapshot for durable readability
+    # when accounts are disabled, changed, or absent for unauthenticated events.
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    actor_email: Mapped[str | None] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(80))
+    target_type: Mapped[str] = mapped_column(String(80))
+    target_id: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class Client(Base):

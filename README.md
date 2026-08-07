@@ -122,11 +122,17 @@ The core records are:
 - `Attachment`: evidence file metadata and optional stored file.
 - `FindingAttachment`: link between findings and supporting attachments.
 - `User`: authenticated application user with a role and active status.
+- `AuditEvent`: persistent audit trail record for important backend actions.
 
 The system is centered around site history. A site history response gathers the
 site, certifications, findings, rules, regulations, certifiers, clients, and
 linked attachment context needed to review previous inspections before a new
 visit.
+
+Audit events store both a nullable user foreign key and an actor email snapshot.
+The foreign key supports joins to active user data, while the email snapshot
+keeps the audit trail readable when accounts are disabled, changed, or absent
+for unauthenticated security events.
 
 ## API Surface
 
@@ -1293,12 +1299,9 @@ backed up, restored, secured, and operated without developer intervention.
 
 ### Deployment And Operations
 
-- Add separate development, staging, and production settings.
 - Add reverse proxy configuration, health checks, persistent storage, backups,
   and restore testing. Add HTTPS/TLS when the app is accessed over a network
   rather than only through localhost or a trusted internal channel.
-- Expand health checks to include Claude API availability when live AI mode is
-  enabled.
 - Add deployment automation around the explicit backup-first migration step.
 - Add deployment gates, migration review, rollback plans, dependency pinning,
   image scanning, and release artifact checksums.
@@ -1316,7 +1319,6 @@ backed up, restored, secured, and operated without developer intervention.
 
 ### Feature Ideas
 
-- Add a local model option for site analysis.
 - Add regulation comparison and versioning workflows.
 - Convert generated Markdown reports to PDF.
 - Improve frontend workflows for selecting and uploading attachments.

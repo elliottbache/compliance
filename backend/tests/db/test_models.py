@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pytest
 from compliance.db.models import (
     Attachment,
+    AuditEvent,
     Certification,
     Certifier,
     Client,
@@ -20,6 +21,41 @@ def test_finding_attachments_primary_key_excludes_certification_id() -> None:
     }
 
     assert pk_columns == {"finding_id", "attachment_id"}
+
+
+def test_audit_event_actor_user_id_references_users() -> None:
+    foreign_keys = AuditEvent.__table__.columns["actor_user_id"].foreign_keys
+    targets = {foreign_key.target_fullname for foreign_key in foreign_keys}
+
+    assert targets == {"users.id"}
+
+
+def test_audit_event_context_uses_json_type() -> None:
+    context_column = AuditEvent.__table__.columns["context"]
+
+    assert context_column.type.python_type is dict
+
+
+def test_audit_event_created_at_column_is_timezone_aware() -> None:
+    created_at_column = AuditEvent.__table__.columns["created_at"]
+
+    assert created_at_column.type.timezone is True
+
+
+def test_audit_event_filter_indexes_exist() -> None:
+    indexes = {
+        index.name: tuple(column.name for column in index.columns)
+        for index in AuditEvent.__table__.indexes
+    }
+
+    assert indexes["ix_audit_events_actor_user_id"] == ("actor_user_id",)
+    assert indexes["ix_audit_events_actor_email"] == ("actor_email",)
+    assert indexes["ix_audit_events_action"] == ("action",)
+    assert indexes["ix_audit_events_created_at"] == ("created_at",)
+    assert indexes["ix_audit_events_target_type_target_id"] == (
+        "target_type",
+        "target_id",
+    )
 
 
 @pytest.mark.parametrize(
