@@ -1,9 +1,9 @@
 """Service-layer DTOs used by business logic."""
 
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
-from compliance.db.models import Role
+from compliance.db.models import AuditAction, AuditTargetType, Role
 from compliance.schemas import FindingHistory
 from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field
 
@@ -40,6 +40,21 @@ class UserInDB(UserOut):
     """Internal user shape that includes the stored password hash."""
 
     hashed_password: str
+
+
+class AuditEventOut(BaseModel):
+    """Output shape for an audit event."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+
+    id: int
+    actor_user_id: int | None
+    actor_email: str | None
+    action: AuditAction
+    target_type: AuditTargetType
+    target_id: str | None
+    created_at: AwareDatetime
+    context: dict[str, Any]
 
 
 class SiteCreate(BaseModel):

@@ -5,6 +5,10 @@ from compliance.services import schemas as service_schemas
 CertificationResult = service_schemas.CertificationResult
 
 
+class AuditEventOut(service_schemas.AuditEventOut):
+    """HTTP response body for an audit event."""
+
+
 class UserCreate(service_schemas.UserCreate):
     """HTTP request body for creating a user."""
 
@@ -106,6 +110,7 @@ __all__ = [
     "AttachmentCreate",
     "AttachmentOut",
     "AttachmentWithContextOut",
+    "AuditEventOut",
     "CertificationAttachmentsOut",
     "CertificationCreate",
     "CertificationOut",

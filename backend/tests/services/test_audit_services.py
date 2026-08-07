@@ -1,9 +1,184 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from compliance.db.models import AuditAction, AuditEvent, AuditTargetType
-from compliance.services.audit import AuditContextError, record_audit_event
+from compliance.db.models import AuditAction, AuditEvent, AuditTargetType, Role, User
+from compliance.services.audit import (
+    AuditContextError,
+    get_audit_events,
+    record_audit_event,
+)
+
+
+def _audit_event(**overrides) -> AuditEvent:
+    event = AuditEvent(
+        actor_user_id=None,
+        actor_email="alice@example.com",
+        action=AuditAction.FINDING_CREATED,
+        target_type=AuditTargetType.FINDING,
+        target_id="42",
+        created_at=datetime(2026, 8, 7, 10, 0, tzinfo=UTC),
+        context={"finding_id": 42},
+    )
+    for key, value in overrides.items():
+        setattr(event, key, value)
+    return event
+
+
+def _user(**overrides) -> User:
+    user = User(
+        id=10,
+        email="alice@example.com",
+        hashed_password="dummy_hash",  # noqa: S106
+        full_name="Alice Inspector",
+        role=Role.ADMIN,
+        is_active=True,
+        created_at=datetime(2026, 6, 5, 10, 0, tzinfo=UTC),
+    )
+    for key, value in overrides.items():
+        setattr(user, key, value)
+    return user
+
+
+def _get_audit_events(sqlite_session, **overrides) -> list[AuditEvent]:
+    filters = {
+        "actor_user_id": None,
+        "actor_email": None,
+        "action": None,
+        "target_type": None,
+        "target_id": None,
+        "created_from": None,
+        "created_to": None,
+        "limit": None,
+        "offset": 0,
+    }
+    filters.update(overrides)
+    return get_audit_events(sqlite_session, **filters)
+
+
+class TestGetAuditEvents:
+    def test_returns_events_newest_first_with_id_tie_breaker(
+        self, sqlite_session
+    ) -> None:
+        timestamp = datetime(2026, 8, 7, 10, 0, tzinfo=UTC)
+        older = _audit_event(created_at=timestamp - timedelta(hours=1), target_id="1")
+        first_same_time = _audit_event(created_at=timestamp, target_id="2")
+        second_same_time = _audit_event(created_at=timestamp, target_id="3")
+        sqlite_session.add_all([older, first_same_time, second_same_time])
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session)
+
+        assert [event.target_id for event in result] == ["3", "2", "1"]
+
+    def test_filters_by_actor_user_id(self, sqlite_session) -> None:
+        user = _user()
+        sqlite_session.add(user)
+        sqlite_session.flush()
+        sqlite_session.add_all(
+            [
+                _audit_event(actor_user_id=10, target_id="match"),
+                _audit_event(actor_user_id=None, target_id="skip"),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, actor_user_id=10)
+
+        assert [event.target_id for event in result] == ["match"]
+
+    def test_filters_by_actor_email(self, sqlite_session) -> None:
+        sqlite_session.add_all(
+            [
+                _audit_event(actor_email="alice@example.com", target_id="match"),
+                _audit_event(actor_email="bob@example.com", target_id="skip"),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, actor_email="alice@example.com")
+
+        assert [event.target_id for event in result] == ["match"]
+
+    def test_filters_by_action(self, sqlite_session) -> None:
+        sqlite_session.add_all(
+            [
+                _audit_event(action=AuditAction.LOGIN_FAILED, target_id="match"),
+                _audit_event(action=AuditAction.LOGIN_SUCCESS, target_id="skip"),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, action=AuditAction.LOGIN_FAILED)
+
+        assert [event.target_id for event in result] == ["match"]
+
+    def test_filters_by_target_type(self, sqlite_session) -> None:
+        sqlite_session.add_all(
+            [
+                _audit_event(target_type=AuditTargetType.AUTH, target_id="match"),
+                _audit_event(target_type=AuditTargetType.FINDING, target_id="skip"),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, target_type=AuditTargetType.AUTH)
+
+        assert [event.target_id for event in result] == ["match"]
+
+    def test_filters_by_target_id(self, sqlite_session) -> None:
+        sqlite_session.add_all(
+            [
+                _audit_event(target_id="match"),
+                _audit_event(target_id="skip"),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, target_id="match")
+
+        assert [event.target_id for event in result] == ["match"]
+
+    def test_applies_inclusive_created_at_bounds(self, sqlite_session) -> None:
+        created_from = datetime(2026, 8, 7, 10, 0, tzinfo=UTC)
+        created_to = datetime(2026, 8, 7, 11, 0, tzinfo=UTC)
+        sqlite_session.add_all(
+            [
+                _audit_event(
+                    created_at=created_from - timedelta(seconds=1),
+                    target_id="too-early",
+                ),
+                _audit_event(created_at=created_from, target_id="from-bound"),
+                _audit_event(created_at=created_to, target_id="to-bound"),
+                _audit_event(
+                    created_at=created_to + timedelta(seconds=1),
+                    target_id="too-late",
+                ),
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(
+            sqlite_session,
+            created_from=created_from,
+            created_to=created_to,
+        )
+
+        assert [event.target_id for event in result] == ["to-bound", "from-bound"]
+
+    def test_applies_limit_and_offset(self, sqlite_session) -> None:
+        sqlite_session.add_all(
+            [
+                _audit_event(created_at=datetime(2026, 8, 7, hour, tzinfo=UTC))
+                for hour in [8, 9, 10]
+            ]
+        )
+        sqlite_session.commit()
+
+        result = _get_audit_events(sqlite_session, limit=1, offset=1)
+
+        assert len(result) == 1
+        assert result[0].created_at.hour == 9
 
 
 class TestRecordAuditEvent:

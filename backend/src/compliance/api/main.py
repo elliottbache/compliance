@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from compliance.api.routers import (
     attachments,
+    audit_events,
     auth,
     certifications,
     certifiers,
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(attachments.router)
+app.include_router(audit_events.router)
 app.include_router(auth.router)
 app.include_router(clients.router)
 app.include_router(certifications.router)

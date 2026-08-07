@@ -14,7 +14,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell      # no --write-changes => no rewrite
-        args: ["--toml", "pyproject.toml"]
+        args: ["--toml", "pyproject.toml", "--ignore-words-list", "dependant"]
         exclude: |
             (?x)^(
                 docs/_static/|
