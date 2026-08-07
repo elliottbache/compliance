@@ -284,7 +284,11 @@ def get_attachment_download(
             f"Attachment file does not exist or not found: {attachment.file_path}."
         )
 
-    file_name = Path(attachment.file_name).name if attachment.file_name else ""
+    file_name = (
+        Path(attachment.file_name).name
+        if attachment.file_name and attachment.file_name.strip()
+        else f"attachment_{attachment.id}"
+    )
     file_name += str(file_path.suffix)
 
     if actor is not None:

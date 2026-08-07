@@ -621,7 +621,7 @@ class TestGetAttachmentDownload:
         assert file_name == "inspection_report.pdf"
         assert file_path == stored_file
 
-    def test_returns_extension_only_when_file_name_is_empty(
+    def test_returns_fallback_name_when_file_name_is_empty(
         self, tmp_path, sqlite_session, db_factory
     ) -> None:
         stored_file = tmp_path / "stored-file.pdf"
@@ -635,10 +635,10 @@ class TestGetAttachmentDownload:
 
         file_name, file_path = get_attachment_download(sqlite_session, 50)
 
-        assert file_name == ".pdf"
+        assert file_name == "attachment_50.pdf"
         assert file_path == stored_file
 
-    def test_returns_extension_only_when_file_name_is_none(
+    def test_returns_fallback_name_when_file_name_is_none(
         self, tmp_path, sqlite_session, db_factory
     ) -> None:
         stored_file = tmp_path / "stored-file.pdf"
@@ -652,7 +652,24 @@ class TestGetAttachmentDownload:
 
         file_name, file_path = get_attachment_download(sqlite_session, 50)
 
-        assert file_name == ".pdf"
+        assert file_name == "attachment_50.pdf"
+        assert file_path == stored_file
+
+    def test_returns_fallback_name_with_txt_extension_when_file_name_is_none(
+        self, tmp_path, sqlite_session, db_factory
+    ) -> None:
+        stored_file = tmp_path / "stored-file.txt"
+        stored_file.write_text("evidence")
+        db_factory(
+            attachment_overrides={
+                "file_name": None,
+                "file_path": str(stored_file),
+            },
+        )
+
+        file_name, file_path = get_attachment_download(sqlite_session, 50)
+
+        assert file_name == "attachment_50.txt"
         assert file_path == stored_file
 
     def test_uses_db_id_and_sanitizes_download_file_name(
