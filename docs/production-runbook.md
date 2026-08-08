@@ -314,6 +314,57 @@ ls -lh /var/backups/compliance/attachments
 
 Copy `/var/backups/compliance` to off-server storage after each backup.
 
+## Backup Schedule
+
+Install the example systemd timers to run daily local backups, prune old local
+backup files, and smoke-test the latest backup artifacts weekly:
+
+```bash
+cd /opt/compliance/app
+sudo cp ops/systemd/compliance-backup.service /etc/systemd/system/
+sudo cp ops/systemd/compliance-backup.timer /etc/systemd/system/
+sudo cp ops/systemd/compliance-restore-test.service /etc/systemd/system/
+sudo cp ops/systemd/compliance-restore-test.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now compliance-backup.timer
+sudo systemctl enable --now compliance-restore-test.timer
+systemctl list-timers 'compliance-*'
+```
+
+The backup timer uses `BACKUP_RETENTION_DAYS=30` by default. Edit
+`/etc/systemd/system/compliance-backup.service` and reload systemd if the local
+retention window needs to change:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart compliance-backup.timer
+```
+
+Preview retention cleanup manually before deleting old files:
+
+```bash
+cd /opt/compliance/app
+scripts/prune-backups.sh --keep-days 30 --dry-run
+```
+
+Local retention only controls files under `/var/backups/compliance`. Off-server
+backup storage should have its own retention and encryption policy.
+
+## Restore Test
+
+Run the restore smoke test to validate that the newest PostgreSQL dump and
+attachment archive are readable without overwriting production data:
+
+```bash
+cd /opt/compliance/app
+scripts/restore-test.sh
+```
+
+This does not replace a full restore test. At least monthly, and after backup,
+restore, schema, or storage changes, restore a recent backup into staging or a
+temporary environment and confirm `/api/health/ready`, representative records,
+and representative attachment downloads.
+
 ## Restore
 
 Restore commands are destructive and require `--confirm-restore`. Dry-run first:

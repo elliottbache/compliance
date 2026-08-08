@@ -1,0 +1,9 @@
+[Unit]
+Description=Compliance backup restore smoke test
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/compliance/app
+ExecStart=/opt/compliance/app/scripts/restore-test.sh

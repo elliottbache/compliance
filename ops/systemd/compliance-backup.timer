@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Compliance backups daily
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+Unit=compliance-backup.service
+
+[Install]
+WantedBy=timers.target

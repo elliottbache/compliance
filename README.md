@@ -965,6 +965,7 @@ the scripts are executable:
 cd /opt/compliance/app
 chmod +x scripts/backup-db.sh scripts/backup-attachments.sh
 chmod +x scripts/restore-db.sh scripts/restore-attachments.sh
+chmod +x scripts/prune-backups.sh scripts/restore-test.sh
 ```
 
 For Docker staging/production deployments, the server needs Docker Compose,
@@ -1011,6 +1012,13 @@ ls -lh /var/backups/compliance/db
 ls -lh /var/backups/compliance/attachments
 ```
 
+Prune old local backup files after confirming the retention window:
+
+```bash
+scripts/prune-backups.sh --keep-days 30 --dry-run
+scripts/prune-backups.sh --keep-days 30
+```
+
 Restore commands are destructive and require `--confirm-restore`:
 
 ```bash
@@ -1041,12 +1049,42 @@ Also confirm that representative database records and uploaded attachments are
 available through the application. A backup that has not been restore-tested is
 only an assumption.
 
-Automate daily local backups with cron or a systemd timer. A simple cron entry
-for the deployment user can run both scripts and append logs:
+The repository includes production systemd timer examples under `ops/systemd/`.
+They run daily local backups, prune local backups older than 30 days by
+default, and run a weekly restore smoke test:
+
+```bash
+cd /opt/compliance/app
+sudo cp ops/systemd/compliance-backup.service /etc/systemd/system/
+sudo cp ops/systemd/compliance-backup.timer /etc/systemd/system/
+sudo cp ops/systemd/compliance-restore-test.service /etc/systemd/system/
+sudo cp ops/systemd/compliance-restore-test.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now compliance-backup.timer
+sudo systemctl enable --now compliance-restore-test.timer
+systemctl list-timers 'compliance-*'
+```
+
+The smoke test validates that the newest PostgreSQL dump and attachment archive
+are readable without overwriting production data:
+
+```bash
+scripts/restore-test.sh
+scripts/restore-test.sh --dry-run
+```
+
+This smoke test is not a substitute for a full restore into staging or a
+temporary environment. Run a full restore test at least monthly, and after
+changing backup, restore, schema, or storage behavior.
+
+If systemd timers are not available, a cron entry for the deployment user can
+run the same scripts and append logs:
 
 ```cron
 15 2 * * * cd /opt/compliance/app && scripts/backup-db.sh >> /var/log/compliance/backup.log 2>&1
 30 2 * * * cd /opt/compliance/app && scripts/backup-attachments.sh >> /var/log/compliance/backup.log 2>&1
+45 2 * * * cd /opt/compliance/app && scripts/prune-backups.sh >> /var/log/compliance/backup.log 2>&1
+30 3 * * 1 cd /opt/compliance/app && scripts/restore-test.sh >> /var/log/compliance/restore-test.log 2>&1
 ```
 
 Local backups protect against application mistakes, but not server loss or disk

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Compliance backup restore smoke test weekly
+
+[Timer]
+OnCalendar=Mon *-*-* 03:30:00
+Persistent=true
+Unit=compliance-restore-test.service
+
+[Install]
+WantedBy=timers.target

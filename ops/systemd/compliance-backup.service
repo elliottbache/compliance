@@ -1,0 +1,12 @@
+[Unit]
+Description=Compliance database and attachment backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/compliance/app
+Environment=BACKUP_RETENTION_DAYS=30
+ExecStart=/opt/compliance/app/scripts/backup-db.sh
+ExecStart=/opt/compliance/app/scripts/backup-attachments.sh
+ExecStart=/opt/compliance/app/scripts/prune-backups.sh
