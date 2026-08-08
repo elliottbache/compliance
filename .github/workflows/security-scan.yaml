@@ -122,11 +122,20 @@ jobs:
       - name: Build image
         run: docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.image }}" .
 
-      - name: Run Trivy image scan
+      - name: Run blocking Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          vuln-type: os,library
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Report full Trivy image scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ matrix.image }}
           vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: "1"
+          exit-code: "0"

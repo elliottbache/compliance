@@ -13,7 +13,7 @@ RUN npm ci --no-audit
 COPY frontend/ ./
 RUN npm run build
 
-FROM caddy:2.8.4-alpine
+FROM caddy:2.11.4-alpine
 
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/frontend/dist /usr/share/caddy
