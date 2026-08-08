@@ -1,9 +1,12 @@
+import io
+import json
 import logging
 from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
 import pytest
 from compliance.logging_utils import (
+    JsonLogFormatter,
     _default_log_dir,
     _set_formatter,
     configure_logging,
@@ -110,6 +113,31 @@ class TestConfigureLogging:
                 warn_logger.addHandler(handler)
             warn_logger.propagate = original_warn_propagate
 
+    def test_configures_json_formatters_when_structured(self, tmp_path) -> None:
+        root = logging.getLogger()
+        original_handlers = list(root.handlers)
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        try:
+            with patch("compliance.logging_utils._default_log_dir") as mock_log_dir:
+                mock_log_dir.return_value = log_dir
+
+                configure_logging(level="INFO", structured=True)
+
+            assert len(root.handlers) == 2
+            assert all(
+                isinstance(handler.formatter, JsonLogFormatter)
+                for handler in root.handlers
+            )
+        finally:
+            for handler in list(root.handlers):
+                root.removeHandler(handler)
+                with suppress(Exception):
+                    handler.close()
+            for handler in original_handlers:
+                root.addHandler(handler)
+
 
 class TestSetFormatter:
     def test_sets_deterministic_format_in_tutorial_mode(self) -> None:
@@ -129,6 +157,81 @@ class TestSetFormatter:
         assert (
             handler.formatter._style._fmt == "{asctime} {levelname} {name}: {message}"
         )
+
+    def test_sets_json_formatter_for_structured_logs(self) -> None:
+        handler = logging.StreamHandler()
+
+        _set_formatter(handler, structured=True)
+
+        assert isinstance(handler.formatter, JsonLogFormatter)
+
+
+class TestJsonLogFormatter:
+    def test_formats_record_as_json(self) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        logger = logging.getLogger("compliance.test.json")
+        original_handlers = list(logger.handlers)
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        try:
+            logger.handlers.clear()
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
+            handler.setFormatter(JsonLogFormatter(is_tutorial=True))
+            logger.addHandler(handler)
+
+            logger.info("structured message")
+
+            payload = json.loads(stream.getvalue())
+
+            assert payload["timestamp"] == "2000-01-01T00:00:00+01:00"
+            assert payload["level"] == "INFO"
+            assert payload["logger"] == "compliance.test.json"
+            assert payload["message"] == "structured message"
+            assert payload["module"] == "test_logging_utils"
+            assert payload["function"] == "test_formats_record_as_json"
+            assert isinstance(payload["line"], int)
+        finally:
+            logger.handlers.clear()
+            for original_handler in original_handlers:
+                logger.addHandler(original_handler)
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
+    def test_formats_exception_details(self) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        logger = logging.getLogger("compliance.test.exception")
+        original_handlers = list(logger.handlers)
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        try:
+            logger.handlers.clear()
+            logger.setLevel(logging.ERROR)
+            logger.propagate = False
+            handler.setFormatter(JsonLogFormatter(is_tutorial=True))
+            logger.addHandler(handler)
+
+            try:
+                raise RuntimeError("broken")
+            except RuntimeError:
+                logger.exception("failed operation")
+
+            payload = json.loads(stream.getvalue())
+
+            assert payload["message"] == "failed operation"
+            assert payload["exception"]["type"] == "RuntimeError"
+            assert payload["exception"]["message"] == "broken"
+            assert "RuntimeError: broken" in payload["exception"]["traceback"]
+        finally:
+            logger.handlers.clear()
+            for original_handler in original_handlers:
+                logger.addHandler(original_handler)
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
 
 
 class TestDefaultLogDir:
