@@ -468,6 +468,22 @@ If health fails after an image update, capture logs, return to the previous
 known-good release or image pins, rebuild, restart, and re-run
 `/api/health/ready`.
 
+## Vulnerability Scan Review
+
+Before promoting a release or running an image-only update in production, review
+the latest `Security Scan` workflow result in GitHub Actions. The workflow runs
+weekly and on dependency, Docker, and workflow changes.
+
+The scan fails on high or critical findings from:
+
+- `pip-audit` for Python dependencies.
+- `npm audit --audit-level=high` for frontend dependencies.
+- Trivy filesystem scanning.
+- Trivy scanning of the built backend and frontend Docker images.
+
+If the scan fails, review the affected package or image layer, update the
+dependency or image pin, rebuild, and re-run the workflow before deploying.
+
 ## Rotate Secrets
 
 Back up first, then edit `/etc/compliance/.env`:

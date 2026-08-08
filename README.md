@@ -937,6 +937,22 @@ restart with `docker compose -f docker-compose.prod.yaml up -d`, and require
 `/api/health/ready` plus recent container logs to look healthy before closing the
 maintenance window.
 
+### Vulnerability Scanning
+
+The `Security Scan` GitHub Actions workflow provides the baseline dependency and
+container vulnerability checks. It runs on relevant dependency, Docker, and
+workflow changes, runs weekly, and can be started manually from GitHub Actions.
+
+The workflow checks:
+
+- Python dependencies with `pip-audit`.
+- Frontend dependencies with `npm audit --audit-level=high`.
+- Repository filesystem dependencies and OS packages with Trivy.
+- Built backend and frontend Docker images with Trivy.
+
+High or critical findings fail the workflow. Review and resolve failed scans
+before promoting a production release or running the image update procedure.
+
 Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
 checks fail; run the explicit migration command after taking backups.
 Development startup may apply existing migrations automatically, but model
