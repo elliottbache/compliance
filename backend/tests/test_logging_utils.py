@@ -7,9 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from compliance.logging_utils import (
     JsonLogFormatter,
+    RedactingTextFormatter,
     _default_log_dir,
     _set_formatter,
     configure_logging,
+    redact_sensitive_text,
 )
 
 
@@ -158,6 +160,13 @@ class TestSetFormatter:
             handler.formatter._style._fmt == "{asctime} {levelname} {name}: {message}"
         )
 
+    def test_sets_redacting_text_formatter_for_text_logs(self) -> None:
+        handler = logging.StreamHandler()
+
+        _set_formatter(handler)
+
+        assert isinstance(handler.formatter, RedactingTextFormatter)
+
     def test_sets_json_formatter_for_structured_logs(self) -> None:
         handler = logging.StreamHandler()
 
@@ -200,6 +209,40 @@ class TestJsonLogFormatter:
             logger.setLevel(original_level)
             logger.propagate = original_propagate
 
+    def test_redacts_sensitive_message_values(self) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        logger = logging.getLogger("compliance.test.redaction")
+        original_handlers = list(logger.handlers)
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        try:
+            logger.handlers.clear()
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
+            handler.setFormatter(JsonLogFormatter(is_tutorial=True))
+            logger.addHandler(handler)
+
+            logger.info(
+                "password=plain token=abc api_key=key secret=value "
+                "Authorization: Bearer jwt-token"
+            )
+
+            payload = json.loads(stream.getvalue())
+
+            assert "plain" not in payload["message"]
+            assert "abc" not in payload["message"]
+            assert "value" not in payload["message"]
+            assert "jwt-token" not in payload["message"]
+            assert "[redacted]" in payload["message"]
+        finally:
+            logger.handlers.clear()
+            for original_handler in original_handlers:
+                logger.addHandler(original_handler)
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
     def test_formats_exception_details(self) -> None:
         stream = io.StringIO()
         handler = logging.StreamHandler(stream)
@@ -232,6 +275,23 @@ class TestJsonLogFormatter:
                 logger.addHandler(original_handler)
             logger.setLevel(original_level)
             logger.propagate = original_propagate
+
+
+class TestRedactSensitiveText:
+    def test_redacts_password_token_secret_api_key_and_bearer_values(self) -> None:
+        result = redact_sensitive_text(
+            "password=plain token: abc secret=value api_key=key Bearer jwt-token"
+        )
+
+        assert "plain" not in result
+        assert "abc" not in result
+        assert "value" not in result
+        assert "jwt-token" not in result
+        assert "password=[redacted]" in result
+        assert "token: [redacted]" in result
+        assert "secret=[redacted]" in result
+        assert "api_key=[redacted]" in result
+        assert "Bearer [redacted]" in result
 
 
 class TestDefaultLogDir:

@@ -82,6 +82,7 @@ def _create_error_message(
     """Build a detailed log message for a failed model response."""
     system_context = system_context if settings.ai_log_prompts else "[redacted]"
     user_message = user_message if settings.ai_log_prompts else "[redacted]"
+    response = response if settings.ai_log_prompts else "[redacted]"
     return (
         f"Model failed for case: {case_info}, model={ai_model}"
         f" max_tokens={max_tokens}, system={system_context},"
@@ -92,8 +93,9 @@ def _create_error_message(
 def _log_validation_error_messages(err: ValidationError) -> None:
     """Log each individual field-level validation error from a ValidationError."""
     for error in err.errors():
+        faulty_data = error["input"] if settings.ai_log_prompts else "[redacted]"
         logger.debug(
             f"Error type: {error['type']}\n"
             f"Location:   {error['loc']}\n"
-            f"Faulty data: {error['input']}"
+            f"Faulty data: {faulty_data}"
         )

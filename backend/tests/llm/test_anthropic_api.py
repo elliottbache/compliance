@@ -566,7 +566,9 @@ class TestCreateErrorMessage:
         assert "response text" in result
         assert str(anthropic_api._MAX_TOKENS) in result
 
-    def test_redacts_prompts_when_prompt_logging_is_disabled(self, monkeypatch) -> None:
+    def test_redacts_ai_content_when_prompt_logging_is_disabled(
+        self, monkeypatch
+    ) -> None:
         monkeypatch.setattr(
             "compliance.llm._helpers.settings",
             SimpleNamespace(ai_log_prompts=False),
@@ -585,7 +587,8 @@ class TestCreateErrorMessage:
         assert "user_message=[redacted]" in result
         assert "system text" not in result
         assert "user text" not in result
-        assert "response text" in result
+        assert "response: [redacted]" in result
+        assert "response text" not in result
 
 
 class TestParseMessageToString:
@@ -610,7 +613,11 @@ class TestParseMessageToString:
 
 
 class TestLogValidationErrorMessages:
-    def test_logs_each_validation_error(self) -> None:
+    def test_logs_each_validation_error(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.llm._helpers.settings",
+            SimpleNamespace(ai_log_prompts=True),
+        )
         error = ValidationError.from_exception_data(
             "ExampleModel",
             [
@@ -624,7 +631,11 @@ class TestLogValidationErrorMessages:
 
         assert mock_debug.call_count == 2
 
-    def test_logs_error_type_location_and_input(self) -> None:
+    def test_logs_error_type_location_and_input(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.llm._helpers.settings",
+            SimpleNamespace(ai_log_prompts=True),
+        )
         error = ValidationError.from_exception_data(
             "ExampleModel",
             [{"type": "missing", "loc": ("value",), "input": {}}],
@@ -637,3 +648,22 @@ class TestLogValidationErrorMessages:
         assert "Error type: missing" in logged_message
         assert "Location:   ('value',)" in logged_message
         assert "Faulty data: {}" in logged_message
+
+    def test_redacts_faulty_data_when_prompt_logging_is_disabled(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            "compliance.llm._helpers.settings",
+            SimpleNamespace(ai_log_prompts=False),
+        )
+        error = ValidationError.from_exception_data(
+            "ExampleModel",
+            [{"type": "missing", "loc": ("value",), "input": {"secret": "value"}}],
+        )
+
+        with patch("compliance.llm._helpers.logger.debug") as mock_debug:
+            _log_validation_error_messages(error)
+
+        logged_message = mock_debug.call_args[0][0]
+        assert "Faulty data: [redacted]" in logged_message
+        assert "secret" not in logged_message

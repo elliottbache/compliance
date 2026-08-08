@@ -214,7 +214,10 @@ class AnthropicAIProvider:
             f"Timestamp: {datetime.now()}, "
             f"model: {ai_model}, prompt version: {prompt_version}"
         )
-        logger.debug(f"response: {_parse_message_to_string(response)}")
+        if settings.ai_log_prompts:
+            logger.debug(f"response: {_parse_message_to_string(response)}")
+        else:
+            logger.debug("AI response logging is disabled.")
 
         return structured_output
 

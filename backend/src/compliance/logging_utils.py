@@ -19,10 +19,18 @@ import json
 import logging
 import os
 import pathlib
+import re
 import sys
 import traceback
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
+
+_REDACTED = "[redacted]"
+_BEARER_PATTERN = re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._~+/=-]+)")
+_SENSITIVE_VALUE_PATTERN = re.compile(
+    r"(?i)\b(password|token|secret|api[_-]?key|authorization)\b"
+    r"(\s*[:=]\s*)([^\s,;]+)"
+)
 
 
 def configure_logging(
@@ -121,12 +129,34 @@ def _set_formatter(
     # in tutorial mode set fixed datetime for deterministic log
     datetime = "2000-01-01T00:00:00+0100" if is_tutorial else "{asctime}"
     handler.setFormatter(
-        logging.Formatter(
+        RedactingTextFormatter(
             fmt=datetime + " {levelname} {name}: {message}",
             datefmt="%Y-%m-%dT%H:%M:%S%z",
             style="{",
         )
     )
+
+
+def redact_sensitive_text(value: object) -> str:
+    """Return log-safe text with obvious credential values removed."""
+    text = str(value)
+    text = _BEARER_PATTERN.sub(r"\1 " + _REDACTED, text)
+    return _SENSITIVE_VALUE_PATTERN.sub(r"\1\2" + _REDACTED, text)
+
+
+class RedactingTextFormatter(logging.Formatter):
+    """Format text logs after removing obvious credential values."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        original_msg = record.msg
+        original_args = record.args
+        try:
+            record.msg = redact_sensitive_text(record.getMessage())
+            record.args = ()
+            return super().format(record)
+        finally:
+            record.msg = original_msg
+            record.args = original_args
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -142,7 +172,7 @@ class JsonLogFormatter(logging.Formatter):
             "timestamp": self._format_timestamp(record),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": redact_sensitive_text(record.getMessage()),
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
@@ -152,9 +182,13 @@ class JsonLogFormatter(logging.Formatter):
             exc_type, exc_value, exc_traceback = record.exc_info
             payload["exception"] = {
                 "type": exc_type.__name__ if exc_type else None,
-                "message": str(exc_value) if exc_value else None,
-                "traceback": "".join(
-                    traceback.format_exception(exc_type, exc_value, exc_traceback)
+                "message": (
+                    redact_sensitive_text(exc_value) if exc_value is not None else None
+                ),
+                "traceback": redact_sensitive_text(
+                    "".join(
+                        traceback.format_exception(exc_type, exc_value, exc_traceback)
+                    )
                 ),
             }
 
