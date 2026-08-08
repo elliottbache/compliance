@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -42,10 +43,11 @@ class TestPostAuthTokenRoute:
         assert audit_event.actor_email == "alice@example.com"
         session.commit.assert_called_once_with()
 
-    def test_raises_unauthorized_when_credentials_are_invalid(self) -> None:
+    def test_raises_unauthorized_when_credentials_are_invalid(self, caplog) -> None:
         session = MagicMock()
 
         with (
+            caplog.at_level(logging.WARNING, logger="compliance.api.routers.auth"),
             patch(
                 "compliance.api.routers.auth.authenticate_user",
                 return_value=None,
@@ -66,12 +68,23 @@ class TestPostAuthTokenRoute:
         assert audit_event.actor_email == "alice@example.com"
         assert audit_event.context == {"reason": "invalid_credentials"}
         session.commit.assert_called_once_with()
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "Authentication failed."
+        ]
+        assert record.event == "auth_failed"
+        assert record.actor_user_id is None
+        assert record.actor_email == "alice@example.com"
+        assert record.reason == "invalid_credentials"
+        assert record.status_code == 401
 
-    def test_raises_forbidden_when_user_is_inactive(self) -> None:
+    def test_raises_forbidden_when_user_is_inactive(self, caplog) -> None:
         session = MagicMock()
         user = SimpleNamespace(id=42, email="alice@example.com", is_active=False)
 
         with (
+            caplog.at_level(logging.WARNING, logger="compliance.api.routers.auth"),
             patch(
                 "compliance.api.routers.auth.authenticate_user",
                 return_value=user,
@@ -92,3 +105,13 @@ class TestPostAuthTokenRoute:
         assert audit_event.actor_email == "alice@example.com"
         assert audit_event.context == {"reason": "inactive_user"}
         session.commit.assert_called_once_with()
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "Authentication failed."
+        ]
+        assert record.event == "auth_failed"
+        assert record.actor_user_id == 42
+        assert record.actor_email == "alice@example.com"
+        assert record.reason == "inactive_user"
+        assert record.status_code == 403
