@@ -628,6 +628,7 @@ Recommended staging/production filesystem layout:
 /var/lib/compliance/
 ├── attachments/               Host attachment storage mounted into the backend
 ├── caddy/                     Caddy certificates, state, and config cache
+├── ollama/                    Optional local AI model storage
 └── postgres/                  Host PostgreSQL data storage mounted into postgres
 
 /var/backups/compliance/
@@ -652,6 +653,7 @@ sudo mkdir -p /etc/compliance
 sudo mkdir -p /var/lib/compliance/attachments
 sudo mkdir -p /var/lib/compliance/caddy/data
 sudo mkdir -p /var/lib/compliance/caddy/config
+sudo mkdir -p /var/lib/compliance/ollama
 sudo mkdir -p /var/lib/compliance/postgres
 sudo mkdir -p /var/backups/compliance/db
 sudo mkdir -p /var/backups/compliance/attachments
@@ -697,9 +699,21 @@ AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
 ANTHROPIC_API_KEY=replace_with_provider_key
+OLLAMA_BASE_URL=http://ollama:11434
 MALWARE_SCANNING_ENABLED=true
 MALWARE_SCANNER_HOST=clamav
 MALWARE_SCANNER_PORT=3310
+```
+
+For production deployments that use local Ollama-backed AI instead of
+Anthropic, set:
+
+```ini
+AI_MODE=local
+AI_MODEL=qwen3:4b
+AI_LOG_PROMPTS=false
+ANTHROPIC_API_KEY=
+OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 For staging and production, use `docker-compose.prod.yaml` on separate servers.
@@ -846,12 +860,39 @@ The same Compose file mounts PostgreSQL data from the host:
 /var/lib/compliance/postgres:/var/lib/compliance/postgres/data
 ```
 
+Production Compose can also run Ollama for local AI analysis. Ollama is behind
+the optional `local-ai` profile, so normal Anthropic deployments do not start
+or download local model infrastructure. When `AI_MODE=local`, keep
+`OLLAMA_BASE_URL=http://ollama:11434`; the backend reaches Ollama through the
+private Compose network. Do not publish Ollama port `11434` to the public
+internet.
+
+Ollama model data is stored on the deployment host:
+
+```yaml
+/var/lib/compliance/ollama:/root/.ollama
+```
+
+Pull the configured model before starting or restarting a local-AI deployment:
+
+```bash
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d ollama
+docker compose -f docker-compose.prod.yaml --profile local-ai run --rm ollama-init
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d --build
+```
+
+For Anthropic deployments, omit the profile:
+
+```bash
+docker compose -f docker-compose.prod.yaml up -d --build
+```
+
 For live Anthropic analysis, set `AI_MODE=anthropic`, provide `AI_MODEL`, and
 provide `ANTHROPIC_API_KEY`. For local Ollama analysis, set `AI_MODE=local`
 and provide `AI_MODEL`. Only enable live AI mode when the deployment owner has
-approved outbound provider calls for the data being analyzed. Be sure to contact
-Anthropic to enable a Zero Data Retention agreement if you handle sensitive
-client data. If handling health data, make sure to sign a Business Associate
+approved the data flow for the selected provider. Be sure to contact Anthropic
+to enable a Zero Data Retention agreement if you handle sensitive client data
+with Anthropic. If handling health data, make sure to sign a Business Associate
 Agreement.
 
 When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
@@ -886,6 +927,9 @@ docker compose -f docker-compose.prod.yaml up -d --build
 curl -f https://your-production-hostname.example/api/health/live
 curl -f https://your-production-hostname.example/api/health/ready
 ```
+
+For local-AI deployments, add `--profile local-ai` to the final `up` command
+and run `ollama-init` before the backend needs to generate an analysis.
 
 The first-admin bootstrap command prompts for the password twice without
 echoing it to the terminal. If an active admin user already exists, it exits
@@ -1160,6 +1204,10 @@ Ollama model in `AI_MODEL` for local provider calls. Mock mode is the safer
 default for local demos and automated tests.
 `AI_LOG_PROMPTS=true` is acceptable in development for prompt debugging, but
 staging and production must keep `AI_LOG_PROMPTS=false`.
+
+For host-based development, `OLLAMA_BASE_URL=http://localhost:11434` points to
+an Ollama process running on the host. For Docker staging/production with the
+`local-ai` profile, use `OLLAMA_BASE_URL=http://ollama:11434`.
 
 ## Testing And Quality
 

@@ -52,6 +52,34 @@ services:
       timeout: 5s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - local-ai
+    volumes:
+      - /var/lib/compliance/ollama:/root/.ollama
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  ollama-init:
+    image: ollama/ollama:latest
+    profiles:
+      - local-ai
+    env_file:
+      - /etc/compliance/.env
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$${AI_MODEL}\""]
+
   frontend:
     build:
       context: .
