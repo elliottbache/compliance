@@ -422,6 +422,52 @@ curl -f https://compliance.internal/api/health/ready
 For local-AI deployments, run `ollama-init` and include `--profile local-ai` in
 the final `up` command.
 
+## Rebuild Or Update Images
+
+Use this procedure when updating base images or third-party service images
+without changing application code. For application releases that include schema
+or source changes, use the full upgrade procedure above instead.
+
+Back up first:
+
+```bash
+cd /opt/compliance/app
+scripts/backup-db.sh
+scripts/backup-attachments.sh
+```
+
+Pull updated third-party service images and rebuild application images from the
+latest configured base images:
+
+```bash
+docker compose -f docker-compose.prod.yaml pull
+docker compose -f docker-compose.prod.yaml build --pull
+docker compose -f docker-compose.prod.yaml up -d
+curl -f https://compliance.internal/api/health/ready
+```
+
+For local-AI deployments, include the profile:
+
+```bash
+docker compose -f docker-compose.prod.yaml --profile local-ai pull
+docker compose -f docker-compose.prod.yaml --profile local-ai build --pull
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d
+curl -f https://compliance.internal/api/health/ready
+```
+
+Check recent container logs before considering the update complete:
+
+```bash
+docker compose -f docker-compose.prod.yaml ps
+docker compose -f docker-compose.prod.yaml logs --tail=100 backend
+docker compose -f docker-compose.prod.yaml logs --tail=100 frontend
+docker compose -f docker-compose.prod.yaml logs --tail=100 postgres
+```
+
+If health fails after an image update, capture logs, return to the previous
+known-good release or image pins, rebuild, restart, and re-run
+`/api/health/ready`.
+
 ## Rotate Secrets
 
 Back up first, then edit `/etc/compliance/.env`:

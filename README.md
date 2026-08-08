@@ -929,6 +929,14 @@ rebuild/restart the containers, and require `/api/health/ready` to pass through
 Caddy. Do not run first-admin bootstrap during routine upgrades. Use the
 [Production Runbook](docs/production-runbook.md) for the exact commands.
 
+For image-only maintenance, such as refreshing base images or third-party
+service images, use the runbook's rebuild/update procedure. The baseline flow is
+to back up first, run `docker compose -f docker-compose.prod.yaml pull`, rebuild
+application images with `docker compose -f docker-compose.prod.yaml build --pull`,
+restart with `docker compose -f docker-compose.prod.yaml up -d`, and require
+`/api/health/ready` plus recent container logs to look healthy before closing the
+maintenance window.
+
 Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
 checks fail; run the explicit migration command after taking backups.
 Development startup may apply existing migrations automatically, but model
