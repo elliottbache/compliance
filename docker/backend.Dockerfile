@@ -16,4 +16,4 @@ COPY pyproject.toml README.md ./
 # install the project (creates compliance in PATH)
 RUN pip install --no-cache-dir .
 
-CMD ["sh", "-c", "fastapi dev backend/src/compliance/api/main.py --host 0.0.0.0 --port 8000"]
+CMD ["uvicorn", "compliance.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

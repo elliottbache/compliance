@@ -1390,8 +1390,7 @@ backed up, restored, secured, and operated without developer intervention.
 
 ### Security
 
-- Replace the backend development server with a production ASGI server such as
-  Gunicorn/Uvicorn.
+
 - Reject insecure default secrets at startup. Production installs must provide a
   strong `SECRET_KEY`, database password, and first-admin credentials.
 - Add a password reset/change workflow, password policy, login throttling or
