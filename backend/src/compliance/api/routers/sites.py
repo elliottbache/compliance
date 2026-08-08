@@ -43,7 +43,7 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("")
+@router.get("", response_model=list[SiteOut])
 def get_sites_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -78,7 +78,7 @@ def get_sites_route(
     return [SiteOut.model_validate(site) for site in sites]
 
 
-@router.get("/{site_id}/attachments")
+@router.get("/{site_id}/attachments", response_model=SiteAttachmentsOut)
 def get_site_attachments_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -121,7 +121,7 @@ def get_site_attachments_route(
     return SiteAttachmentsOut.model_validate(site_attachments)
 
 
-@router.get("/{site_id}/history")
+@router.get("/{site_id}/history", response_model=SiteHistory)
 def get_site_history_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -155,7 +155,7 @@ def get_site_history_route(
     return SiteHistory.model_validate(site_history)
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=SiteOut, status_code=201)
 def post_new_site_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
@@ -192,7 +192,7 @@ def post_new_site_route(
 @router.post("/{site_id}/archive", status_code=200)
 def post_site_archived_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     site_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> SiteOut:
@@ -200,7 +200,7 @@ def post_site_archived_by_id_route(
     archive_request = archive_request or ArchiveRequest()
 
     site = post_site_archived_by_id(
-        session, site_id, archive_request=archive_request, actor=authorized_user
+        session, site_id, archive_request=archive_request, actor=_authorized_user
     )
     if site is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
@@ -211,28 +211,28 @@ def post_site_archived_by_id_route(
 @router.post("/{site_id}/restore", status_code=200)
 def post_site_restored_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     site_id: Annotated[int, Path(ge=1)],
 ) -> SiteOut:
     """Restore one archived site by ID."""
-    site = post_site_restored_by_id(session, site_id, actor=authorized_user)
+    site = post_site_restored_by_id(session, site_id, actor=_authorized_user)
     if site is None:
         raise HTTPException(status_code=404, detail=f"Site does not exist: {site_id}.")
 
     return SiteOut.model_validate(site)
 
 
-@router.post("/{site_id}/analysis")
+@router.post("/{site_id}/analysis", response_model=SiteAnalysis)
 def create_site_analysis_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.REVIEWER))],
     site_id: int,
 ) -> SiteAnalysis:
     """Generate an AI analysis for one site's certification history.
 
     Args:
         session: Database session provided by FastAPI dependency injection.
-        authorized_user: Authenticated reviewer or admin requesting the
+        _authorized_user: Authenticated reviewer or admin requesting the
             analysis.
         site_id: Unique identifier for the site whose history should be
             analyzed.
@@ -249,14 +249,14 @@ def create_site_analysis_route(
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
-    site_analysis = _create_site_analysis(session, site_id, actor=authorized_user)
+    site_analysis = _create_site_analysis(session, site_id, actor=_authorized_user)
     record_audit_event(
         session,
         action=AuditAction.AI_ANALYSIS_REQUESTED,
         target_type=AuditTargetType.AI,
         target_id=site_id,
-        actor_user_id=authorized_user.id,
-        actor_email=authorized_user.email,
+        actor_user_id=_authorized_user.id,
+        actor_email=_authorized_user.email,
         context={
             "site_id": site_id,
             "ai_mode": settings.ai_mode,

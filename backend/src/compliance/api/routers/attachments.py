@@ -42,7 +42,7 @@ router = APIRouter(prefix="/attachments", tags=["attachments"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("")
+@router.get("", response_model=list[AttachmentOut])
 def get_attachments_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -99,7 +99,7 @@ def get_attachments_route(
 @router.get("/{attachment_id}/download")
 def get_attachment_download_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
     attachment_id: Annotated[int, Path(ge=1)],
 ) -> FileResponse:
     """Download the stored file for one attachment.
@@ -118,7 +118,7 @@ def get_attachment_download_route(
 
     try:
         file_name, file_path = get_attachment_download(
-            session, attachment_id, actor=authorized_user
+            session, attachment_id, actor=_authorized_user
         )
 
     except AttachmentNotFoundError as exc:
@@ -132,10 +132,10 @@ def get_attachment_download_route(
     )
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=AttachmentOut, status_code=201)
 def post_new_attachment_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     attachment: AttachmentCreate,
 ) -> AttachmentOut:
     """Create a new attachment metadata record.
@@ -154,7 +154,9 @@ def post_new_attachment_route(
             attachment conflicts with existing stored data.
     """
     try:
-        new_attachment = post_new_attachment(session, attachment, authorized_user)
+        new_attachment = post_new_attachment(
+            session, attachment, actor=_authorized_user
+        )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentFindingNotFoundError as exc:
@@ -172,7 +174,7 @@ def post_new_attachment_route(
 @router.post("/upload", status_code=201)
 def post_attachment_upload_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     file: UploadFile,
     id: Annotated[int, Form(gt=0)],
 ) -> None:
@@ -198,13 +200,13 @@ def post_attachment_upload_route(
             file_type=file.content_type,
             file_name=file.filename,
             file_stream=file.file,
-            actor=authorized_user,
+            actor=_authorized_user,
         )
     except AttachmentCertificationNotFoundError as exc:
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=404,
         )
@@ -213,7 +215,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=403,
         )
@@ -222,7 +224,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=413,
         )
@@ -231,7 +233,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=415,
         )
@@ -240,7 +242,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=415,
         )
@@ -249,7 +251,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=400,
         )
@@ -258,7 +260,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=500,
         )
@@ -267,7 +269,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=503,
         )
@@ -276,7 +278,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=400,
         )
@@ -285,7 +287,7 @@ def post_attachment_upload_route(
         _log_attachment_upload_failure(
             attachment_id=id,
             file=file,
-            actor=authorized_user,
+            actor=_authorized_user,
             exc=exc,
             status_code=404,
         )
@@ -322,7 +324,7 @@ def _log_attachment_upload_failure(
 @router.post("/{attachment_id}/archive", status_code=200)
 def post_attachment_archived_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     attachment_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> AttachmentWithContextOut:
@@ -334,7 +336,7 @@ def post_attachment_archived_by_id_route(
             session,
             attachment_id,
             archive_request=archive_request,
-            actor=authorized_user,
+            actor=_authorized_user,
         )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -352,13 +354,13 @@ def post_attachment_archived_by_id_route(
 @router.post("/{attachment_id}/restore", status_code=200)
 def post_attachment_restored_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     attachment_id: Annotated[int, Path(ge=1)],
 ) -> AttachmentWithContextOut:
     """Restore one archived attachment by ID."""
     try:
         attachment = post_attachment_restored_by_id(
-            session, attachment_id, actor=authorized_user
+            session, attachment_id, actor=_authorized_user
         )
     except AttachmentCertificationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

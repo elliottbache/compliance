@@ -14,7 +14,7 @@ from pydantic import AwareDatetime
 router = APIRouter(prefix="/audit-events", tags=["audit-events"])
 
 
-@router.get("")
+@router.get("", response_model=list[AuditEventOut])
 def get_audit_events_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],

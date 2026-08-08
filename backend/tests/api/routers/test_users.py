@@ -109,7 +109,7 @@ class TestGetUsersRouteUnit:
     def test_registers_user_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/users"
             and "GET" in getattr(route, "methods", set())
         )
@@ -123,7 +123,7 @@ class TestPostNewUserRouteClient:
     def test_route_returns_user_json_when_created(
         self, client, mock_db, admin_user_override, user_record_factory, monkeypatch
     ):
-        def fake_post_new_user(session, user_record):
+        def fake_post_new_user(session, user_record, *, actor=None):
             assert session is mock_db
             assert user_record.full_name == "Alice Inspector"
             assert user_record.email == "alice@example.com"
@@ -158,7 +158,7 @@ class TestPostNewUserRouteClient:
     def test_route_returns_409_when_user_email_already_exists(
         self, client, mock_db, admin_user_override, monkeypatch
     ):
-        def fake_post_new_user(session, user_record):
+        def fake_post_new_user(session, user_record, *, actor=None):
             assert session is mock_db
             raise users_router.UserEmailConflictError(
                 "User with email alice@example.com already exists."
@@ -183,7 +183,7 @@ class TestPostNewUserRouteClient:
     def test_route_returns_409_when_user_conflicts(
         self, client, mock_db, admin_user_override, monkeypatch
     ):
-        def fake_post_new_user(session, user_record):
+        def fake_post_new_user(session, user_record, *, actor=None):
             assert session is mock_db
             raise users_router.UserConflictError(
                 "User was not added because of a data conflict."
@@ -227,7 +227,7 @@ class TestPostNewUserRouteUnit:
             user_record_factory(role=Role.ADMIN, is_active=False)
         )
 
-        def fake_post_new_user(session, user_info):
+        def fake_post_new_user(session, user_info, *, actor=None):
             assert session is fake_session
             assert user_info is user
             assert user_info.password == TEST_PASSWORD
@@ -254,7 +254,7 @@ class TestPostNewUserRouteUnit:
             password=TEST_PASSWORD,
         )
 
-        def fake_post_new_user(session, user_info):
+        def fake_post_new_user(session, user_info, *, actor=None):
             raise users_router.UserEmailConflictError(
                 "User with email alice@example.com already exists."
             )
@@ -282,7 +282,7 @@ class TestPostNewUserRouteUnit:
             password=TEST_PASSWORD,
         )
 
-        def fake_post_new_user(session, user_info):
+        def fake_post_new_user(session, user_info, *, actor=None):
             raise users_router.UserConflictError(
                 "User was not added because of a data conflict."
             )
@@ -304,7 +304,7 @@ class TestPostNewUserRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/users"
             and "POST" in getattr(route, "methods", set())
         )

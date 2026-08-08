@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 router = APIRouter(prefix="/findings", tags=["findings"])
 
 
-@router.get("")
+@router.get("", response_model=list[FindingOut])
 def get_findings_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -87,10 +87,10 @@ def get_findings_route(
     return [FindingOut.model_validate(finding) for finding in findings]
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=FindingOut, status_code=201)
 def post_new_finding_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding: FindingCreate,
 ) -> FindingOut:
     """Create a new finding record.
@@ -108,7 +108,7 @@ def post_new_finding_route(
             another integrity conflict prevents creation.
     """
     try:
-        new_finding = post_new_finding(session, finding, authorized_user)
+        new_finding = post_new_finding(session, finding, actor=_authorized_user)
 
     except FindingAttachmentCertificationMismatchError as err:
         raise HTTPException(
@@ -152,7 +152,7 @@ def post_new_finding_route(
 @router.post("/{finding_id}/archive", status_code=200)
 def post_finding_archived_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> FindingOut:
@@ -164,7 +164,7 @@ def post_finding_archived_by_id_route(
             session,
             finding_id,
             archive_request=archive_request,
-            actor=authorized_user,
+            actor=_authorized_user,
         )
 
     except FindingMissingCertificationError as err:
@@ -190,13 +190,13 @@ def post_finding_archived_by_id_route(
 @router.post("/{finding_id}/restore", status_code=200)
 def post_finding_restored_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.INSPECTOR))],
     finding_id: Annotated[int, Path(ge=1)],
 ) -> FindingOut:
     """Restore one archived finding by ID."""
     try:
         finding = post_finding_restored_by_id(
-            session, finding_id, actor=authorized_user
+            session, finding_id, actor=_authorized_user
         )
 
     except FindingMissingCertificationError as err:

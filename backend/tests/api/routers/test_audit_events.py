@@ -165,7 +165,7 @@ class TestGetAuditEventsRouteUnit:
     def test_registers_audit_events_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/audit-events"
             and "GET" in getattr(route, "methods", set())
         )
@@ -175,7 +175,7 @@ class TestGetAuditEventsRouteUnit:
     def test_registers_admin_dependency(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/audit-events"
             and "GET" in getattr(route, "methods", set())
         )

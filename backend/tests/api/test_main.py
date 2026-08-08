@@ -7,7 +7,7 @@ import pytest
 
 def test_app_registers_expected_router_prefixes(main_module):
     """Verify the FastAPI app includes the public API router prefixes."""
-    paths = {getattr(route, "path", "") for route in main_module.app.routes}
+    paths = {getattr(route, "path", "") for route in main_module.flat_routes}
 
     assert any(path.startswith("/sites") for path in paths)
     assert any(path.startswith("/audit-events") for path in paths)

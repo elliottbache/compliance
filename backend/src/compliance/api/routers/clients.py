@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-@router.get("")
+@router.get("", response_model=list[ClientOut])
 def get_clients_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -50,7 +50,7 @@ def get_clients_route(
     return [ClientOut.model_validate(client) for client in clients]
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=ClientOut, status_code=201)
 def post_new_client_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
@@ -93,7 +93,7 @@ def post_new_client_route(
 @router.post("/{nif}/archive", status_code=200)
 def post_client_archived_by_nif_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     nif: Annotated[str, Path(min_length=9, max_length=9)],
     archive_request: ArchiveRequest | None = None,
 ) -> ClientOut:
@@ -114,7 +114,7 @@ def post_client_archived_by_nif_route(
     archive_request = archive_request or ArchiveRequest()
 
     client = post_client_archived_by_nif(
-        session, nif, archive_request=archive_request, actor=authorized_user
+        session, nif, archive_request=archive_request, actor=_authorized_user
     )
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
@@ -125,7 +125,7 @@ def post_client_archived_by_nif_route(
 @router.post("/{nif}/restore", status_code=200)
 def post_client_restored_by_nif_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     nif: Annotated[str, Path(min_length=9, max_length=9)],
 ) -> ClientOut:
     """Restore one archived client by NIF.
@@ -141,7 +141,7 @@ def post_client_restored_by_nif_route(
         HTTPException: If no client exists for the requested NIF.
     """
 
-    client = post_client_restored_by_nif(session, nif, actor=authorized_user)
+    client = post_client_restored_by_nif(session, nif, actor=_authorized_user)
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client does not exist: {nif}.")
 

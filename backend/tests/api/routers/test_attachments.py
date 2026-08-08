@@ -323,7 +323,7 @@ class TestGetAttachmentsRouteUnit:
     def test_registers_attachments_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/attachments"
             and "GET" in getattr(route, "methods", set())
         )
@@ -339,7 +339,7 @@ class TestGetAttachmentDownloadRoute:
         stored_file = tmp_path / "stored-file.pdf"
         stored_file.write_bytes(b"evidence")
 
-        def fake_get_attachment_download(session, attachment_id):
+        def fake_get_attachment_download(session, attachment_id, *, actor=None):
             assert session is fake_session
             assert attachment_id == 50
             return "inspection_report.pdf", stored_file
@@ -364,7 +364,7 @@ class TestGetAttachmentDownloadRoute:
         )
 
     def test_returns_404_when_attachment_id_does_not_exist(self, monkeypatch) -> None:
-        def fake_get_attachment_download(session, attachment_id):
+        def fake_get_attachment_download(session, attachment_id, *, actor=None):
             assert attachment_id == 999
             raise attachments_router.AttachmentNotFoundError(
                 "Attachment with ID 999 not found."
@@ -387,7 +387,7 @@ class TestGetAttachmentDownloadRoute:
         assert exc_info.value.detail == "Attachment with ID 999 not found."
 
     def test_returns_404_when_attachment_file_does_not_exist(self, monkeypatch) -> None:
-        def fake_get_attachment_download(session, attachment_id):
+        def fake_get_attachment_download(session, attachment_id, *, actor=None):
             raise attachments_router.AttachmentFileError(
                 "Attachment file does not exist or not found: missing.pdf."
             )
@@ -426,11 +426,11 @@ class TestPostNewAttachmentRouteClient:
             }
         )
 
-        def fake_post_new_attachment(session, attachment, user_id):
+        def fake_post_new_attachment(session, attachment, *, actor=None):
             assert attachment.file_name == "evidence"
             assert attachment.certification_id == 100
             assert session is mock_db
-            assert user_id == 10
+            assert actor.id == 10
             return new_attachment
 
         monkeypatch.setattr(
@@ -460,7 +460,7 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_404_when_certification_is_not_found(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment, user_id):
+        def fake_post_new_attachment(session, attachment, *, actor=None):
             assert attachment.certification_id == 100
             assert session is mock_db
             raise attachments_router.AttachmentCertificationNotFoundError(
@@ -481,9 +481,9 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_403_when_certification_belongs_to_another_inspector(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment, user_id):
+        def fake_post_new_attachment(session, attachment, *, actor=None):
             assert session is mock_db
-            assert user_id == 10
+            assert actor.id == 10
             raise attachments_router.AttachmentPermissionError(
                 "Certification 100 is assigned to inspector 11.  "
                 "You are logged in as inspector 10."
@@ -508,7 +508,7 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_422_when_finding_belongs_to_another_certification(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment, user_id):
+        def fake_post_new_attachment(session, attachment, *, actor=None):
             assert attachment.finding_ids == [7]
             assert session is mock_db
             raise attachments_router.AttachmentFindingCertificationMismatchError(
@@ -533,7 +533,7 @@ class TestPostNewAttachmentRouteClient:
     def test_route_returns_409_when_attachment_conflicts(
         self, main_module, client, mock_db, monkeypatch, attachment_create_factory
     ):
-        def fake_post_new_attachment(session, attachment, user_id):
+        def fake_post_new_attachment(session, attachment, *, actor=None):
             assert session is mock_db
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
@@ -565,7 +565,7 @@ class TestPostNewAttachmentRouteUnit:
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(session, attachment_info, user_id):
+        def fake_post_new_attachment(session, attachment_info, *, actor=None):
             raise attachments_router.AttachmentCertificationNotFoundError(
                 "Certification 100 does not exist."
             )
@@ -579,7 +579,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -594,8 +594,8 @@ class TestPostNewAttachmentRouteUnit:
         )
         authorized_user = user_record_factory(id=10)
 
-        def fake_post_new_attachment(session, attachment_info, user_id):
-            assert user_id == authorized_user.id
+        def fake_post_new_attachment(session, attachment_info, *, actor=None):
+            assert actor.id == authorized_user.id
             raise attachments_router.AttachmentPermissionError(
                 "Certification 100 is assigned to inspector 11.  "
                 "You are logged in as inspector 10."
@@ -610,7 +610,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                authorized_user=authorized_user,
+                _authorized_user=authorized_user,
                 attachment=attachment,
             )
 
@@ -627,7 +627,7 @@ class TestPostNewAttachmentRouteUnit:
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(session, attachment_info, user_id):
+        def fake_post_new_attachment(session, attachment_info, *, actor=None):
             raise attachments_router.AttachmentFindingNotFoundError(
                 "Finding 7 does not exist."
             )
@@ -641,7 +641,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -655,7 +655,7 @@ class TestPostNewAttachmentRouteUnit:
             attachment_create_factory(finding_ids=[7])
         )
 
-        def fake_post_new_attachment(session, attachment_info, user_id):
+        def fake_post_new_attachment(session, attachment_info, *, actor=None):
             raise attachments_router.AttachmentFindingCertificationMismatchError(
                 "Finding 7 does not belong to certification 100."
             )
@@ -669,7 +669,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -685,7 +685,7 @@ class TestPostNewAttachmentRouteUnit:
             attachment_create_factory()
         )
 
-        def fake_post_new_attachment(session, attachment_info, user_id):
+        def fake_post_new_attachment(session, attachment_info, *, actor=None):
             raise attachments_router.AttachmentConflictError(
                 "Attachment could not be created."
             )
@@ -699,7 +699,7 @@ class TestPostNewAttachmentRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_new_attachment_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment=attachment,
             )
 
@@ -718,7 +718,7 @@ class TestPostAttachmentUploadRouteClient:
             file_type,
             file_name,
             file_stream,
-            user_id,
+            actor=None,
         ):
             assert session is mock_db
             assert attachment_id == 50
@@ -726,7 +726,7 @@ class TestPostAttachmentUploadRouteClient:
             assert file_type == "application/pdf"
             assert file_name == "evidence.pdf"
             assert file_stream.read() == b"hello world"
-            assert user_id == 10
+            assert actor.id == 10
 
         monkeypatch.setattr(
             attachments_router,
@@ -926,7 +926,7 @@ class TestPostAttachmentUploadRouteUnit:
 
         result = attachments_router.post_attachment_upload_route(
             object(),
-            authorized_user=authorized_user,
+            _authorized_user=authorized_user,
             file=fake_file,
             id=50,
         )
@@ -960,7 +960,7 @@ class TestPostAttachmentUploadRouteUnit:
         ):
             attachments_router.post_attachment_upload_route(
                 object(),
-                authorized_user=authorized_user,
+                _authorized_user=authorized_user,
                 file=fake_file,
                 id=50,
             )
@@ -997,12 +997,12 @@ class TestPostAttachmentArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_attachment_archived_by_id(
-            session, attachment_id, *, archive_request, user_id
+            session, attachment_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert attachment_id == 50
             assert archive_request.archive_reason == "duplicate"
-            assert user_id == 10
+            assert actor.id == 10
             return attachment_factory(
                 archived_at=archived_at, archive_reason="duplicate"
             )
@@ -1031,11 +1031,11 @@ class TestPostAttachmentArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_attachment_archived_by_id(
-            session, attachment_id, *, archive_request, user_id
+            session, attachment_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert attachment_id == 50
-            assert user_id == 10
+            assert actor.id == 10
             return attachment_factory(
                 archived_at=archived_at, archive_reason="old reason"
             )
@@ -1057,11 +1057,11 @@ class TestPostAttachmentArchivedByIdRouteClient:
         self, client, mock_db, monkeypatch
     ):
         def fake_post_attachment_archived_by_id(
-            session, attachment_id, *, archive_request, user_id
+            session, attachment_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert attachment_id == 50
-            assert user_id == 10
+            assert actor.id == 10
             return None
 
         monkeypatch.setattr(
@@ -1104,12 +1104,12 @@ class TestPostAttachmentArchivedByIdRouteUnit:
         )
 
         def fake_post_attachment_archived_by_id(
-            session, attachment_id, *, archive_request, user_id
+            session, attachment_id, *, archive_request, actor=None
         ):
             assert session is fake_session
             assert attachment_id == 50
             assert archive_request == attachments_router.ArchiveRequest()
-            assert user_id == authorized_user.id
+            assert actor.id == authorized_user.id
             return expected
 
         monkeypatch.setattr(
@@ -1120,7 +1120,7 @@ class TestPostAttachmentArchivedByIdRouteUnit:
 
         result = attachments_router.post_attachment_archived_by_id_route(
             fake_session,
-            authorized_user=authorized_user,
+            _authorized_user=authorized_user,
             attachment_id=50,
         )
 
@@ -1130,7 +1130,7 @@ class TestPostAttachmentArchivedByIdRouteUnit:
         self, monkeypatch, user_record_factory
     ) -> None:
         def fake_post_attachment_archived_by_id(
-            session, attachment_id, *, archive_request, user_id
+            session, attachment_id, *, archive_request, actor=None
         ):
             return None
 
@@ -1143,7 +1143,7 @@ class TestPostAttachmentArchivedByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_archived_by_id_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment_id=50,
             )
 
@@ -1162,10 +1162,10 @@ class TestPostAttachmentRestoredByIdRouteClient:
         attachment_factory,
         assert_restored_response,
     ):
-        def fake_post_attachment_restored_by_id(session, attachment_id, user_id):
+        def fake_post_attachment_restored_by_id(session, attachment_id, *, actor=None):
             assert session is mock_db
             assert attachment_id == 50
-            assert user_id == 10
+            assert actor.id == 10
             return attachment_factory(archived_at=None, archive_reason=None)
 
         monkeypatch.setattr(
@@ -1188,10 +1188,10 @@ class TestPostAttachmentRestoredByIdRouteClient:
         attachment_factory,
         assert_restored_response,
     ):
-        def fake_post_attachment_restored_by_id(session, attachment_id, user_id):
+        def fake_post_attachment_restored_by_id(session, attachment_id, *, actor=None):
             assert session is mock_db
             assert attachment_id == 50
-            assert user_id == 10
+            assert actor.id == 10
             return attachment_factory(archived_at=None, archive_reason=None)
 
         monkeypatch.setattr(
@@ -1208,10 +1208,10 @@ class TestPostAttachmentRestoredByIdRouteClient:
     def test_route_returns_404_when_attachment_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_attachment_restored_by_id(session, attachment_id, user_id):
+        def fake_post_attachment_restored_by_id(session, attachment_id, *, actor=None):
             assert session is mock_db
             assert attachment_id == 50
-            assert user_id == 10
+            assert actor.id == 10
             return None
 
         monkeypatch.setattr(
@@ -1253,10 +1253,10 @@ class TestPostAttachmentRestoredByIdRouteUnit:
             finding_links=[],
         )
 
-        def fake_post_attachment_restored_by_id(session, attachment_id, user_id):
+        def fake_post_attachment_restored_by_id(session, attachment_id, *, actor=None):
             assert session is fake_session
             assert attachment_id == 50
-            assert user_id == authorized_user.id
+            assert actor.id == authorized_user.id
             return expected
 
         monkeypatch.setattr(
@@ -1267,7 +1267,7 @@ class TestPostAttachmentRestoredByIdRouteUnit:
 
         result = attachments_router.post_attachment_restored_by_id_route(
             fake_session,
-            authorized_user=authorized_user,
+            _authorized_user=authorized_user,
             attachment_id=50,
         )
 
@@ -1276,7 +1276,7 @@ class TestPostAttachmentRestoredByIdRouteUnit:
     def test_returns_404_when_attachment_does_not_exist(
         self, monkeypatch, user_record_factory
     ) -> None:
-        def fake_post_attachment_restored_by_id(session, attachment_id, user_id):
+        def fake_post_attachment_restored_by_id(session, attachment_id, *, actor=None):
             return None
 
         monkeypatch.setattr(
@@ -1288,7 +1288,7 @@ class TestPostAttachmentRestoredByIdRouteUnit:
         with pytest.raises(HTTPException) as exc_info:
             attachments_router.post_attachment_restored_by_id_route(
                 object(),
-                authorized_user=user_record_factory(),
+                _authorized_user=user_record_factory(),
                 attachment_id=50,
             )
 

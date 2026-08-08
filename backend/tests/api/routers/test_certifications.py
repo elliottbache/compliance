@@ -230,7 +230,7 @@ class TestGetCertificationsRouteUnit:
     def test_registers_certification_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/certifications"
             and "GET" in getattr(route, "methods", set())
         )
@@ -255,7 +255,7 @@ class TestPostNewCertificationRouteClient:
             archive_reason=None,
         )
 
-        def fake_post_new_certification(session, certification):
+        def fake_post_new_certification(session, certification, *, actor=None):
             assert certification.certifier_id == 7
             assert certification.regulation_id == 3
             assert certification.site_id == 12
@@ -297,7 +297,7 @@ class TestPostNewCertificationRouteClient:
     def test_route_returns_409_when_certification_conflicts(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_new_certification(session, certification):
+        def fake_post_new_certification(session, certification, *, actor=None):
             assert session is mock_db
             raise certifications_router.CertificationConflictError(
                 f"Certification was not added: {certification}."
@@ -366,7 +366,7 @@ class TestPostNewCertificationRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             assert certification_info is certification
             assert session is fake_session
             return created_certification
@@ -396,7 +396,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationCertifierNotFoundError(
                 "Certifier 7 does not exist."
             )
@@ -425,7 +425,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationRegulationNotFoundError(
                 "Regulation 3 does not exist."
             )
@@ -454,7 +454,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationSiteNotFoundError(
                 "Site 12 does not exist."
             )
@@ -484,7 +484,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationInspectorNotFoundError(
                 "Inspector 9 does not exist."
             )
@@ -514,7 +514,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationInspectorInactiveError(
                 "Inspector 9 is inactive."
             )
@@ -543,7 +543,7 @@ class TestPostNewCertificationRouteUnit:
             result="Pass",
         )
 
-        def fake_post_new_certification(session, certification_info):
+        def fake_post_new_certification(session, certification_info, *, actor=None):
             raise certifications_router.CertificationConflictError(
                 f"Certification was not added: {certification}."
             )
@@ -569,7 +569,7 @@ class TestPostNewCertificationRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/certifications"
             and "POST" in getattr(route, "methods", set())
         )
@@ -592,7 +592,7 @@ class TestPostCertificationArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_certification_archived_by_id(
-            session, certification_id, *, archive_request
+            session, certification_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certification_id == 100
@@ -628,7 +628,7 @@ class TestPostCertificationArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_certification_archived_by_id(
-            session, certification_id, *, archive_request
+            session, certification_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certification_id == 100
@@ -656,7 +656,7 @@ class TestPostCertificationArchivedByIdRouteClient:
         self, client, mock_db, monkeypatch
     ):
         def fake_post_certification_archived_by_id(
-            session, certification_id, *, archive_request
+            session, certification_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certification_id == 100
@@ -696,7 +696,7 @@ class TestPostCertificationArchivedByIdRouteUnit:
         )
 
         def fake_post_certification_archived_by_id(
-            session, certification_id, *, archive_request
+            session, certification_id, *, archive_request, actor=None
         ):
             assert session is fake_session
             assert certification_id == 100
@@ -719,7 +719,7 @@ class TestPostCertificationArchivedByIdRouteUnit:
 
     def test_returns_404_when_certification_does_not_exist(self, monkeypatch) -> None:
         def fake_post_certification_archived_by_id(
-            session, certification_id, *, archive_request
+            session, certification_id, *, archive_request, actor=None
         ):
             return None
 
@@ -751,7 +751,9 @@ class TestPostCertificationRestoredByIdRouteClient:
         certifications_factory,
         assert_restored_response,
     ):
-        def fake_post_certification_restored_by_id(session, certification_id):
+        def fake_post_certification_restored_by_id(
+            session, certification_id, *, actor=None
+        ):
             assert session is mock_db
             assert certification_id == 100
             return certifications_factory(
@@ -778,7 +780,9 @@ class TestPostCertificationRestoredByIdRouteClient:
         certifications_factory,
         assert_restored_response,
     ):
-        def fake_post_certification_restored_by_id(session, certification_id):
+        def fake_post_certification_restored_by_id(
+            session, certification_id, *, actor=None
+        ):
             assert session is mock_db
             assert certification_id == 100
             return certifications_factory(
@@ -799,7 +803,9 @@ class TestPostCertificationRestoredByIdRouteClient:
     def test_route_returns_404_when_certification_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_certification_restored_by_id(session, certification_id):
+        def fake_post_certification_restored_by_id(
+            session, certification_id, *, actor=None
+        ):
             assert session is mock_db
             assert certification_id == 100
             return None
@@ -837,7 +843,9 @@ class TestPostCertificationRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_certification_restored_by_id(session, certification_id):
+        def fake_post_certification_restored_by_id(
+            session, certification_id, *, actor=None
+        ):
             assert session is fake_session
             assert certification_id == 100
             return expected
@@ -857,7 +865,9 @@ class TestPostCertificationRestoredByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_certification_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_certification_restored_by_id(session, certification_id):
+        def fake_post_certification_restored_by_id(
+            session, certification_id, *, actor=None
+        ):
             return None
 
         monkeypatch.setattr(

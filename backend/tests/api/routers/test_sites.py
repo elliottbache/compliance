@@ -159,7 +159,7 @@ class TestGetSitesRouteUnit:
     def test_registers_site_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/sites"
             and "GET" in getattr(route, "methods", set())
         )
@@ -303,7 +303,7 @@ class TestGetSiteHistoryRouteUnit:
     def test_registers_site_history_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/sites/{site_id}/history"
         )
 
@@ -481,7 +481,7 @@ class TestPostNewSiteRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/sites"
             and "POST" in getattr(route, "methods", set())
         )
@@ -498,7 +498,9 @@ class TestPostSiteArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_site_archived_by_id(session, site_id, *, archive_request):
+        def fake_post_site_archived_by_id(
+            session, site_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert site_id == 12
             assert archive_request.archive_reason == "duplicate"
@@ -520,7 +522,9 @@ class TestPostSiteArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_site_archived_by_id(session, site_id, *, archive_request):
+        def fake_post_site_archived_by_id(
+            session, site_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert site_id == 12
             return site_factory(archived_at=archived_at, archive_reason="old reason")
@@ -539,7 +543,9 @@ class TestPostSiteArchivedByIdRouteClient:
     def test_route_returns_404_when_site_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_site_archived_by_id(session, site_id, *, archive_request):
+        def fake_post_site_archived_by_id(
+            session, site_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert site_id == 12
             return None
@@ -576,7 +582,9 @@ class TestPostSiteArchivedByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_site_archived_by_id(session, site_id, *, archive_request):
+        def fake_post_site_archived_by_id(
+            session, site_id, *, archive_request, actor=None
+        ):
             assert session is fake_session
             assert site_id == 12
             assert archive_request == sites_router.ArchiveRequest()
@@ -597,7 +605,9 @@ class TestPostSiteArchivedByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_site_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_site_archived_by_id(session, site_id, *, archive_request):
+        def fake_post_site_archived_by_id(
+            session, site_id, *, archive_request, actor=None
+        ):
             return None
 
         monkeypatch.setattr(
@@ -623,7 +633,7 @@ class TestPostSiteRestoredByIdRouteClient:
     def test_route_restores_archived_site(
         self, client, mock_db, monkeypatch, site_factory, assert_restored_response
     ):
-        def fake_post_site_restored_by_id(session, site_id):
+        def fake_post_site_restored_by_id(session, site_id, *, actor=None):
             assert session is mock_db
             assert site_id == 12
             return site_factory(archived_at=None, archive_reason=None)
@@ -641,7 +651,7 @@ class TestPostSiteRestoredByIdRouteClient:
     def test_route_restore_active_site_returns_200(
         self, client, mock_db, monkeypatch, site_factory, assert_restored_response
     ):
-        def fake_post_site_restored_by_id(session, site_id):
+        def fake_post_site_restored_by_id(session, site_id, *, actor=None):
             assert session is mock_db
             assert site_id == 12
             return site_factory(archived_at=None, archive_reason=None)
@@ -658,7 +668,7 @@ class TestPostSiteRestoredByIdRouteClient:
     def test_route_returns_404_when_site_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_site_restored_by_id(session, site_id):
+        def fake_post_site_restored_by_id(session, site_id, *, actor=None):
             assert session is mock_db
             assert site_id == 12
             return None
@@ -695,7 +705,7 @@ class TestPostSiteRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_site_restored_by_id(session, site_id):
+        def fake_post_site_restored_by_id(session, site_id, *, actor=None):
             assert session is fake_session
             assert site_id == 12
             return expected
@@ -715,7 +725,7 @@ class TestPostSiteRestoredByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_site_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_site_restored_by_id(session, site_id):
+        def fake_post_site_restored_by_id(session, site_id, *, actor=None):
             return None
 
         monkeypatch.setattr(
@@ -742,7 +752,7 @@ class TestCreateSiteAnalysisRouteClient:
     ):
         site_analysis = site_analysis_factory()
 
-        def fake_create_site_analysis(session, site_id):
+        def fake_create_site_analysis(session, site_id, *, actor=None):
             assert site_id == 101
             assert session is mock_db
             return site_analysis
@@ -765,7 +775,7 @@ class TestCreateSiteAnalysisRouteClient:
     def test_route_returns_404_when_site_history_is_not_found(
         self, main_module, client, mock_db, monkeypatch
     ):
-        def fake_create_site_analysis(session, site_id):
+        def fake_create_site_analysis(session, site_id, *, actor=None):
             assert site_id == 999
             assert session is mock_db
             raise HTTPException(status_code=404, detail="Site 999 not found.")
@@ -814,7 +824,7 @@ class TestCreateSiteAnalysisRouteUnit:
 
         result = sites_router.create_site_analysis_route(
             fake_session,
-            authorized_user=authorized_user,
+            _authorized_user=authorized_user,
             site_id=101,
         )
 
@@ -823,7 +833,7 @@ class TestCreateSiteAnalysisRouteUnit:
     def test_registers_site_analysis_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/sites/{site_id}/analysis"
         )
 
@@ -1241,7 +1251,7 @@ class TestGetSiteAttachmentsRouteUnit:
     def test_registers_site_attachments_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/sites/{site_id}/attachments"
         )
 

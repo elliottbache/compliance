@@ -167,7 +167,7 @@ class TestGetRulesRouteUnit:
     def test_registers_rule_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/rules"
             and "GET" in getattr(route, "methods", set())
         )
@@ -353,7 +353,7 @@ class TestPostNewRuleRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/rules"
             and "POST" in getattr(route, "methods", set())
         )
@@ -375,7 +375,9 @@ class TestPostRuleArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+        def fake_post_rule_archived_by_id(
+            session, rule_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert rule_id == 20
             assert archive_request.archive_reason == "duplicate"
@@ -404,7 +406,9 @@ class TestPostRuleArchivedByIdRouteClient:
     ):
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
-        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+        def fake_post_rule_archived_by_id(
+            session, rule_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert rule_id == 20
             return rule_record_factory(
@@ -425,7 +429,9 @@ class TestPostRuleArchivedByIdRouteClient:
     def test_route_returns_404_when_rule_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+        def fake_post_rule_archived_by_id(
+            session, rule_id, *, archive_request, actor=None
+        ):
             assert session is mock_db
             assert rule_id == 20
             return None
@@ -459,7 +465,9 @@ class TestPostRuleArchivedByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+        def fake_post_rule_archived_by_id(
+            session, rule_id, *, archive_request, actor=None
+        ):
             assert session is fake_session
             assert rule_id == 21
             assert archive_request == rules_router.ArchiveRequest()
@@ -480,7 +488,9 @@ class TestPostRuleArchivedByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_rule_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_rule_archived_by_id(session, rule_id, *, archive_request):
+        def fake_post_rule_archived_by_id(
+            session, rule_id, *, archive_request, actor=None
+        ):
             return None
 
         monkeypatch.setattr(
@@ -511,7 +521,7 @@ class TestPostRuleRestoredByIdRouteClient:
         rule_record_factory,
         assert_restored_response,
     ):
-        def fake_post_rule_restored_by_id(session, rule_id):
+        def fake_post_rule_restored_by_id(session, rule_id, *, actor=None):
             assert session is mock_db
             assert rule_id == 20
             return rule_record_factory(archived_at=None, archive_reason=None)
@@ -534,7 +544,7 @@ class TestPostRuleRestoredByIdRouteClient:
         rule_record_factory,
         assert_restored_response,
     ):
-        def fake_post_rule_restored_by_id(session, rule_id):
+        def fake_post_rule_restored_by_id(session, rule_id, *, actor=None):
             assert session is mock_db
             assert rule_id == 20
             return rule_record_factory(archived_at=None, archive_reason=None)
@@ -551,7 +561,7 @@ class TestPostRuleRestoredByIdRouteClient:
     def test_route_returns_404_when_rule_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_rule_restored_by_id(session, rule_id):
+        def fake_post_rule_restored_by_id(session, rule_id, *, actor=None):
             assert session is mock_db
             assert rule_id == 20
             return None
@@ -585,7 +595,7 @@ class TestPostRuleRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_rule_restored_by_id(session, rule_id):
+        def fake_post_rule_restored_by_id(session, rule_id, *, actor=None):
             assert session is fake_session
             assert rule_id == 21
             return expected
@@ -605,7 +615,7 @@ class TestPostRuleRestoredByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_rule_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_rule_restored_by_id(session, rule_id):
+        def fake_post_rule_restored_by_id(session, rule_id, *, actor=None):
             return None
 
         monkeypatch.setattr(

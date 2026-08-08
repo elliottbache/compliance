@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("")
+@router.get("", response_model=list[UserOut])
 def get_users_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
@@ -47,11 +47,11 @@ def get_users_route(
     return [UserOut.model_validate(user) for user in users]
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=UserOut, status_code=201)
 def post_new_user_route(
     session: SessionDep,
     user: UserCreate,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
 ) -> UserOut:
     """Create a new user record.
 
@@ -68,7 +68,7 @@ def post_new_user_route(
             conflicts with an existing record.
     """
     try:
-        new_user = post_new_user(session, user, actor=authorized_user)
+        new_user = post_new_user(session, user, actor=_authorized_user)
 
     except UserEmailConflictError as err:
         raise HTTPException(

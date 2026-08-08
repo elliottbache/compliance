@@ -170,7 +170,7 @@ class TestGetRegulationsRouteUnit:
     def test_registers_regulation_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/regulations"
             and "GET" in getattr(route, "methods", set())
         )
@@ -345,7 +345,7 @@ class TestPostNewRegulationRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/regulations"
             and "POST" in getattr(route, "methods", set())
         )
@@ -368,7 +368,7 @@ class TestPostRegulationArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_regulation_archived_by_id(
-            session, regulation_id, *, archive_request
+            session, regulation_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert regulation_id == 3
@@ -401,7 +401,7 @@ class TestPostRegulationArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_regulation_archived_by_id(
-            session, regulation_id, *, archive_request
+            session, regulation_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert regulation_id == 3
@@ -426,7 +426,7 @@ class TestPostRegulationArchivedByIdRouteClient:
         self, client, mock_db, monkeypatch
     ):
         def fake_post_regulation_archived_by_id(
-            session, regulation_id, *, archive_request
+            session, regulation_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert regulation_id == 3
@@ -463,7 +463,7 @@ class TestPostRegulationArchivedByIdRouteUnit:
         )
 
         def fake_post_regulation_archived_by_id(
-            session, regulation_id, *, archive_request
+            session, regulation_id, *, archive_request, actor=None
         ):
             assert session is fake_session
             assert regulation_id == 5
@@ -486,7 +486,7 @@ class TestPostRegulationArchivedByIdRouteUnit:
 
     def test_returns_404_when_regulation_does_not_exist(self, monkeypatch) -> None:
         def fake_post_regulation_archived_by_id(
-            session, regulation_id, *, archive_request
+            session, regulation_id, *, archive_request, actor=None
         ):
             return None
 
@@ -518,7 +518,7 @@ class TestPostRegulationRestoredByIdRouteClient:
         regulation_record_factory,
         assert_restored_response,
     ):
-        def fake_post_regulation_restored_by_id(session, regulation_id):
+        def fake_post_regulation_restored_by_id(session, regulation_id, *, actor=None):
             assert session is mock_db
             assert regulation_id == 3
             return regulation_record_factory(archived_at=None, archive_reason=None)
@@ -543,7 +543,7 @@ class TestPostRegulationRestoredByIdRouteClient:
         regulation_record_factory,
         assert_restored_response,
     ):
-        def fake_post_regulation_restored_by_id(session, regulation_id):
+        def fake_post_regulation_restored_by_id(session, regulation_id, *, actor=None):
             assert session is mock_db
             assert regulation_id == 3
             return regulation_record_factory(archived_at=None, archive_reason=None)
@@ -562,7 +562,7 @@ class TestPostRegulationRestoredByIdRouteClient:
     def test_route_returns_404_when_regulation_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_regulation_restored_by_id(session, regulation_id):
+        def fake_post_regulation_restored_by_id(session, regulation_id, *, actor=None):
             assert session is mock_db
             assert regulation_id == 3
             return None
@@ -597,7 +597,7 @@ class TestPostRegulationRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_regulation_restored_by_id(session, regulation_id):
+        def fake_post_regulation_restored_by_id(session, regulation_id, *, actor=None):
             assert session is fake_session
             assert regulation_id == 5
             return expected
@@ -617,7 +617,7 @@ class TestPostRegulationRestoredByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_regulation_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_regulation_restored_by_id(session, regulation_id):
+        def fake_post_regulation_restored_by_id(session, regulation_id, *, actor=None):
             return None
 
         monkeypatch.setattr(

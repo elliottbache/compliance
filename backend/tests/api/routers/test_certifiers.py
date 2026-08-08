@@ -124,7 +124,7 @@ class TestGetCertifiersRouteUnit:
     def test_registers_certifier_list_response_model(self, main_module) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/certifiers"
             and "GET" in getattr(route, "methods", set())
         )
@@ -280,7 +280,7 @@ class TestPostNewCertifierRouteUnit:
     ) -> None:
         route = next(
             route
-            for route in main_module.app.routes
+            for route in main_module.flat_routes
             if getattr(route, "path", None) == "/certifiers"
             and "POST" in getattr(route, "methods", set())
         )
@@ -303,7 +303,7 @@ class TestPostCertifierArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_certifier_archived_by_id(
-            session, certifier_id, *, archive_request
+            session, certifier_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certifier_id == 10
@@ -336,7 +336,7 @@ class TestPostCertifierArchivedByIdRouteClient:
         archived_at = datetime(2026, 5, 8, 10, 0, tzinfo=UTC)
 
         def fake_post_certifier_archived_by_id(
-            session, certifier_id, *, archive_request
+            session, certifier_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certifier_id == 10
@@ -361,7 +361,7 @@ class TestPostCertifierArchivedByIdRouteClient:
         self, client, mock_db, monkeypatch
     ):
         def fake_post_certifier_archived_by_id(
-            session, certifier_id, *, archive_request
+            session, certifier_id, *, archive_request, actor=None
         ):
             assert session is mock_db
             assert certifier_id == 10
@@ -396,7 +396,7 @@ class TestPostCertifierArchivedByIdRouteUnit:
         )
 
         def fake_post_certifier_archived_by_id(
-            session, certifier_id, *, archive_request
+            session, certifier_id, *, archive_request, actor=None
         ):
             assert session is fake_session
             assert certifier_id == 10
@@ -419,7 +419,7 @@ class TestPostCertifierArchivedByIdRouteUnit:
 
     def test_returns_404_when_certifier_does_not_exist(self, monkeypatch) -> None:
         def fake_post_certifier_archived_by_id(
-            session, certifier_id, *, archive_request
+            session, certifier_id, *, archive_request, actor=None
         ):
             return None
 
@@ -451,7 +451,7 @@ class TestPostCertifierRestoredByIdRouteClient:
         certifier_record_factory,
         assert_restored_response,
     ):
-        def fake_post_certifier_restored_by_id(session, certifier_id):
+        def fake_post_certifier_restored_by_id(session, certifier_id, *, actor=None):
             assert session is mock_db
             assert certifier_id == 10
             return certifier_record_factory(archived_at=None, archive_reason=None)
@@ -476,7 +476,7 @@ class TestPostCertifierRestoredByIdRouteClient:
         certifier_record_factory,
         assert_restored_response,
     ):
-        def fake_post_certifier_restored_by_id(session, certifier_id):
+        def fake_post_certifier_restored_by_id(session, certifier_id, *, actor=None):
             assert session is mock_db
             assert certifier_id == 10
             return certifier_record_factory(archived_at=None, archive_reason=None)
@@ -495,7 +495,7 @@ class TestPostCertifierRestoredByIdRouteClient:
     def test_route_returns_404_when_certifier_does_not_exist(
         self, client, mock_db, monkeypatch
     ):
-        def fake_post_certifier_restored_by_id(session, certifier_id):
+        def fake_post_certifier_restored_by_id(session, certifier_id, *, actor=None):
             assert session is mock_db
             assert certifier_id == 10
             return None
@@ -528,7 +528,7 @@ class TestPostCertifierRestoredByIdRouteUnit:
             archive_reason=None,
         )
 
-        def fake_post_certifier_restored_by_id(session, certifier_id):
+        def fake_post_certifier_restored_by_id(session, certifier_id, *, actor=None):
             assert session is fake_session
             assert certifier_id == 10
             return expected
@@ -548,7 +548,7 @@ class TestPostCertifierRestoredByIdRouteUnit:
         assert result == expected
 
     def test_returns_404_when_certifier_does_not_exist(self, monkeypatch) -> None:
-        def fake_post_certifier_restored_by_id(session, certifier_id):
+        def fake_post_certifier_restored_by_id(session, certifier_id, *, actor=None):
             return None
 
         monkeypatch.setattr(

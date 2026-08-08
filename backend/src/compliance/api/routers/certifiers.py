@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 router = APIRouter(prefix="/certifiers", tags=["certifiers"])
 
 
-@router.get("")
+@router.get("", response_model=list[CertifierOut])
 def get_certifiers_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.VIEWER))],
@@ -49,7 +49,7 @@ def get_certifiers_route(
     return [CertifierOut.model_validate(certifier) for certifier in certifiers]
 
 
-@router.post("", status_code=201)
+@router.post("", response_model=CertifierOut, status_code=201)
 def post_new_certifier_route(
     session: SessionDep,
     _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
@@ -87,7 +87,7 @@ def post_new_certifier_route(
 @router.post("/{certifier_id}/archive", status_code=200)
 def post_certifier_archived_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certifier_id: Annotated[int, Path(ge=1)],
     archive_request: ArchiveRequest | None = None,
 ) -> CertifierOut:
@@ -95,7 +95,7 @@ def post_certifier_archived_by_id_route(
     archive_request = archive_request or ArchiveRequest()
 
     certifier = post_certifier_archived_by_id(
-        session, certifier_id, archive_request=archive_request, actor=authorized_user
+        session, certifier_id, archive_request=archive_request, actor=_authorized_user
     )
     if certifier is None:
         raise HTTPException(
@@ -108,12 +108,12 @@ def post_certifier_archived_by_id_route(
 @router.post("/{certifier_id}/restore", status_code=200)
 def post_certifier_restored_by_id_route(
     session: SessionDep,
-    authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
+    _authorized_user: Annotated[UserOut, Depends(require_role(Role.ADMIN))],
     certifier_id: Annotated[int, Path(ge=1)],
 ) -> CertifierOut:
     """Restore one archived certifier by ID."""
     certifier = post_certifier_restored_by_id(
-        session, certifier_id, actor=authorized_user
+        session, certifier_id, actor=_authorized_user
     )
     if certifier is None:
         raise HTTPException(
