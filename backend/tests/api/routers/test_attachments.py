@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime
 from io import BytesIO
 from types import SimpleNamespace
@@ -908,14 +909,14 @@ class TestPostAttachmentUploadRouteUnit:
             file_type,
             file_name,
             file_stream,
-            user_id,
+            actor,
         ):
             assert attachment_id == 50
             assert file_size == 4
             assert file_type == "application/pdf"
             assert file_name == "evidence.pdf"
             assert file_stream.read() == b"data"
-            assert user_id == authorized_user.id
+            assert actor == authorized_user
 
         monkeypatch.setattr(
             attachments_router,
@@ -932,6 +933,54 @@ class TestPostAttachmentUploadRouteUnit:
 
         assert result is None
         assert fake_file.file.closed
+
+    def test_logs_upload_failure_context(
+        self, caplog, monkeypatch, user_record_factory
+    ) -> None:
+        authorized_user = user_record_factory(id=10, email="inspector@example.com")
+        fake_file = SimpleNamespace(
+            filename="evidence.pdf",
+            content_type="application/pdf",
+            size=4,
+            file=BytesIO(b"data"),
+        )
+
+        def fake_post_attachment_upload(session, **kwargs):
+            raise attachments_router.AttachmentTooLargeError("File is too large.")
+
+        monkeypatch.setattr(
+            attachments_router,
+            "post_attachment_upload",
+            fake_post_attachment_upload,
+        )
+
+        with (
+            caplog.at_level(logging.WARNING, logger=attachments_router.logger.name),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            attachments_router.post_attachment_upload_route(
+                object(),
+                authorized_user=authorized_user,
+                file=fake_file,
+                id=50,
+            )
+
+        assert exc_info.value.status_code == 413
+        assert fake_file.file.closed
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "Attachment upload failed."
+        ]
+        assert record.event == "attachment_upload_failed"
+        assert record.attachment_id == 50
+        assert record.actor_user_id == 10
+        assert record.actor_email == "inspector@example.com"
+        assert record.upload_filename == "evidence.pdf"
+        assert record.content_type == "application/pdf"
+        assert record.file_size == 4
+        assert record.status_code == 413
+        assert record.error_type == "AttachmentTooLargeError"
 
 
 @pytest.mark.usefixtures("inspector_user_override")

@@ -243,6 +243,44 @@ class TestJsonLogFormatter:
             logger.setLevel(original_level)
             logger.propagate = original_propagate
 
+    def test_includes_safe_extra_context(self) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        logger = logging.getLogger("compliance.test.context")
+        original_handlers = list(logger.handlers)
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        try:
+            logger.handlers.clear()
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
+            handler.setFormatter(JsonLogFormatter(is_tutorial=True))
+            logger.addHandler(handler)
+
+            logger.info(
+                "upload failed",
+                extra={
+                    "event": "attachment_upload_failed",
+                    "attachment_id": 50,
+                    "token": "secret-token",
+                },
+            )
+
+            payload = json.loads(stream.getvalue())
+
+            assert payload["context"] == {
+                "event": "attachment_upload_failed",
+                "attachment_id": 50,
+                "token": "[redacted]",
+            }
+        finally:
+            logger.handlers.clear()
+            for original_handler in original_handlers:
+                logger.addHandler(original_handler)
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
     def test_formats_exception_details(self) -> None:
         stream = io.StringIO()
         handler = logging.StreamHandler(stream)

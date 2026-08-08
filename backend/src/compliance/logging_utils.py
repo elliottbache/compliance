@@ -26,10 +26,17 @@ from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 
 _REDACTED = "[redacted]"
+_STANDARD_LOG_RECORD_ATTRS = frozenset(logging.makeLogRecord({}).__dict__) | {
+    "message",
+    "asctime",
+}
 _BEARER_PATTERN = re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._~+/=-]+)")
 _SENSITIVE_VALUE_PATTERN = re.compile(
     r"(?i)\b(password|token|secret|api[_-]?key|authorization)\b"
     r"(\s*[:=]\s*)([^\s,;]+)"
+)
+_SENSITIVE_KEY_PATTERN = re.compile(
+    r"(?i)(password|token|secret|api[_-]?key|authorization)"
 )
 
 
@@ -192,6 +199,10 @@ class JsonLogFormatter(logging.Formatter):
                 ),
             }
 
+        context = _extra_context(record)
+        if context:
+            payload["context"] = context
+
         return json.dumps(payload, ensure_ascii=False)
 
     def _format_timestamp(self, record: logging.LogRecord) -> str:
@@ -203,6 +214,24 @@ class JsonLogFormatter(logging.Formatter):
             .astimezone()
             .isoformat(timespec="seconds")
         )
+
+
+def _extra_context(record: logging.LogRecord) -> dict[str, object]:
+    """Return safe caller-supplied ``extra`` fields from a log record."""
+    context: dict[str, object] = {}
+    for key, value in record.__dict__.items():
+        if key in _STANDARD_LOG_RECORD_ATTRS or key.startswith("_"):
+            continue
+        if _SENSITIVE_KEY_PATTERN.search(key):
+            context[key] = _REDACTED
+        elif isinstance(value, str):
+            context[key] = redact_sensitive_text(value)
+        elif value is None or isinstance(value, int | float | bool):
+            context[key] = value
+        else:
+            context[key] = redact_sensitive_text(value)
+
+    return context
 
 
 def _default_log_dir() -> pathlib.Path:

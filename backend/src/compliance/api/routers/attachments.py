@@ -1,5 +1,6 @@
 """Attachment metadata, upload, download, archive, and restore routes."""
 
+import logging
 from typing import Annotated
 
 from compliance.api.deps import SessionDep
@@ -38,6 +39,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Upload
 from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("")
@@ -199,27 +201,122 @@ def post_attachment_upload_route(
             actor=authorized_user,
         )
     except AttachmentCertificationNotFoundError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=404,
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AttachmentPermissionError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=403,
+        )
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except AttachmentTooLargeError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=413,
+        )
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except AttachmentUnsupportedMediaTypeError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=415,
+        )
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except AttachmentInfectedError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=415,
+        )
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except AttachmentFileError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=400,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentConflictError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=500,
+        )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except AttachmentScannerUnavailableError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=503,
+        )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except AttachmentScanError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=400,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AttachmentNotFoundError as exc:
+        _log_attachment_upload_failure(
+            attachment_id=id,
+            file=file,
+            actor=authorized_user,
+            exc=exc,
+            status_code=404,
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:
         file.file.close()
+
+
+def _log_attachment_upload_failure(
+    *,
+    attachment_id: int,
+    file: UploadFile,
+    actor: UserOut,
+    exc: Exception,
+    status_code: int,
+) -> None:
+    """Log safe, queryable context for a failed attachment upload."""
+    logger.warning(
+        "Attachment upload failed.",
+        extra={
+            "event": "attachment_upload_failed",
+            "attachment_id": attachment_id,
+            "actor_user_id": actor.id,
+            "actor_email": actor.email,
+            "upload_filename": file.filename,
+            "content_type": file.content_type,
+            "file_size": file.size,
+            "status_code": status_code,
+            "error_type": exc.__class__.__name__,
+        },
+    )
 
 
 @router.post("/{attachment_id}/archive", status_code=200)
