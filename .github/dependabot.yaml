@@ -46,3 +46,13 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+
+  # Docker Compose
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      compose-images:
+        patterns: ["*"]
