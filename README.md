@@ -701,6 +701,7 @@ SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
+LOG_TO_FILE=false
 ANTHROPIC_API_KEY=replace_with_provider_key
 OLLAMA_BASE_URL=http://ollama:11434
 MALWARE_SCANNING_ENABLED=true
@@ -715,6 +716,7 @@ Anthropic, set:
 AI_MODE=local
 AI_MODEL=qwen3:4b
 AI_LOG_PROMPTS=false
+LOG_TO_FILE=false
 ANTHROPIC_API_KEY=
 OLLAMA_BASE_URL=http://ollama:11434
 ```
@@ -745,6 +747,7 @@ CORS_ORIGIN=https://your-staging-hostname.example
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
+LOG_TO_FILE=false
 ANTHROPIC_API_KEY=replace_with_staging_provider_key
 MALWARE_SCANNING_ENABLED=true
 MALWARE_SCANNER_HOST=clamav
@@ -760,6 +763,12 @@ clamav:
   expose:
     - "3310"
 ```
+
+Production containers use Docker's `local` log driver with rotation configured
+in `docker-compose.prod.yaml`. The backend sets `LOG_TO_FILE=false` in
+production Compose so operational logs go to stdout/stderr and are available
+through `docker compose logs` instead of being duplicated inside the container
+filesystem.
 
 The service uses `expose`, not `ports`, so ClamAV port `3310` is reachable on
 the private Compose network but is not published on the host. Keep
@@ -1178,6 +1187,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES
 
 `ALGORITHM` defaults to `HS256`; `ACCESS_TOKEN_EXPIRE_MINUTES` defaults to `30`.
 `SECRET_KEY` is required for token creation and decoding.
+
+### Logging
+
+```ini
+LOG_TO_FILE=true
+```
+
+`LOG_TO_FILE=true` keeps a rotating app log file in the OS state directory for
+local runs. Production Docker Compose overrides this to `false` so backend logs
+go only to stdout/stderr and are rotated by Docker's configured log driver.
 
 ### AI
 

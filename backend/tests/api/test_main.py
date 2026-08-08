@@ -62,7 +62,11 @@ class TestLifespan:
 
         asyncio.run(run_lifespan())
 
-        mock_configure_logging.assert_called_once_with(level="DEBUG", structured=False)
+        mock_configure_logging.assert_called_once_with(
+            level="DEBUG",
+            structured=False,
+            log_to_file=main_module.settings.log_to_file,
+        )
         mock_reachable.assert_called_once_with()
         assert latest_calls == []
         mock_upgrade.assert_called_once_with(main_module.settings.app_env)
@@ -73,7 +77,9 @@ class TestLifespan:
         monkeypatch.setattr(main_module, "configure_logging", mock_configure_logging)
         monkeypatch.setattr(main_module, "verify_db_is_reachable", lambda: True)
         monkeypatch.setattr(
-            main_module, "settings", SimpleNamespace(app_env="production")
+            main_module,
+            "settings",
+            SimpleNamespace(app_env="production", log_to_file=False),
         )
 
         mock_latest_check = MagicMock(return_value=True)
@@ -95,7 +101,9 @@ class TestLifespan:
 
         asyncio.run(run_lifespan())
 
-        mock_configure_logging.assert_called_once_with(level="DEBUG", structured=True)
+        mock_configure_logging.assert_called_once_with(
+            level="DEBUG", structured=True, log_to_file=False
+        )
         mock_latest_check.assert_called_once_with("production")
         mock_upgrade.assert_called_once_with("production")
         mock_model_check.assert_called_once_with("production")
@@ -104,7 +112,9 @@ class TestLifespan:
         self, main_module, monkeypatch
     ) -> None:
         monkeypatch.setattr(
-            main_module, "configure_logging", lambda *, level, structured: None
+            main_module,
+            "configure_logging",
+            lambda *, level, structured, log_to_file: None,
         )
         monkeypatch.setattr(main_module, "verify_db_is_reachable", lambda: False)
         mock_latest_check = MagicMock(return_value=True)
@@ -135,11 +145,15 @@ class TestLifespan:
         self, main_module, monkeypatch
     ) -> None:
         monkeypatch.setattr(
-            main_module, "configure_logging", lambda *, level, structured: None
+            main_module,
+            "configure_logging",
+            lambda *, level, structured, log_to_file: None,
         )
         monkeypatch.setattr(main_module, "verify_db_is_reachable", lambda: True)
         monkeypatch.setattr(
-            main_module, "settings", SimpleNamespace(app_env="production")
+            main_module,
+            "settings",
+            SimpleNamespace(app_env="production", log_to_file=False),
         )
         monkeypatch.setattr(
             main_module, "verify_latest_migration_script", lambda app_env: False
@@ -171,7 +185,9 @@ class TestLifespan:
         self, main_module, monkeypatch
     ) -> None:
         monkeypatch.setattr(
-            main_module, "configure_logging", lambda *, level, structured: None
+            main_module,
+            "configure_logging",
+            lambda *, level, structured, log_to_file: None,
         )
         monkeypatch.setattr(main_module, "verify_db_is_reachable", lambda: True)
         mock_latest_check = MagicMock(return_value=True)
@@ -202,7 +218,9 @@ class TestLifespan:
         self, main_module, monkeypatch
     ) -> None:
         monkeypatch.setattr(
-            main_module, "configure_logging", lambda *, level, structured: None
+            main_module,
+            "configure_logging",
+            lambda *, level, structured, log_to_file: None,
         )
         monkeypatch.setattr(main_module, "verify_db_is_reachable", lambda: True)
         monkeypatch.setattr(

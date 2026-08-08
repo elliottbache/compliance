@@ -78,6 +78,7 @@ class TestSettingsEnvironmentValidation:
             "CORS_ORIGIN",
             "AI_MODE",
             "AI_LOG_PROMPTS",
+            "LOG_TO_FILE",
             "ANTHROPIC_API_KEY",
             "SECRET_KEY",
             "ALGORITHM",
@@ -103,6 +104,7 @@ class TestSettingsEnvironmentValidation:
                 "AI_MODE": "anthropic",
                 "AI_MODEL": "claude-test",
                 "AI_LOG_PROMPTS": "false",
+                "LOG_TO_FILE": "false",
                 "ANTHROPIC_API_KEY": "test-api-key",
                 "SECRET_KEY": "test-secret-key",
                 "ALGORITHM": "HS256",
@@ -121,6 +123,7 @@ class TestSettingsEnvironmentValidation:
         assert settings.postgres_port == 5432
         assert settings.attachments_dir == tmp_path
         assert settings.ai_log_prompts is False
+        assert settings.log_to_file is False
         assert settings.anthropic_api_key == "test-api-key"
 
     def test_allows_safe_production_settings(self, tmp_path) -> None:

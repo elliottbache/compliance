@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     ai_model: str | None = None
     anthropic_api_key: str | None = None
     ai_log_prompts: bool = True
+    log_to_file: bool = True
     ollama_base_url: str = "http://localhost:11434"
     ollama_timeout_seconds: int = 300
     ollama_num_ctx: int = 4096

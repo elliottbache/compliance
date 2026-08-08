@@ -140,6 +140,32 @@ class TestConfigureLogging:
             for handler in original_handlers:
                 root.addHandler(handler)
 
+    def test_skips_file_handler_when_log_to_file_is_false(self, tmp_path) -> None:
+        root = logging.getLogger()
+        original_handlers = list(root.handlers)
+
+        try:
+            with (
+                patch("compliance.logging_utils._default_log_dir") as mock_log_dir,
+                patch("compliance.logging_utils.RotatingFileHandler") as mock_rotating,
+            ):
+                mock_log_dir.return_value = tmp_path / "logs"
+
+                configure_logging(level="INFO", log_to_file=False)
+
+            assert len(root.handlers) == 1
+            assert isinstance(root.handlers[0], logging.StreamHandler)
+            assert root.handlers[0].level == logging.INFO
+            mock_log_dir.assert_not_called()
+            mock_rotating.assert_not_called()
+        finally:
+            for handler in list(root.handlers):
+                root.removeHandler(handler)
+                with suppress(Exception):
+                    handler.close()
+            for handler in original_handlers:
+                root.addHandler(handler)
+
 
 class TestSetFormatter:
     def test_sets_deterministic_format_in_tutorial_mode(self) -> None:

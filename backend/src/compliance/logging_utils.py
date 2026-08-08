@@ -41,13 +41,17 @@ _SENSITIVE_KEY_PATTERN = re.compile(
 
 
 def configure_logging(
-    *, level: str = "INFO", is_tutorial: bool = False, structured: bool = False
+    *,
+    level: str = "INFO",
+    is_tutorial: bool = False,
+    structured: bool = False,
+    log_to_file: bool = True,
 ) -> None:
     """Configure root logging for the application.
 
     This attaches two handlers to the **root** logger.
 
-    The file handler writes at ``level`` to
+    When ``log_to_file`` is true, the file handler writes at ``level`` to
     ``<state-dir>/compliance/logs/compliance.log``. On Linux/WSL, the state
     directory is ``$XDG_STATE_HOME`` with a fallback to ``~/.local/state``. On
     Windows, it is ``%LOCALAPPDATA%`` with a fallback to ``~/AppData/Local``.
@@ -64,6 +68,9 @@ def configure_logging(
         is_tutorial (bool): If True, use deterministic timestamps and overwrite the log
             file each run.
         structured (bool): If True, emit JSON records instead of text logs.
+        log_to_file (bool): If True, attach a rotating file handler in addition
+            to stderr. Docker deployments should normally leave this false and
+            rely on Docker-managed stdout/stderr log rotation.
 
     Raises:
         ValueError: If ``level`` is not a valid logging level name.
@@ -96,11 +103,15 @@ def configure_logging(
     warn_logger.handlers.clear()
     warn_logger.propagate = True
 
-    # create err handler (WARNING and above)
+    # create stream handler. When file logging is disabled, it carries the full
+    # configured level so Docker receives the operational log stream.
     err_handler = logging.StreamHandler(stream=sys.stderr)
-    err_handler.setLevel("WARNING")
+    err_handler.setLevel(numeric_level if not log_to_file else "WARNING")
     _set_formatter(err_handler, is_tutorial=is_tutorial, structured=structured)
     root.addHandler(err_handler)
+
+    if not log_to_file:
+        return
 
     # define and create folder for saving log
     log_file = pathlib.Path("compliance").with_suffix(".log")

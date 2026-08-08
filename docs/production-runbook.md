@@ -62,6 +62,7 @@ SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
+LOG_TO_FILE=false
 ANTHROPIC_API_KEY=replace_with_provider_key
 OLLAMA_BASE_URL=http://ollama:11434
 MALWARE_SCANNING_ENABLED=true
@@ -75,9 +76,14 @@ For local Ollama-backed AI, use:
 AI_MODE=local
 AI_MODEL=qwen3:4b
 AI_LOG_PROMPTS=false
+LOG_TO_FILE=false
 ANTHROPIC_API_KEY=
 OLLAMA_BASE_URL=http://ollama:11434
 ```
+
+Production Compose also sets `LOG_TO_FILE=false` for the backend container.
+Use `docker compose logs` for operational logs; Docker's `local` log driver
+rotates those container logs according to `docker-compose.prod.yaml`.
 
 Configure internal DNS so `COMPLIANCE_HOSTNAME` resolves to the deployment
 server's LAN IP. Allow inbound `80/tcp` and `443/tcp` to the deployment server.

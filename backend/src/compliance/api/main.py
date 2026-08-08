@@ -34,7 +34,9 @@ from compliance.logging_utils import configure_logging
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure app-level resources when FastAPI starts."""
     configure_logging(
-        level="DEBUG", structured=settings.app_env in {"staging", "production"}
+        level="DEBUG",
+        structured=settings.app_env in {"staging", "production"},
+        log_to_file=settings.log_to_file,
     )
     if (
         not verify_db_is_reachable()
