@@ -1,4 +1,4 @@
-FROM node:22.14.0-alpine3.21@sha256:9bef0ef1e268f60627da9ba7d7605e8831d5b56ad07487d24d1aa386336d1944 AS build
+FROM node:25.2.1-alpine3.21@sha256:32509199057d74a987fdd88cde00fdfd48ef52469adbd6bd11969fc701477761 AS build
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN npm ci --no-audit
 COPY frontend/ ./
 RUN npm run build
 
-FROM caddy:2.8.4-alpine
+FROM caddy:2.11.4-alpine
 
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/frontend/dist /usr/share/caddy
