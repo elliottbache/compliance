@@ -31,6 +31,17 @@ services:
       - /etc/compliance/.env
     environment:
       LOG_TO_FILE: "false"
+    command:
+      [
+        "fastapi",
+        "run",
+        "backend/src/compliance/api/main.py",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+      ]
     volumes:
       - /var/lib/compliance/attachments:/app/data/attachments
     depends_on:
@@ -53,7 +64,7 @@ services:
       retries: 3
 
   clamav:
-    image: clamav/clamav:stable
+    image: clamav/clamav:1.4-debian
     logging: *default-logging
     expose:
       - "3310"
@@ -64,7 +75,7 @@ services:
       retries: 5
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.1
     logging: *default-logging
     profiles:
       - local-ai
@@ -79,7 +90,7 @@ services:
       retries: 10
 
   ollama-init:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.1
     profiles:
       - local-ai
     env_file:

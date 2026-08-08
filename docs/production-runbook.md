@@ -45,11 +45,11 @@ For release-bundle deployments, extract or copy the bundle contents to
 Create and lock down the deployment environment file:
 
 ```bash
-cp docker/.env.example /etc/compliance/.env
+cp docker/.env.production.example /etc/compliance/.env
 chmod 600 /etc/compliance/.env
 ```
 
-Edit `/etc/compliance/.env`. At minimum, set:
+Edit `/etc/compliance/.env`. At minimum, replace placeholders and confirm:
 
 ```ini
 APP_ENV=production
@@ -403,7 +403,7 @@ Update the application source:
 
 ```bash
 git fetch --tags origin
-git checkout v0.4.0
+git checkout v1.0.0
 ```
 
 For release-bundle deployments, replace `/opt/compliance/app` with the new

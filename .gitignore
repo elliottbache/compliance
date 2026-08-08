@@ -35,6 +35,8 @@ backend/storage/attachments/*
 backend/.env*
 !backend/.env.example
 .env*
+!docker/.env.example
+!docker/.env.production.example
 instance/
 
 ### IDEs & OS ###

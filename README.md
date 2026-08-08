@@ -5,10 +5,12 @@ Inspection and compliance management system with a FastAPI backend, relational
 domain model, evidence attachments, archive/restore workflows, role-based
 authorization, and AI-assisted site-history analysis.
 
-This is a portfolio MVP. It is designed for local demos, technical review, and
-experimentation with database-backed API design and human-reviewed AI output.
-It is not production-ready for real compliance data without additional security,
-privacy, deployment, and operational work.
+This is a portfolio-grade production deployment baseline. It is designed for
+local demos, technical review, and controlled internal deployments with
+database-backed API design, traceable operations, and human-reviewed AI output.
+It is not a compliance-certified or regulated-data platform by itself; real
+client deployments still require organization-specific security, privacy,
+retention, monitoring, and legal review.
 
 [![CI](https://github.com/elliottbache/compliance/actions/workflows/ci.yaml/badge.svg)](https://github.com/elliottbache/compliance/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/github/elliottbache/compliance/graph/badge.svg?token=kNwbaexX4N)](https://codecov.io/github/elliottbache/compliance)
@@ -16,7 +18,7 @@ privacy, deployment, and operational work.
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm_NC_1.0.0-525252?style=flat-square)](https://polyformproject.org/licenses/noncommercial/1.0.0/)
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.129-blue?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.140-blue?logo=fastapi&logoColor=white)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-blue)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql&logoColor=white)
 ![Pydantic](https://img.shields.io/badge/Pydantic-v2-blue)
@@ -53,9 +55,10 @@ privacy, deployment, and operational work.
 The backend is the strongest part of the project. It has broad route, service,
 database, auth, and LLM test coverage. The frontend is intentionally lightweight
 and exists to demonstrate site history, attachment loading, AI analysis, and
-Markdown generation. The auth layer is functional but still demo-oriented:
-password creation is not yet a full user-management workflow, and production
-security hardening remains future work.
+Markdown generation. Production Docker, Caddy reverse proxy, audit logging,
+backup/restore scripts, malware scanning, and an operator runbook are included.
+Several user-lifecycle and monitoring features are documented as deferred
+post-1.0 work rather than hidden assumptions.
 
 AI output is always treated as a draft for human review. It should not be used
 as an official compliance decision.
@@ -683,12 +686,12 @@ chmod 600 /etc/compliance/.env
 Create the deployment environment file on the target host:
 
 ```bash
-sudo cp docker/.env.example /etc/compliance/.env
+sudo cp docker/.env.production.example /etc/compliance/.env
 chmod 600 /etc/compliance/.env
 ```
 
-Before deploying, replace all development defaults in `/etc/compliance/.env`,
-especially:
+Before deploying, replace all placeholder and deployment-specific values in
+`/etc/compliance/.env`, especially:
 
 ```ini
 APP_ENV=production
@@ -759,7 +762,7 @@ attachment malware scanning:
 
 ```yaml
 clamav:
-  image: clamav/clamav:stable
+  image: clamav/clamav:1.4-debian
   expose:
     - "3310"
 ```
@@ -1452,64 +1455,48 @@ Terminal model stop:
 3. The caller can decide whether the issue needs prompt changes, smaller input,
    tool support, user review, or a durable failure record.
 
-## Production Gaps And Roadmap
+## Known Post-1.0 Deferred Work
 
-The current deployment story is still demo/development oriented. A client-server
-production install is expected to run on the client's infrastructure with no
-external inbound connections. Outbound access may still be available for
-package installation, Docker image pulls, operating-system updates, and Claude
-API calls.
+v1.0.0 includes the production deployment baseline: Docker Compose, Caddy,
+persistent data paths, ClamAV malware scanning, structured and redacted
+logging, Docker log rotation, backup/restore scripts, scheduled backup and
+restore-smoke timers, security scan guidance, the audit trail, and an operator
+runbook.
 
-Minimum production readiness means the system can be installed, upgraded,
-backed up, restored, secured, and operated without developer intervention.
+The items below are intentionally deferred from the first production release.
+They should be planned before broader, higher-volume, or more regulated
+deployments.
 
-### Security
+### User Lifecycle
 
+- Add a self-service password change endpoint and frontend flow.
+- Add an admin password reset endpoint and frontend flow. The runbook's manual
+  database-backed procedure is the current fallback.
+- Add an admin disable-user endpoint and frontend flow. The runbook's manual
+  procedure is the current fallback.
+- Add password policy enforcement plus login throttling or lockout.
 
-- Reject insecure default secrets at startup. Production installs must provide a
-  strong `SECRET_KEY`, database password, and first-admin credentials.
-- Add a password reset/change workflow, password policy, login throttling or
-  lockout, and documented secret-rotation procedure.
-- Harden file upload handling with stricter MIME checks, size limits, malware
-  scanning, quarantine, safe filenames, and path hiding.
-- Move attachment storage to a configured persistent directory or volume outside
-  the source tree and include it in backup/restore procedures.
-- Add rate limiting, request size limits, config-driven CORS, and retention or
-  export policies for audit logs.
-- Use least-privilege database users for runtime access, with a separate
-  migration/owner path where needed.
-- Disable debug logging in production and redact sensitive values, prompts,
-  tokens, passwords, and attachment contents from logs.
+### Audit And Governance
 
-### Privacy
-
+- Add a frontend audit viewer for the admin-only `/audit-events` endpoint.
+- Add audit retention, export, and deletion policies.
 - Define data classification for personal, client, regulatory, and confidential
   data.
-- Document when site history, findings, and any attachment-derived data may be
-  sent to Anthropic. Because outbound Claude API calls leave the client's
-  server, this should be an explicit client-approved configuration.
-- Add redaction/minimization policies for AI requests.
-- Add retention, export, and deletion procedures.
-- Define whether AI analysis is enabled, disabled, or replaced by a local model
-  for each client deployment.
+- Document client approval for Anthropic-backed AI analysis, because outbound
+  Claude API calls leave the client's server. Local AI remains available through
+  the optional Ollama production profile.
+- Expand redaction and minimization policies for AI requests and generated
+  outputs.
 
-### Deployment And Operations
+### Operations
 
-- Expand deployment health checks, persistent storage validation, backups, and
-  restore testing.
 - Add deployment automation around the explicit backup-first migration step.
-- Add deployment gates, migration review, rollback plans, dependency pinning,
-  image scanning, and release artifact checksums.
-- Expand audit operations with retention policy, export tooling, and coverage
-  for future update/delete workflows as they are added.
-- Add a production runbook for install, configure, create first admin,
-  start/stop/restart, upgrade, backup, restore, rotate secrets, collect logs,
-  diagnose failed logins, recover from database downtime, recover from full
-  disk, and diagnose failed uploads.
-- Document outbound network requirements for package registries, OS updates,
-  Docker registries, and Anthropic API access.
+- Add release artifact checksums and a documented release verification step.
 - Add orphaned attachment cleanup tooling.
-- Add logs, metrics, tracing, alerting, and error reporting.
+- Split runtime and migration database privileges where the deployment requires
+  stricter least-privilege controls.
+- Add richer monitoring, metrics, alerting, tracing, and external error
+  reporting.
 
 ### Feature Ideas
 
@@ -1521,6 +1508,25 @@ backed up, restored, secured, and operated without developer intervention.
 - Add upload replacement/delete button.
 
 ## Version History
+
+### v1.0.0 - Production deployment baseline
+
+- Added production Docker Compose with backend, frontend/Caddy reverse proxy,
+  PostgreSQL, ClamAV, and optional Ollama local-AI services.
+- Added production Caddy HTTPS reverse proxy support for
+  `compliance.internal` or another internal hostname.
+- Added persistent production paths for PostgreSQL data, attachments, Caddy
+  state, Ollama models, logs, and backups.
+- Added production backup/restore scripts, scheduled backup units, retention
+  policy, and restore-smoke-test guidance.
+- Added a production runbook covering install, configure, first admin,
+  migrations, start, stop, restart, backup, restore, upgrade, secret rotation,
+  health checks, and debugging failed uploads or logins.
+- Added structured/redacted logging guidance and Docker log rotation.
+- Added dependency pinning, image rebuild/update guidance, and vulnerability
+  scanning workflow coverage.
+- Documented deferred post-1.0 work for user lifecycle, governance, and
+  operations.
 
 ### v0.4.0 - Audit trail baseline
 
