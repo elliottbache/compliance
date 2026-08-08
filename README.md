@@ -975,35 +975,71 @@ After first startup, open `https://COMPLIANCE_HOSTNAME`, sign in with the
 bootstrapped admin account, and confirm representative API-backed workflows
 load through the frontend.
 
-The staging/production upgrade flow is:
+### Upgrade Procedure
 
-1. Back up the database.
-2. Back up the attachment storage directory or volume.
-3. Run Alembic migrations against the deployment database.
-4. Bootstrap the first admin user if this is a new deployment.
-5. Start or restart the application containers.
-6. Check `/health/live` and `/health/ready`.
+Use SSH to connect to the deployment server and run upgrades from the deployed
+application directory:
 
-Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
-checks fail; run the explicit migration command below after taking backups.
-Development startup may apply existing migrations automatically, but model
-changes still require a generated and reviewed migration.
+```bash
+cd /opt/compliance/app
+```
 
-Example upgrade commands for the current Compose setup:
+Take backups before changing code or schema:
+
+```bash
+scripts/backup-db.sh
+scripts/backup-attachments.sh
+ls -lh /var/backups/compliance/db
+ls -lh /var/backups/compliance/attachments
+```
+
+Update the application source or release bundle. For Git-based deployments:
+
+```bash
+git fetch --tags origin
+git checkout v0.4.0
+```
+
+For release-bundle deployments, replace `/opt/compliance/app` with the new
+bundle contents while preserving `/etc/compliance/.env`, `/var/lib/compliance`,
+and `/var/backups/compliance`.
+
+Run migrations before starting the new backend:
 
 ```bash
 docker compose -f docker-compose.prod.yaml up -d postgres
-scripts/backup-db.sh
-scripts/backup-attachments.sh
 docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
-docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
+```
+
+Rebuild and restart the application containers:
+
+```bash
 docker compose -f docker-compose.prod.yaml up -d --build
+```
+
+For local-AI deployments, pull the configured Ollama model before restarting
+the full stack, then include the profile in the final `up` command:
+
+```bash
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d ollama
+docker compose -f docker-compose.prod.yaml --profile local-ai run --rm ollama-init
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d --build
+```
+
+Verify the upgraded deployment through the public reverse proxy:
+
+```bash
 curl -f https://your-production-hostname.example/api/health/live
 curl -f https://your-production-hostname.example/api/health/ready
 ```
 
-For local-AI deployments, add `--profile local-ai` to the final `up` command
-and run `ollama-init` before the backend needs to generate an analysis.
+Do not run the first-admin bootstrap command during routine upgrades. Use it
+only during first installation or recovery when no active admin account exists.
+
+Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
+checks fail; run the explicit migration command after taking backups.
+Development startup may apply existing migrations automatically, but model
+changes still require a generated and reviewed migration.
 
 The first-admin bootstrap command prompts for the password twice without
 echoing it to the terminal. If an active admin user already exists, it exits
