@@ -17,6 +17,16 @@ updates:
       docs:
         patterns: ["*"]
 
+  # Frontend (npm/package-lock)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      frontend:
+        patterns: ["*"]
+
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
