@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     logging: *default-logging
     environment:
       PGDATA: /var/lib/compliance/postgres/data
