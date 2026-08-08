@@ -1,4 +1,6 @@
+import logging
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from compliance.api.routers import sites as sites_router
@@ -790,12 +792,15 @@ class TestCreateSiteAnalysisRouteUnit:
     def test_delegates_to_create_site_analysis(
         self, main_module, monkeypatch, site_analysis_factory
     ) -> None:
-        fake_session = object()
+        fake_session = SimpleNamespace(commit=lambda: None)
         site_analysis = site_analysis_factory()
 
-        def fake_create_site_analysis(session, site_id):
+        authorized_user = SimpleNamespace(id=10, email="reviewer@example.com")
+
+        def fake_create_site_analysis(session, site_id, *, actor):
             assert site_id == 101
             assert session is fake_session
+            assert actor is authorized_user
             return site_analysis
 
         monkeypatch.setattr(
@@ -803,10 +808,13 @@ class TestCreateSiteAnalysisRouteUnit:
             "_create_site_analysis",
             fake_create_site_analysis,
         )
+        monkeypatch.setattr(
+            sites_router, "record_audit_event", lambda *args, **kwargs: None
+        )
 
         result = sites_router.create_site_analysis_route(
             fake_session,
-            _authorized_user=object(),
+            authorized_user=authorized_user,
             site_id=101,
         )
 
@@ -898,9 +906,15 @@ class TestCreateSiteAnalysis:
         ],
     )
     def test_returns_502_when_ai_analysis_fails(
-        self, main_module, monkeypatch, site_history_factory, exception_factory
+        self,
+        caplog,
+        main_module,
+        monkeypatch,
+        site_history_factory,
+        exception_factory,
     ) -> None:
         site_history = site_history_factory()
+        actor = SimpleNamespace(id=10, email="reviewer@example.com")
 
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return site_history
@@ -919,17 +933,37 @@ class TestCreateSiteAnalysis:
             fake_summarize_previous_visits,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            sites_router._create_site_analysis(object(), 101)
+        with (
+            caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            sites_router._create_site_analysis(object(), 101, actor=actor)
 
         assert exc_info.value.status_code == 502
         assert exc_info.value.detail == "AI analysis failed for site 101."
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "AI analysis failed."
+        ]
+        assert record.event == "ai_analysis_failed"
+        assert record.site_id == 101
+        assert record.actor_user_id == 10
+        assert record.actor_email == "reviewer@example.com"
+        assert record.status_code == 502
+        assert record.error_type in {"APIError", "ValidationError", "JSONDecodeError"}
 
     def test_returns_502_when_analysis_references_invalid_evidence(
-        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+        self,
+        caplog,
+        main_module,
+        monkeypatch,
+        site_history_factory,
+        site_analysis_factory,
     ) -> None:
         site_history = site_history_factory()
         site_analysis = site_analysis_factory()
+        actor = SimpleNamespace(id=10, email="reviewer@example.com")
 
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return site_history
@@ -956,13 +990,69 @@ class TestCreateSiteAnalysis:
             fake_validate_llm_references,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            sites_router._create_site_analysis(object(), 101)
+        with (
+            caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            sites_router._create_site_analysis(object(), 101, actor=actor)
 
         assert exc_info.value.status_code == 502
         assert (
             exc_info.value.detail == "LLM model returned invalid evidence for site 101."
         )
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "AI analysis failed."
+        ]
+        assert record.event == "ai_analysis_failed"
+        assert record.site_id == 101
+        assert record.actor_user_id == 10
+        assert record.actor_email == "reviewer@example.com"
+        assert record.status_code == 502
+        assert record.error_type == "ValueError"
+
+    def test_returns_504_and_logs_when_ai_analysis_times_out(
+        self, caplog, main_module, monkeypatch, site_history_factory
+    ) -> None:
+        site_history = site_history_factory()
+        actor = SimpleNamespace(id=10, email="reviewer@example.com")
+
+        def fake_get_site_history(session, site_id, *, include_archived=False):
+            return site_history
+
+        def fake_summarize_previous_visits(history):
+            raise sites_router.httpx.ReadTimeout("timed out")
+
+        monkeypatch.setattr(
+            sites_router,
+            "get_site_history",
+            fake_get_site_history,
+        )
+        monkeypatch.setattr(
+            sites_router,
+            "summarize_previous_visits",
+            fake_summarize_previous_visits,
+        )
+
+        with (
+            caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            sites_router._create_site_analysis(object(), 101, actor=actor)
+
+        assert exc_info.value.status_code == 504
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message == "AI analysis failed."
+        ]
+        assert record.event == "ai_analysis_failed"
+        assert record.site_id == 101
+        assert record.actor_user_id == 10
+        assert record.actor_email == "reviewer@example.com"
+        assert record.status_code == 504
+        assert record.error_type == "ReadTimeout"
 
 
 @pytest.mark.usefixtures("viewer_user_override")
