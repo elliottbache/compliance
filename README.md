@@ -901,6 +901,80 @@ development defaults at startup. The PostgreSQL password must not be
 `ATTACHMENTS_DIR` must not resolve to the current working directory or the
 default local user storage path, and `CORS_ORIGIN` must not be localhost or `*`.
 
+### First-Time Install Procedure
+
+Use SSH to connect to the deployment server, then install Docker and the Compose
+plugin using the operating system's supported package path. Create the
+persistent host directories and give the deployment user ownership:
+
+```bash
+sudo mkdir -p /opt/compliance
+sudo mkdir -p /etc/compliance
+sudo mkdir -p /var/lib/compliance/attachments
+sudo mkdir -p /var/lib/compliance/caddy/data
+sudo mkdir -p /var/lib/compliance/caddy/config
+sudo mkdir -p /var/lib/compliance/ollama
+sudo mkdir -p /var/lib/compliance/postgres
+sudo mkdir -p /var/backups/compliance/db
+sudo mkdir -p /var/backups/compliance/attachments
+sudo mkdir -p /var/log/compliance/backend
+sudo chown -R "$USER":"$USER" /opt/compliance
+sudo chown -R "$USER":"$USER" /etc/compliance
+sudo chown -R "$USER":"$USER" /var/lib/compliance
+sudo chown -R "$USER":"$USER" /var/backups/compliance
+sudo chown -R "$USER":"$USER" /var/log/compliance
+```
+
+Place the application under `/opt/compliance/app`, then run the remaining
+commands from that directory:
+
+```bash
+cd /opt/compliance
+git clone https://github.com/elliottbache/compliance.git app
+cd /opt/compliance/app
+```
+
+If you deploy from a release bundle instead of Git, extract or copy the bundle
+contents to `/opt/compliance/app` before continuing.
+
+Create and lock down the deployment environment file:
+
+```bash
+cp docker/.env.example /etc/compliance/.env
+chmod 600 /etc/compliance/.env
+```
+
+Edit `/etc/compliance/.env` before starting the app. At minimum, set
+`APP_ENV`, `COMPLIANCE_HOSTNAME`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`,
+`ATTACHMENTS_DIR`, `CORS_ORIGIN`, `SECRET_KEY`, `AI_MODE`, `AI_MODEL`,
+`AI_LOG_PROMPTS`, and the selected AI provider settings. Configure internal DNS
+so `COMPLIANCE_HOSTNAME` resolves to the deployment server's LAN IP, and allow
+inbound `80/tcp` and `443/tcp` to the server.
+
+Start PostgreSQL, run migrations, create the first admin, and start the stack:
+
+```bash
+docker compose -f docker-compose.prod.yaml up -d postgres
+docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
+docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
+docker compose -f docker-compose.prod.yaml up -d --build
+curl -f https://your-production-hostname.example/api/health/live
+curl -f https://your-production-hostname.example/api/health/ready
+```
+
+For local-AI deployments, pull the configured Ollama model before the backend
+needs to generate an analysis:
+
+```bash
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d ollama
+docker compose -f docker-compose.prod.yaml --profile local-ai run --rm ollama-init
+docker compose -f docker-compose.prod.yaml --profile local-ai up -d --build
+```
+
+After first startup, open `https://COMPLIANCE_HOSTNAME`, sign in with the
+bootstrapped admin account, and confirm representative API-backed workflows
+load through the frontend.
+
 The staging/production upgrade flow is:
 
 1. Back up the database.
@@ -915,7 +989,7 @@ checks fail; run the explicit migration command below after taking backups.
 Development startup may apply existing migrations automatically, but model
 changes still require a generated and reviewed migration.
 
-Example commands for the current Compose setup:
+Example upgrade commands for the current Compose setup:
 
 ```bash
 docker compose -f docker-compose.prod.yaml up -d postgres
