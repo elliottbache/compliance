@@ -75,7 +75,7 @@ class TestSettingsEnvironmentValidation:
             "POSTGRES_HOST",
             "POSTGRES_PORT",
             "ATTACHMENTS_DIR",
-            "CORS_ORIGIN",
+            "CORS_ORIGINS",
             "AI_MODE",
             "AI_LOG_PROMPTS",
             "LOG_TO_FILE",
@@ -100,7 +100,7 @@ class TestSettingsEnvironmentValidation:
                 "POSTGRES_HOST": "postgres",
                 "POSTGRES_PORT": "5432",
                 "ATTACHMENTS_DIR": str(tmp_path),
-                "CORS_ORIGIN": "https://compliance.example.com",
+                "CORS_ORIGINS": "https://compliance.example.com",
                 "AI_MODE": "anthropic",
                 "AI_MODEL": "claude-test",
                 "AI_LOG_PROMPTS": "false",
@@ -122,9 +122,21 @@ class TestSettingsEnvironmentValidation:
         assert settings.postgres_db == "compliance_db"
         assert settings.postgres_port == 5432
         assert settings.attachments_dir == tmp_path
+        assert settings.allowed_cors_origins == ["https://compliance.example.com"]
         assert settings.ai_log_prompts is False
         assert settings.log_to_file is False
         assert settings.anthropic_api_key == "test-api-key"
+
+    def test_parses_comma_separated_cors_origins(self) -> None:
+        settings = Settings(
+            cors_origins="http://localhost:5173, http://127.0.0.1:5173",
+            _env_file=None,
+        )
+
+        assert settings.allowed_cors_origins == [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
 
     def test_allows_safe_production_settings(self, tmp_path) -> None:
         settings = Settings(
@@ -132,7 +144,7 @@ class TestSettingsEnvironmentValidation:
             database_url="postgresql+psycopg2://user:secret@db/app",
             postgres_password="not-postgres",  # noqa: S106
             attachments_dir=tmp_path,
-            cors_origin="https://compliance.example.com",
+            cors_origins="https://compliance.example.com",
             ai_mode="anthropic",
             ai_model="claude-test",
             ai_log_prompts=False,
@@ -141,6 +153,7 @@ class TestSettingsEnvironmentValidation:
 
         assert settings.app_env == "production"
         assert settings.attachments_dir == tmp_path
+        assert settings.allowed_cors_origins == ["https://compliance.example.com"]
 
     def test_expands_user_relative_attachment_storage(self) -> None:
         settings = Settings(attachments_dir="~/compliance/attachments", _env_file=None)
@@ -157,7 +170,7 @@ class TestSettingsEnvironmentValidation:
                 database_url="postgresql+psycopg2://user:postgres@db/app",
                 postgres_password="postgres",  # noqa: S106
                 attachments_dir=tmp_path,
-                cors_origin="https://compliance.example.com",
+                cors_origins="https://compliance.example.com",
                 ai_mode="anthropic",
                 ai_model="claude-test",
                 ai_log_prompts=False,
@@ -174,7 +187,7 @@ class TestSettingsEnvironmentValidation:
                 database_url="postgresql+psycopg2://user:secret@db/app",
                 postgres_password="not-postgres",  # noqa: S106
                 attachments_dir=attachments_dir,
-                cors_origin="https://compliance.example.com",
+                cors_origins="https://compliance.example.com",
                 ai_mode="anthropic",
                 ai_model="claude-test",
                 ai_log_prompts=False,
@@ -192,7 +205,7 @@ class TestSettingsEnvironmentValidation:
                 / "share"
                 / "compliance"
                 / "attachments",
-                cors_origin="https://compliance.example.com",
+                cors_origins="https://compliance.example.com",
                 ai_mode="anthropic",
                 ai_model="claude-test",
                 ai_log_prompts=False,
@@ -206,7 +219,7 @@ class TestSettingsEnvironmentValidation:
                 database_url="postgresql+psycopg2://user:secret@db/app",
                 postgres_password="not-postgres",  # noqa: S106
                 attachments_dir=tmp_path,
-                cors_origin="https://staging.compliance.example.com",
+                cors_origins="https://staging.compliance.example.com",
                 ai_mode="mock",
                 ai_log_prompts=False,
                 _env_file=None,
@@ -224,24 +237,24 @@ class TestSettingsEnvironmentValidation:
                 database_url="postgresql+psycopg2://user:secret@db/app",
                 postgres_password="not-postgres",  # noqa: S106
                 attachments_dir=tmp_path,
-                cors_origin="https://compliance.example.com",
+                cors_origins="https://compliance.example.com",
                 ai_mode="anthropic",
                 ai_model="claude-test",
                 ai_log_prompts=True,
                 _env_file=None,
             )
 
-    @pytest.mark.parametrize("cors_origin", ["http://localhost:5173", "*"])
+    @pytest.mark.parametrize("cors_origins", ["http://localhost:5173", "*"])
     def test_rejects_local_or_wildcard_cors_in_deployed_envs(
-        self, cors_origin, tmp_path
+        self, cors_origins, tmp_path
     ) -> None:
-        with pytest.raises(ValueError, match="CORS origin"):
+        with pytest.raises(ValueError, match="CORS origins"):
             Settings(
                 app_env="production",
                 database_url="postgresql+psycopg2://user:secret@db/app",
                 postgres_password="not-postgres",  # noqa: S106
                 attachments_dir=tmp_path,
-                cors_origin=cors_origin,
+                cors_origins=cors_origins,
                 ai_mode="anthropic",
                 ai_model="claude-test",
                 ai_log_prompts=False,

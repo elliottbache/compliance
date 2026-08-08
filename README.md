@@ -477,7 +477,7 @@ POSTGRES_DB=compliance_dev
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 ATTACHMENTS_DIR=~/.local/share/compliance/attachments
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
 AI_MODE=mock
 AI_LOG_PROMPTS=true
 ANTHROPIC_API_KEY=
@@ -699,7 +699,7 @@ COMPLIANCE_HOSTNAME=your-production-hostname.example
 POSTGRES_PASSWORD=replace_with_a_strong_database_password
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGIN=https://your-production-hostname.example
+CORS_ORIGINS=https://your-production-hostname.example
 SECRET_KEY=replace_with_a_long_random_secret
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
@@ -746,7 +746,7 @@ APP_ENV=staging
 COMPLIANCE_HOSTNAME=your-staging-hostname.example
 POSTGRES_HOST=postgres
 ATTACHMENTS_DIR=/app/data/attachments
-CORS_ORIGIN=https://your-staging-hostname.example
+CORS_ORIGINS=https://your-staging-hostname.example
 AI_MODE=anthropic
 AI_MODEL=claude-haiku-4-5-20251001
 AI_LOG_PROMPTS=false
@@ -818,7 +818,7 @@ to keep the internal name `compliance.internal`, set:
 
 ```ini
 COMPLIANCE_HOSTNAME=compliance.internal
-CORS_ORIGIN=https://compliance.internal
+CORS_ORIGINS=https://compliance.internal
 ```
 
 Then add an internal DNS record that points the hostname to the deployment
@@ -914,7 +914,7 @@ When `APP_ENV` is `staging` or `production`, the backend rejects unsafe
 development defaults at startup. The PostgreSQL password must not be
 `postgres`, `AI_MODE` must not be `mock`, `AI_MODEL` must be set, `AI_LOG_PROMPTS` must be `false`,
 `ATTACHMENTS_DIR` must not resolve to the current working directory or the
-default local user storage path, and `CORS_ORIGIN` must not be localhost or `*`.
+default local user storage path, and `CORS_ORIGINS` must not be localhost or `*`.
 
 ### First-Time Install Procedure
 
@@ -1149,7 +1149,7 @@ APP_ENV=development
 `APP_ENV` must be one of `development`, `staging`, or `production`.
 Development allows local defaults for quick setup. Staging and production
 enable startup validation that rejects unsafe defaults for database password,
-AI mode, attachment storage, and the CORS origin.
+AI mode, attachment storage, and the CORS origins.
 
 Environment files are the source of truth for runtime settings:
 
@@ -1232,13 +1232,13 @@ private Compose network. For host-based development, use
 ### CORS
 
 ```ini
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
 ```
 
-`CORS_ORIGIN` defines the exact frontend origin allowed to call the backend.
-Local development normally uses the Vite origin shown above. Staging and
-production must use `https://` plus `COMPLIANCE_HOSTNAME`, not localhost or
-`*`.
+`CORS_ORIGINS` defines the frontend origins allowed to call the backend. Use a
+comma-separated list if more than one origin is needed. Local development
+normally uses the Vite origin shown above. Staging and production must use
+`https://` plus `COMPLIANCE_HOSTNAME`, not localhost or `*`.
 
 ### Auth
 
