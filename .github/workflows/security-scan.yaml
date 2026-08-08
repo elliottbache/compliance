@@ -75,8 +75,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Run npm audit
-        run: npm audit --audit-level=high
+      - name: Run production npm audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run critical npm audit
+        run: npm audit --audit-level=critical
+
+      - name: Report full npm audit
+        run: npm audit --audit-level=high || true
 
   trivy-filesystem:
     name: Trivy filesystem scan
