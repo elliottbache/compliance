@@ -109,6 +109,135 @@ docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance
 The command prompts for the password twice without echoing it. If an active
 admin already exists, it exits successfully without creating another account.
 
+## Create User
+
+Routine users are created through the admin-only `POST /api/users` API. There
+is no dedicated production CLI for routine user creation. Supported roles are
+`admin`, `inspector`, `reviewer`, and `viewer`.
+
+## Change Password
+
+The application does not yet provide a self-service password change endpoint or
+frontend flow. Until that exists, use the manual password reset procedure below
+when a user must change their password.
+
+## Disable User
+
+The application does not yet provide an admin disable-user endpoint or frontend
+flow. To disable an account during operations, back up first and update the
+user through the backend container:
+
+```bash
+cd /opt/compliance/app
+scripts/backup-db.sh
+
+docker compose -f docker-compose.prod.yaml run --rm backend python - <<'PY'
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from compliance.db.db_access import get_engine
+from compliance.db.models import User
+
+email = "user@example.com"
+
+with Session(get_engine()) as session:
+    user = session.execute(select(User).where(User.email == email)).scalars().first()
+    if user is None:
+        raise SystemExit(f"No user found for {email}")
+    user.is_active = False
+    session.commit()
+    print(f"Disabled {email}")
+PY
+```
+
+Disabling a user prevents new authenticated requests after the user's current
+token expires or when the backend checks active-user status. It does not delete
+the account or its audit history.
+
+## Reset Password
+
+The application does not yet provide an admin password reset endpoint or
+frontend flow. To reset a user's password manually, back up first and run the
+hash update inside the backend container so the application password hasher is
+used:
+
+```bash
+cd /opt/compliance/app
+scripts/backup-db.sh
+
+docker compose -f docker-compose.prod.yaml run --rm backend python - <<'PY'
+import getpass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from compliance.auth.authentication import _hash_password
+from compliance.db.db_access import get_engine
+from compliance.db.models import User
+
+email = "user@example.com"
+password = getpass.getpass("New password: ")
+confirmation = getpass.getpass("Confirm new password: ")
+
+if not password:
+    raise SystemExit("Password cannot be empty")
+if password != confirmation:
+    raise SystemExit("Passwords do not match")
+
+with Session(get_engine()) as session:
+    user = session.execute(select(User).where(User.email == email)).scalars().first()
+    if user is None:
+        raise SystemExit(f"No user found for {email}")
+    user.hashed_password = _hash_password(password)
+    user.is_active = True
+    session.commit()
+    print(f"Reset password for {email}")
+PY
+```
+
+Have the user sign in with the new password immediately. Do not send passwords
+through chat, tickets, logs, or command-line arguments.
+
+## Lost-Admin Recovery
+
+Use this only when no operator can sign in with an active admin account. Back up
+first, then either reset an existing admin password or promote a known active
+user to admin.
+
+To reset an existing admin password, use the manual password reset procedure
+above with the admin's email address.
+
+To promote an existing active user to admin:
+
+```bash
+cd /opt/compliance/app
+scripts/backup-db.sh
+
+docker compose -f docker-compose.prod.yaml run --rm backend python - <<'PY'
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from compliance.db.db_access import get_engine
+from compliance.db.models import Role, User
+
+email = "user@example.com"
+
+with Session(get_engine()) as session:
+    user = session.execute(select(User).where(User.email == email)).scalars().first()
+    if user is None:
+        raise SystemExit(f"No user found for {email}")
+    user.role = Role.ADMIN
+    user.is_active = True
+    session.commit()
+    print(f"Promoted {email} to admin")
+PY
+```
+
+After recovery, sign in through `https://compliance.internal`, create or repair
+the intended admin accounts, and document the incident. The
+`bootstrap-admin` command is only for first installation; it will not create a
+new admin while any active admin already exists.
+
 ## Start
 
 Start the production stack:
