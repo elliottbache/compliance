@@ -614,6 +614,9 @@ Use this path for staging or production Docker deployments, not for routine
 local development. Staging and production deployments should use strong secrets,
 persistent storage, backups, and an explicit migration step.
 
+For copy/paste operational procedures, see
+[Production Runbook](docs/production-runbook.md).
+
 Recommended staging/production filesystem layout:
 
 ```text
@@ -903,138 +906,19 @@ default local user storage path, and `CORS_ORIGIN` must not be localhost or `*`.
 
 ### First-Time Install Procedure
 
-Use SSH to connect to the deployment server, then install Docker and the Compose
-plugin using the operating system's supported package path. Create the
-persistent host directories and give the deployment user ownership:
-
-```bash
-sudo mkdir -p /opt/compliance
-sudo mkdir -p /etc/compliance
-sudo mkdir -p /var/lib/compliance/attachments
-sudo mkdir -p /var/lib/compliance/caddy/data
-sudo mkdir -p /var/lib/compliance/caddy/config
-sudo mkdir -p /var/lib/compliance/ollama
-sudo mkdir -p /var/lib/compliance/postgres
-sudo mkdir -p /var/backups/compliance/db
-sudo mkdir -p /var/backups/compliance/attachments
-sudo mkdir -p /var/log/compliance/backend
-sudo chown -R "$USER":"$USER" /opt/compliance
-sudo chown -R "$USER":"$USER" /etc/compliance
-sudo chown -R "$USER":"$USER" /var/lib/compliance
-sudo chown -R "$USER":"$USER" /var/backups/compliance
-sudo chown -R "$USER":"$USER" /var/log/compliance
-```
-
-Place the application under `/opt/compliance/app`, then run the remaining
-commands from that directory:
-
-```bash
-cd /opt/compliance
-git clone https://github.com/elliottbache/compliance.git app
-cd /opt/compliance/app
-```
-
-If you deploy from a release bundle instead of Git, extract or copy the bundle
-contents to `/opt/compliance/app` before continuing.
-
-Create and lock down the deployment environment file:
-
-```bash
-cp docker/.env.example /etc/compliance/.env
-chmod 600 /etc/compliance/.env
-```
-
-Edit `/etc/compliance/.env` before starting the app. At minimum, set
-`APP_ENV`, `COMPLIANCE_HOSTNAME`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`,
-`ATTACHMENTS_DIR`, `CORS_ORIGIN`, `SECRET_KEY`, `AI_MODE`, `AI_MODEL`,
-`AI_LOG_PROMPTS`, and the selected AI provider settings. Configure internal DNS
-so `COMPLIANCE_HOSTNAME` resolves to the deployment server's LAN IP, and allow
-inbound `80/tcp` and `443/tcp` to the server.
-
-Start PostgreSQL, run migrations, create the first admin, and start the stack:
-
-```bash
-docker compose -f docker-compose.prod.yaml up -d postgres
-docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
-docker compose -f docker-compose.prod.yaml run --rm backend python -m compliance.cli bootstrap-admin --full-name "Admin User" --email admin@example.com
-docker compose -f docker-compose.prod.yaml up -d --build
-curl -f https://your-production-hostname.example/api/health/live
-curl -f https://your-production-hostname.example/api/health/ready
-```
-
-For local-AI deployments, pull the configured Ollama model before the backend
-needs to generate an analysis:
-
-```bash
-docker compose -f docker-compose.prod.yaml --profile local-ai up -d ollama
-docker compose -f docker-compose.prod.yaml --profile local-ai run --rm ollama-init
-docker compose -f docker-compose.prod.yaml --profile local-ai up -d --build
-```
-
-After first startup, open `https://COMPLIANCE_HOSTNAME`, sign in with the
-bootstrapped admin account, and confirm representative API-backed workflows
-load through the frontend.
+First-time installation is an operator workflow: create the server directories,
+place the app under `/opt/compliance/app`, configure `/etc/compliance/.env`, run
+migrations, create the first admin, start the stack, and verify health through
+Caddy. Use the [Production Runbook](docs/production-runbook.md) for the exact
+commands.
 
 ### Upgrade Procedure
 
-Use SSH to connect to the deployment server and run upgrades from the deployed
-application directory:
-
-```bash
-cd /opt/compliance/app
-```
-
-Take backups before changing code or schema:
-
-```bash
-scripts/backup-db.sh
-scripts/backup-attachments.sh
-ls -lh /var/backups/compliance/db
-ls -lh /var/backups/compliance/attachments
-```
-
-Update the application source or release bundle. For Git-based deployments:
-
-```bash
-git fetch --tags origin
-git checkout v0.4.0
-```
-
-For release-bundle deployments, replace `/opt/compliance/app` with the new
-bundle contents while preserving `/etc/compliance/.env`, `/var/lib/compliance`,
-and `/var/backups/compliance`.
-
-Run migrations before starting the new backend:
-
-```bash
-docker compose -f docker-compose.prod.yaml up -d postgres
-docker compose -f docker-compose.prod.yaml run --rm backend python -m alembic -c backend/alembic.ini upgrade head
-```
-
-Rebuild and restart the application containers:
-
-```bash
-docker compose -f docker-compose.prod.yaml up -d --build
-```
-
-For local-AI deployments, pull the configured Ollama model before restarting
-the full stack, then include the profile in the final `up` command:
-
-```bash
-docker compose -f docker-compose.prod.yaml --profile local-ai up -d ollama
-docker compose -f docker-compose.prod.yaml --profile local-ai run --rm ollama-init
-docker compose -f docker-compose.prod.yaml --profile local-ai up -d --build
-```
-
-Verify the upgraded deployment through the public reverse proxy:
-
-```bash
-curl -f https://your-production-hostname.example/api/health/live
-curl -f https://your-production-hostname.example/api/health/ready
-```
-
-Do not run the first-admin bootstrap command during routine upgrades. Use it
-only during first installation or recovery when no active admin account exists.
+Upgrades should follow a backup-first sequence: back up the database and
+attachments, update the source or release bundle, run Alembic migrations,
+rebuild/restart the containers, and require `/api/health/ready` to pass through
+Caddy. Do not run first-admin bootstrap during routine upgrades. Use the
+[Production Runbook](docs/production-runbook.md) for the exact commands.
 
 Startup checks verify that the database is at Alembic head and that SQLAlchemy models match the migration history. Staging and production startup fails if those
 checks fail; run the explicit migration command after taking backups.
