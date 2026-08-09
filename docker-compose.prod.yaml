@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     logging: *default-logging
     environment:
       PGDATA: /var/lib/compliance/postgres/data
@@ -75,7 +75,7 @@ services:
       retries: 5
 
   ollama:
-    image: ollama/ollama:0.32.1
+    image: ollama/ollama:0.32.6
     logging: *default-logging
     profiles:
       - local-ai
@@ -90,7 +90,7 @@ services:
       retries: 10
 
   ollama-init:
-    image: ollama/ollama:0.32.1
+    image: ollama/ollama:0.32.6
     profiles:
       - local-ai
     env_file:
