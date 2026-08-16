@@ -64,7 +64,7 @@ services:
       retries: 3
 
   clamav:
-    image: clamav/clamav:1.4-debian
+    image: clamav/clamav:1.5-debian
     logging: *default-logging
     expose:
       - "3310"
@@ -75,7 +75,7 @@ services:
       retries: 5
 
   ollama:
-    image: ollama/ollama:0.32.1
+    image: ollama/ollama:0.32.10
     logging: *default-logging
     profiles:
       - local-ai
@@ -90,7 +90,7 @@ services:
       retries: 10
 
   ollama-init:
-    image: ollama/ollama:0.32.1
+    image: ollama/ollama:0.32.10
     profiles:
       - local-ai
     env_file:
