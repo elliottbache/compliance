@@ -30,6 +30,12 @@ build/
 backend/storage/attachments/*
 !backend/storage/attachments/.gitkeep
 
+# RAG generated storage
+backend/storage/rag/parsed_boes/*
+backend/storage/rag/clauses/*
+!backend/storage/rag/parsed_boes/.gitkeep
+!backend/storage/rag/clauses/.gitkeep
+
 ### SQLAlchemy & Environment ###
 # Sensitive configuration (credentials, DB URLs)
 backend/.env*
