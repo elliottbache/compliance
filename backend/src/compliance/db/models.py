@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     MetaData,
     String,
+    Text,
     UniqueConstraint,
     and_,
 )
@@ -199,6 +200,68 @@ class Regulation(Base):
     )
     regulation_certification_rel: Mapped[list["Certification"]] = relationship(
         back_populates="certification_regulation_rel"
+    )
+
+
+class RagDocument(Base):
+    """Represents a source document available for RAG retrieval."""
+
+    __tablename__ = "rag_documents"
+    __table_args__ = (
+        Index("ix_rag_documents_source_id", "source_id"),
+        Index("ix_rag_documents_source_kind", "source_kind"),
+        Index("ix_rag_documents_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(120), unique=True)
+    title: Mapped[str] = mapped_column(String(300))
+    source_kind: Mapped[str] = mapped_column(String(40))
+    jurisdiction: Mapped[str] = mapped_column(String(80))
+    effective_date: Mapped[date]
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(40))
+    source_url: Mapped[str | None] = mapped_column(String(500))
+
+    rag_document_clause_rel: Mapped[list["RagClause"]] = relationship(
+        back_populates="rag_clause_document_rel",
+        cascade="all, delete-orphan",
+    )
+
+
+class RagClause(Base):
+    """Represents one extracted text clause from a RAG document."""
+
+    __tablename__ = "rag_clauses"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id",
+            "content_hash",
+            name="uq_rag_clauses_document_id_content_hash",
+        ),
+        UniqueConstraint(
+            "document_id",
+            "sort_key",
+            name="uq_rag_clauses_document_id_sort_key",
+        ),
+        Index("ix_rag_clauses_document_id", "document_id"),
+        Index("ix_rag_clauses_content_hash", "content_hash"),
+        Index("ix_rag_clauses_document_id_sort_key", "document_id", "sort_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("rag_documents.id", ondelete="CASCADE")
+    )
+    citation_ref: Mapped[str] = mapped_column(String(120))
+    title: Mapped[str | None] = mapped_column(String(300))
+    path_text: Mapped[str | None] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    sort_key: Mapped[str] = mapped_column(String(200))
+
+    rag_clause_document_rel: Mapped["RagDocument"] = relationship(
+        back_populates="rag_document_clause_rel"
     )
 
 
