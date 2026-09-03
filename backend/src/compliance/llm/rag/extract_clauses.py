@@ -270,7 +270,7 @@ def build_clause(
     )
 
     return {
-        "document_id": document_id,
+        "document_source_id": document_id,
         "citation_ref": citation_ref,
         "title": title,
         "path_text": path_text,
