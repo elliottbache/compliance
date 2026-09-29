@@ -47,6 +47,7 @@ retention, monitoring, and legal review.
 - Persistent audit events for traceable business and security actions.
 - AI site-history analysis with deterministic mock mode and optional Anthropic
   mode.
+- BOE document parsing and freshness-gated RAG clause synchronization.
 - Backend, service, database, auth, and LLM tests with pytest.
 - A small React/Vite frontend that exercises the demo workflow.
 
@@ -127,6 +128,8 @@ The core records are:
 - `FindingAttachment`: link between findings and supporting attachments.
 - `User`: authenticated application user with a role and active status.
 - `AuditEvent`: persistent audit trail record for important backend actions.
+- `RagDocument`: versioned source metadata used by the retrieval pipeline.
+- `RagClause`: an ordered, citation-aware clause extracted from a RAG document.
 
 The system is centered around site history. A site history response gathers the
 site, certifications, findings, rules, regulations, certifiers, clients, and
@@ -308,6 +311,70 @@ The live provider adapters:
 
 AI analysis is a review aid only. Generated Markdown should be checked by a
 person and traced back to source records before any operational decision.
+
+## BOE RAG Document Ingestion
+
+The RAG ingestion workflow fetches consolidated Spanish legislation from the
+BOE API, converts the document hierarchy into retrieval-ready clauses, and
+persists the document and clauses in the application database.
+
+Run these commands from the repository root after installing the backend and
+applying its database migrations.
+
+Fetch and parse one BOE document:
+
+```bash
+python -m compliance.cli rag parse-boe --boe-id BOE-A-2018-16673
+```
+
+The parsed JSON is written to `backend/storage/rag/parsed_boes/`. The command
+refuses to replace an existing file unless `--overwrite` is supplied:
+
+```bash
+python -m compliance.cli rag parse-boe --boe-id BOE-A-2018-16673 --overwrite
+```
+
+Import every parsed BOE JSON file into the configured database:
+
+```bash
+python -m compliance.cli rag import-documents
+```
+
+The database importer:
+
+- creates a `RagDocument` for a new BOE source;
+- skips an existing document when its stored date is newer than or equal to
+  the incoming date;
+- updates an existing document only when the incoming version is newer;
+- extracts clauses and synchronizes `RagClause` rows in the same transaction;
+- preserves clause IDs when unchanged clauses move or a clause is edited at
+  the same tree position;
+- inserts new clauses and deletes clauses removed from the newer source; and
+- rolls back both document and clause changes if the import fails.
+
+Freshness uses `updated_at`, then `effective_date`, then the current UTC date
+when neither source date is available. The command reports created, updated,
+skipped, deleted, and unchanged totals.
+
+Use a different parsed-document directory when needed:
+
+```bash
+python -m compliance.cli rag import-documents --input-dir /path/to/parsed_boes
+```
+
+Clause JSON can also be generated without writing to the database. This is a
+debug/export workflow and is not required before `import-documents`:
+
+```bash
+python -m compliance.cli rag extract-clauses
+```
+
+By default, clause JSON is written to `backend/storage/rag/clauses/`. Custom
+input and output directories are supported:
+
+```bash
+python -m compliance.cli rag extract-clauses --input-dir /path/to/parsed_boes --output-dir /path/to/clauses
+```
 
 ## Docker Quickstart And Tutorial
 

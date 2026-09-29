@@ -13,7 +13,7 @@ from compliance._helpers import ROOT_DIR
 from compliance.db.db_access import get_engine
 from compliance.llm.rag.extract_clauses import import_rag_clauses
 from compliance.llm.rag.parse_boe import fetch_boe_regulation, parse_boe_regulation
-from compliance.services.rag import upsert_rag_document_from_parsed_json
+from compliance.services.rag import import_rag_document_from_parsed_json
 from compliance.services.users import bootstrap_first_admin
 
 RAG_STORAGE_DIR = ROOT_DIR / "backend" / "storage" / "rag"
@@ -111,6 +111,12 @@ def import_rag_documents(args: argparse.Namespace) -> int:
         "updated": 0,
         "skipped": 0,
     }
+    clause_counts = {
+        "created": 0,
+        "updated": 0,
+        "deleted": 0,
+        "unchanged": 0,
+    }
 
     with Session(get_engine()) as session:
         for parsed_boe_file in parsed_boe_files:
@@ -118,7 +124,7 @@ def import_rag_documents(args: argparse.Namespace) -> int:
                 with parsed_boe_file.open("r", encoding="utf-8") as file:
                     document = json.load(file)
 
-                result = upsert_rag_document_from_parsed_json(session, document)
+                result = import_rag_document_from_parsed_json(session, document)
             except Exception as exc:
                 print(
                     f"RAG document import failed for {parsed_boe_file}: {exc}",
@@ -127,12 +133,23 @@ def import_rag_documents(args: argparse.Namespace) -> int:
                 return 1
 
             action_counts[result.action] += 1
+            clause_counts["created"] += result.clauses_created
+            clause_counts["updated"] += result.clauses_updated
+            clause_counts["deleted"] += result.clauses_deleted
+            clause_counts["unchanged"] += result.clauses_unchanged
 
     print(
         f"Imported {len(parsed_boe_files)} RAG documents: "
         f"{action_counts['created']} created, "
         f"{action_counts['updated']} updated, "
         f"{action_counts['skipped']} skipped."
+    )
+    print(
+        "Synchronized RAG clauses: "
+        f"{clause_counts['created']} created, "
+        f"{clause_counts['updated']} updated, "
+        f"{clause_counts['deleted']} deleted, "
+        f"{clause_counts['unchanged']} unchanged."
     )
     return 0
 

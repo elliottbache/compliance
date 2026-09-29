@@ -141,28 +141,51 @@ class TestRagCli:
         session_context = MagicMock()
         session_context.__enter__.return_value = session
         session_context.__exit__.return_value = None
-        upsert = MagicMock(
+        import_document = MagicMock(
             side_effect=[
-                SimpleNamespace(action="created"),
-                SimpleNamespace(action="updated"),
-                SimpleNamespace(action="skipped"),
+                SimpleNamespace(
+                    action="created",
+                    clauses_created=2,
+                    clauses_updated=0,
+                    clauses_deleted=0,
+                    clauses_unchanged=0,
+                ),
+                SimpleNamespace(
+                    action="updated",
+                    clauses_created=1,
+                    clauses_updated=1,
+                    clauses_deleted=1,
+                    clauses_unchanged=1,
+                ),
+                SimpleNamespace(
+                    action="skipped",
+                    clauses_created=0,
+                    clauses_updated=0,
+                    clauses_deleted=0,
+                    clauses_unchanged=0,
+                ),
             ]
         )
         monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
         monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
-        monkeypatch.setattr(cli, "upsert_rag_document_from_parsed_json", upsert)
+        monkeypatch.setattr(
+            cli,
+            "import_rag_document_from_parsed_json",
+            import_document,
+        )
 
         result = cli.main(["rag", "import-documents", "--input-dir", str(input_dir)])
 
         captured = capsys.readouterr()
         assert result == 0
-        assert [call.args[1]["id"] for call in upsert.call_args_list] == [
+        assert [call.args[1]["id"] for call in import_document.call_args_list] == [
             "BOE-A",
             "BOE-B",
             "BOE-C",
         ]
-        assert all(call.args[0] is session for call in upsert.call_args_list)
+        assert all(call.args[0] is session for call in import_document.call_args_list)
         assert "1 created, 1 updated, 1 skipped" in captured.out
+        assert "3 created, 1 updated, 1 deleted, 1 unchanged" in captured.out
 
     def test_import_documents_returns_success_for_empty_directory(
         self,
@@ -191,10 +214,14 @@ class TestRagCli:
         session_context = MagicMock()
         session_context.__enter__.return_value = MagicMock()
         session_context.__exit__.return_value = None
-        upsert = MagicMock()
+        import_document = MagicMock()
         monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
         monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
-        monkeypatch.setattr(cli, "upsert_rag_document_from_parsed_json", upsert)
+        monkeypatch.setattr(
+            cli,
+            "import_rag_document_from_parsed_json",
+            import_document,
+        )
 
         result = cli.main(["rag", "import-documents", "--input-dir", str(tmp_path)])
 
@@ -202,7 +229,7 @@ class TestRagCli:
         assert result == 1
         assert "RAG document import failed for" in captured.err
         assert "broken.json" in captured.err
-        upsert.assert_not_called()
+        import_document.assert_not_called()
 
 
 class TestBootstrapAdmin:
