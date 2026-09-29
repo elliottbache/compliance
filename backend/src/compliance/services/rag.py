@@ -11,6 +11,11 @@ from compliance.llm.rag.extract_clauses import (
 from compliance.llm.rag.extract_clauses import (
     import_rag_clauses,
 )
+from compliance.services.rag_embeddings import (
+    EmbeddingProvider,
+    RagClauseEmbeddingSyncResult,
+    sync_rag_clause_embeddings,
+)
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -30,6 +35,9 @@ class RagDocumentImportResult:
     clauses_updated: int = 0
     clauses_deleted: int = 0
     clauses_unchanged: int = 0
+    embeddings_created: int = 0
+    embeddings_updated: int = 0
+    embeddings_unchanged: int = 0
 
 
 @dataclass(frozen=True)
@@ -43,6 +51,8 @@ class _ClauseSyncResult:
 def import_rag_document_from_parsed_json(
     session: Session,
     document: dict[str, Any],
+    *,
+    embedding_provider: EmbeddingProvider,
 ) -> RagDocumentImportResult:
     """Atomically import a newer RAG document and its extracted clauses."""
     values = _rag_document_values(document)
@@ -66,7 +76,28 @@ def import_rag_document_from_parsed_json(
         )
 
         if incoming_freshness <= stored_freshness:
-            return RagDocumentImportResult(document=rag_document, action="skipped")
+            try:
+                embedding_result = sync_rag_clause_embeddings(
+                    session,
+                    document=rag_document,
+                    provider=embedding_provider,
+                )
+                if embedding_result.created or embedding_result.updated:
+                    session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise RagDocumentConflictError(
+                    "RAG embeddings were not persisted because of a data conflict."
+                ) from exc
+            except Exception:
+                session.rollback()
+                raise
+
+            return _rag_document_import_result(
+                document=rag_document,
+                action="skipped",
+                embedding_result=embedding_result,
+            )
 
         action = "updated"
 
@@ -84,6 +115,12 @@ def import_rag_document_from_parsed_json(
             document_id=rag_document.id,
             extracted_clauses=extracted_clauses,
         )
+        session.flush()
+        embedding_result = sync_rag_clause_embeddings(
+            session,
+            document=rag_document,
+            provider=embedding_provider,
+        )
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -94,13 +131,31 @@ def import_rag_document_from_parsed_json(
         session.rollback()
         raise
 
-    return RagDocumentImportResult(
+    return _rag_document_import_result(
         document=rag_document,
         action=action,
-        clauses_created=clause_result.created,
-        clauses_updated=clause_result.updated,
-        clauses_deleted=clause_result.deleted,
-        clauses_unchanged=clause_result.unchanged,
+        clause_result=clause_result,
+        embedding_result=embedding_result,
+    )
+
+
+def _rag_document_import_result(
+    *,
+    document: RagDocument,
+    action: Literal["created", "updated", "skipped"],
+    clause_result: _ClauseSyncResult | None = None,
+    embedding_result: RagClauseEmbeddingSyncResult,
+) -> RagDocumentImportResult:
+    return RagDocumentImportResult(
+        document=document,
+        action=action,
+        clauses_created=clause_result.created if clause_result else 0,
+        clauses_updated=clause_result.updated if clause_result else 0,
+        clauses_deleted=clause_result.deleted if clause_result else 0,
+        clauses_unchanged=clause_result.unchanged if clause_result else 0,
+        embeddings_created=embedding_result.created,
+        embeddings_updated=embedding_result.updated,
+        embeddings_unchanged=embedding_result.unchanged,
     )
 
 

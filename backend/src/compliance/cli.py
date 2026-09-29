@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from compliance._helpers import ROOT_DIR
 from compliance.db.db_access import get_engine
 from compliance.llm.rag.extract_clauses import import_rag_clauses
+from compliance.llm.rag.ollama_embeddings import OllamaEmbeddingProvider
 from compliance.llm.rag.parse_boe import fetch_boe_regulation, parse_boe_regulation
 from compliance.services.rag import import_rag_document_from_parsed_json
 from compliance.services.users import bootstrap_first_admin
@@ -117,6 +118,16 @@ def import_rag_documents(args: argparse.Namespace) -> int:
         "deleted": 0,
         "unchanged": 0,
     }
+    embedding_counts = {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 0,
+    }
+    try:
+        embedding_provider = OllamaEmbeddingProvider()
+    except Exception as exc:
+        print(f"RAG embedding setup failed: {exc}", file=sys.stderr)
+        return 1
 
     with Session(get_engine()) as session:
         for parsed_boe_file in parsed_boe_files:
@@ -124,7 +135,11 @@ def import_rag_documents(args: argparse.Namespace) -> int:
                 with parsed_boe_file.open("r", encoding="utf-8") as file:
                     document = json.load(file)
 
-                result = import_rag_document_from_parsed_json(session, document)
+                result = import_rag_document_from_parsed_json(
+                    session,
+                    document,
+                    embedding_provider=embedding_provider,
+                )
             except Exception as exc:
                 print(
                     f"RAG document import failed for {parsed_boe_file}: {exc}",
@@ -137,6 +152,9 @@ def import_rag_documents(args: argparse.Namespace) -> int:
             clause_counts["updated"] += result.clauses_updated
             clause_counts["deleted"] += result.clauses_deleted
             clause_counts["unchanged"] += result.clauses_unchanged
+            embedding_counts["created"] += result.embeddings_created
+            embedding_counts["updated"] += result.embeddings_updated
+            embedding_counts["unchanged"] += result.embeddings_unchanged
 
     print(
         f"Imported {len(parsed_boe_files)} RAG documents: "
@@ -150,6 +168,12 @@ def import_rag_documents(args: argparse.Namespace) -> int:
         f"{clause_counts['updated']} updated, "
         f"{clause_counts['deleted']} deleted, "
         f"{clause_counts['unchanged']} unchanged."
+    )
+    print(
+        "Synchronized RAG clause embeddings: "
+        f"{embedding_counts['created']} created, "
+        f"{embedding_counts['updated']} updated, "
+        f"{embedding_counts['unchanged']} unchanged."
     )
     return 0
 

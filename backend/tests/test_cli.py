@@ -141,6 +141,7 @@ class TestRagCli:
         session_context = MagicMock()
         session_context.__enter__.return_value = session
         session_context.__exit__.return_value = None
+        embedding_provider = MagicMock()
         import_document = MagicMock(
             side_effect=[
                 SimpleNamespace(
@@ -149,6 +150,9 @@ class TestRagCli:
                     clauses_updated=0,
                     clauses_deleted=0,
                     clauses_unchanged=0,
+                    embeddings_created=2,
+                    embeddings_updated=0,
+                    embeddings_unchanged=0,
                 ),
                 SimpleNamespace(
                     action="updated",
@@ -156,6 +160,9 @@ class TestRagCli:
                     clauses_updated=1,
                     clauses_deleted=1,
                     clauses_unchanged=1,
+                    embeddings_created=1,
+                    embeddings_updated=1,
+                    embeddings_unchanged=1,
                 ),
                 SimpleNamespace(
                     action="skipped",
@@ -163,11 +170,19 @@ class TestRagCli:
                     clauses_updated=0,
                     clauses_deleted=0,
                     clauses_unchanged=0,
+                    embeddings_created=0,
+                    embeddings_updated=0,
+                    embeddings_unchanged=2,
                 ),
             ]
         )
         monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
         monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
+        monkeypatch.setattr(
+            cli,
+            "OllamaEmbeddingProvider",
+            MagicMock(return_value=embedding_provider),
+        )
         monkeypatch.setattr(
             cli,
             "import_rag_document_from_parsed_json",
@@ -184,8 +199,13 @@ class TestRagCli:
             "BOE-C",
         ]
         assert all(call.args[0] is session for call in import_document.call_args_list)
+        assert all(
+            call.kwargs["embedding_provider"] is embedding_provider
+            for call in import_document.call_args_list
+        )
         assert "1 created, 1 updated, 1 skipped" in captured.out
         assert "3 created, 1 updated, 1 deleted, 1 unchanged" in captured.out
+        assert "3 created, 1 updated, 3 unchanged" in captured.out
 
     def test_import_documents_returns_success_for_empty_directory(
         self,
@@ -203,6 +223,28 @@ class TestRagCli:
         assert "No parsed BOE JSON files found" in captured.out
         session.assert_not_called()
 
+    def test_import_documents_returns_error_when_embedding_setup_fails(
+        self,
+        monkeypatch,
+        tmp_path,
+        capsys,
+    ) -> None:
+        (tmp_path / "BOE-A.json").write_text('{"id": "BOE-A"}', encoding="utf-8")
+        session = MagicMock()
+        monkeypatch.setattr(cli, "Session", session)
+        monkeypatch.setattr(
+            cli,
+            "OllamaEmbeddingProvider",
+            MagicMock(side_effect=RuntimeError("Embedding model is missing.")),
+        )
+
+        result = cli.main(["rag", "import-documents", "--input-dir", str(tmp_path)])
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "RAG embedding setup failed: Embedding model is missing." in captured.err
+        session.assert_not_called()
+
     def test_import_documents_returns_error_for_malformed_json(
         self,
         monkeypatch,
@@ -217,6 +259,7 @@ class TestRagCli:
         import_document = MagicMock()
         monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
         monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
+        monkeypatch.setattr(cli, "OllamaEmbeddingProvider", MagicMock())
         monkeypatch.setattr(
             cli,
             "import_rag_document_from_parsed_json",

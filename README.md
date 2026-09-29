@@ -342,6 +342,9 @@ Import every parsed BOE JSON file into the configured database:
 python -m compliance.cli rag import-documents
 ```
 
+The import workflow requires a reachable Ollama server and a pulled embedding
+model configured through `RAG_EMBEDDING_MODEL`.
+
 The database importer:
 
 - creates a `RagDocument` for a new BOE source;
@@ -351,12 +354,16 @@ The database importer:
 - extracts clauses and synchronizes `RagClause` rows in the same transaction;
 - preserves clause IDs when unchanged clauses move or a clause is edited at
   the same tree position;
-- inserts new clauses and deletes clauses removed from the newer source; and
-- rolls back both document and clause changes if the import fails.
+- inserts new clauses and deletes clauses removed from the newer source;
+- generates embeddings only for clauses whose embedding is missing or whose
+  input hash or model is stale;
+- backfills missing or stale embeddings even when document freshness skips
+  the incoming source; and
+- rolls back document, clause, and embedding changes if the import fails.
 
 Freshness uses `updated_at`, then `effective_date`, then the current UTC date
-when neither source date is available. The command reports created, updated,
-skipped, deleted, and unchanged totals.
+when neither source date is available. The command reports document, clause,
+and embedding created, updated, skipped, deleted, and unchanged totals.
 
 Use a different parsed-document directory when needed:
 

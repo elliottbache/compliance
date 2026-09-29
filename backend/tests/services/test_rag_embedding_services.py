@@ -3,7 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from compliance.db.models import RagClause, RagClauseEmbedding, RagDocument
-from compliance.services.rag_embeddings import upsert_rag_clause_embedding
+from compliance.services.rag_embeddings import (
+    is_rag_clause_embedding_stale,
+    upsert_rag_clause_embedding,
+)
 
 INPUT_HASH = "a" * 64
 
@@ -210,3 +213,82 @@ class TestUpsertRagClauseEmbedding:
                 model="embed-model",
                 input_hash=INPUT_HASH,
             )
+
+
+class TestIsRagClauseEmbeddingStale:
+    def test_returns_true_when_embedding_is_missing(self, sqlite_session) -> None:
+        clause = _persisted_clause(sqlite_session)
+
+        assert is_rag_clause_embedding_stale(
+            clause,
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
+
+    def test_returns_false_when_embedding_is_current(self, sqlite_session) -> None:
+        clause = _persisted_clause(sqlite_session)
+        upsert_rag_clause_embedding(
+            sqlite_session,
+            clause=clause,
+            vector=[1.0, 2.0],
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
+        sqlite_session.expire(clause, ["rag_clause_embedding_rel"])
+
+        assert not is_rag_clause_embedding_stale(
+            clause,
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
+
+    @pytest.mark.parametrize(
+        ("model", "input_hash"),
+        [
+            ("new-model", INPUT_HASH),
+            ("embed-model", "c" * 64),
+        ],
+    )
+    def test_returns_true_when_model_or_input_changes(
+        self,
+        sqlite_session,
+        model,
+        input_hash,
+    ) -> None:
+        clause = _persisted_clause(sqlite_session)
+        upsert_rag_clause_embedding(
+            sqlite_session,
+            clause=clause,
+            vector=[1.0, 2.0],
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
+        sqlite_session.expire(clause, ["rag_clause_embedding_rel"])
+
+        assert is_rag_clause_embedding_stale(
+            clause,
+            model=model,
+            input_hash=input_hash,
+        )
+
+    def test_returns_true_when_dimensions_do_not_match_vector(
+        self,
+        sqlite_session,
+    ) -> None:
+        clause = _persisted_clause(sqlite_session)
+        result = upsert_rag_clause_embedding(
+            sqlite_session,
+            clause=clause,
+            vector=[1.0, 2.0],
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
+        result.embedding.dimensions = 3
+        sqlite_session.flush()
+        sqlite_session.expire(clause, ["rag_clause_embedding_rel"])
+
+        assert is_rag_clause_embedding_stale(
+            clause,
+            model="embed-model",
+            input_hash=INPUT_HASH,
+        )
