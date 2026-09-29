@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
     logging: *default-logging
     environment:
       PGDATA: /var/lib/compliance/postgres/data

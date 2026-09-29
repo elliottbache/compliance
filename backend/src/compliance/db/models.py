@@ -21,6 +21,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, foreign, mapped_column, relationship
 
 from compliance.db.db_access import convention
+from compliance.db.types import EMBEDDING_VECTOR_TYPE
 
 
 class Role(PyEnum):
@@ -262,6 +263,36 @@ class RagClause(Base):
 
     rag_clause_document_rel: Mapped["RagDocument"] = relationship(
         back_populates="rag_document_clause_rel"
+    )
+    rag_clause_embedding_rel: Mapped["RagClauseEmbedding | None"] = relationship(
+        back_populates="rag_clause_embedding_clause_rel",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class RagClauseEmbedding(Base):
+    """Represents the current embedding generated for one RAG clause."""
+
+    __tablename__ = "rag_clause_embeddings"
+    __table_args__ = (
+        CheckConstraint("dimensions > 0", name="positive_dimensions"),
+        CheckConstraint("length(input_hash) = 64", name="input_hash_length"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clause_id: Mapped[int] = mapped_column(
+        ForeignKey("rag_clauses.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    embedding: Mapped[list[float]] = mapped_column(EMBEDDING_VECTOR_TYPE)
+    embedding_model: Mapped[str] = mapped_column(String(120))
+    input_hash: Mapped[str] = mapped_column(String(64))
+    dimensions: Mapped[int]
+    embedded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    rag_clause_embedding_clause_rel: Mapped["RagClause"] = relationship(
+        back_populates="rag_clause_embedding_rel"
     )
 
 

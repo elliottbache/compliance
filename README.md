@@ -130,6 +130,8 @@ The core records are:
 - `AuditEvent`: persistent audit trail record for important backend actions.
 - `RagDocument`: versioned source metadata used by the retrieval pipeline.
 - `RagClause`: an ordered, citation-aware clause extracted from a RAG document.
+- `RagClauseEmbedding`: the current model, fingerprint, and pgvector embedding
+  stored for a RAG clause.
 
 The system is centered around site history. A site history response gathers the
 site, certifications, findings, rules, regulations, certifiers, clients, and
@@ -617,6 +619,11 @@ Run migrations from the repository root:
 ```bash
 alembic -c backend/alembic.ini upgrade head
 ```
+
+The RAG embedding migration requires the PostgreSQL `vector` extension. Docker
+Compose uses the pgvector PostgreSQL image and needs no extra database package.
+For host-based PostgreSQL, install pgvector for PostgreSQL 16 before applying
+the migration; see the [official pgvector installation guide](https://github.com/pgvector/pgvector#installation).
 
 Check the applied migration revision when needed:
 
