@@ -13,6 +13,7 @@ from compliance._helpers import ROOT_DIR
 from compliance.db.db_access import get_engine
 from compliance.llm.rag.extract_clauses import import_rag_clauses
 from compliance.llm.rag.parse_boe import fetch_boe_regulation, parse_boe_regulation
+from compliance.services.rag import upsert_rag_document_from_parsed_json
 from compliance.services.users import bootstrap_first_admin
 
 RAG_STORAGE_DIR = ROOT_DIR / "backend" / "storage" / "rag"
@@ -97,6 +98,45 @@ def extract_clauses(args: argparse.Namespace) -> int:
     return 0
 
 
+def import_rag_documents(args: argparse.Namespace) -> int:
+    """Import RAG document metadata from parsed BOE JSON files."""
+    parsed_boe_files = sorted(args.input_dir.glob("*.json"))
+
+    if not parsed_boe_files:
+        print(f"No parsed BOE JSON files found in: {args.input_dir.resolve()}")
+        return 0
+
+    action_counts = {
+        "created": 0,
+        "updated": 0,
+        "skipped": 0,
+    }
+
+    with Session(get_engine()) as session:
+        for parsed_boe_file in parsed_boe_files:
+            try:
+                with parsed_boe_file.open("r", encoding="utf-8") as file:
+                    document = json.load(file)
+
+                result = upsert_rag_document_from_parsed_json(session, document)
+            except Exception as exc:
+                print(
+                    f"RAG document import failed for {parsed_boe_file}: {exc}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            action_counts[result.action] += 1
+
+    print(
+        f"Imported {len(parsed_boe_files)} RAG documents: "
+        f"{action_counts['created']} created, "
+        f"{action_counts['updated']} updated, "
+        f"{action_counts['skipped']} skipped."
+    )
+    return 0
+
+
 def bootstrap_admin(args: argparse.Namespace) -> int:
     """Create the first admin user from command-line arguments."""
     password = getpass.getpass("Admin password: ")
@@ -176,6 +216,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory where clause JSON files should be written.",
     )
     extract_clauses_parser.set_defaults(func=extract_clauses)
+
+    import_documents_parser = rag_subparsers.add_parser(
+        "import-documents",
+        help="Import RAG document metadata from parsed BOE JSON files.",
+    )
+    import_documents_parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=PARSED_BOES_DIR,
+        help="Directory containing parsed BOE JSON files.",
+    )
+    import_documents_parser.set_defaults(func=import_rag_documents)
 
     bootstrap_parser = subparsers.add_parser(
         "bootstrap-admin",

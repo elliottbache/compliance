@@ -123,6 +123,87 @@ class TestRagCli:
         assert "Clause extraction failed for" in captured.err
         assert "broken.json" in captured.err
 
+    def test_import_documents_reports_created_updated_and_skipped_counts(
+        self,
+        monkeypatch,
+        tmp_path,
+        capsys,
+    ) -> None:
+        input_dir = tmp_path / "parsed_boes"
+        input_dir.mkdir()
+        for filename in ["BOE-C.json", "BOE-A.json", "BOE-B.json"]:
+            (input_dir / filename).write_text(
+                json.dumps({"id": filename.removesuffix(".json")}),
+                encoding="utf-8",
+            )
+
+        session = MagicMock()
+        session_context = MagicMock()
+        session_context.__enter__.return_value = session
+        session_context.__exit__.return_value = None
+        upsert = MagicMock(
+            side_effect=[
+                SimpleNamespace(action="created"),
+                SimpleNamespace(action="updated"),
+                SimpleNamespace(action="skipped"),
+            ]
+        )
+        monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
+        monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
+        monkeypatch.setattr(cli, "upsert_rag_document_from_parsed_json", upsert)
+
+        result = cli.main(["rag", "import-documents", "--input-dir", str(input_dir)])
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert [call.args[1]["id"] for call in upsert.call_args_list] == [
+            "BOE-A",
+            "BOE-B",
+            "BOE-C",
+        ]
+        assert all(call.args[0] is session for call in upsert.call_args_list)
+        assert "1 created, 1 updated, 1 skipped" in captured.out
+
+    def test_import_documents_returns_success_for_empty_directory(
+        self,
+        monkeypatch,
+        tmp_path,
+        capsys,
+    ) -> None:
+        session = MagicMock()
+        monkeypatch.setattr(cli, "Session", session)
+
+        result = cli.main(["rag", "import-documents", "--input-dir", str(tmp_path)])
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "No parsed BOE JSON files found" in captured.out
+        session.assert_not_called()
+
+    def test_import_documents_returns_error_for_malformed_json(
+        self,
+        monkeypatch,
+        tmp_path,
+        capsys,
+    ) -> None:
+        broken_file = tmp_path / "broken.json"
+        broken_file.write_text("{", encoding="utf-8")
+        session_context = MagicMock()
+        session_context.__enter__.return_value = MagicMock()
+        session_context.__exit__.return_value = None
+        upsert = MagicMock()
+        monkeypatch.setattr(cli, "get_engine", MagicMock(return_value="engine"))
+        monkeypatch.setattr(cli, "Session", MagicMock(return_value=session_context))
+        monkeypatch.setattr(cli, "upsert_rag_document_from_parsed_json", upsert)
+
+        result = cli.main(["rag", "import-documents", "--input-dir", str(tmp_path)])
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "RAG document import failed for" in captured.err
+        assert "broken.json" in captured.err
+        upsert.assert_not_called()
+
 
 class TestBootstrapAdmin:
     def test_returns_error_when_password_is_empty(self, monkeypatch, capsys) -> None:

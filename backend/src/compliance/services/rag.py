@@ -1,7 +1,8 @@
 """RAG document persistence helpers."""
 
-from datetime import UTC, date, datetime
-from typing import Any
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
+from typing import Any, Literal
 
 from compliance.db.models import RagDocument
 from sqlalchemy import select
@@ -13,22 +14,45 @@ class RagDocumentConflictError(Exception):
     """Raised when a RAG document cannot be persisted because of existing data."""
 
 
+@dataclass(frozen=True)
+class RagDocumentUpsertResult:
+    """Describe the outcome of a freshness-gated RAG document upsert."""
+
+    document: RagDocument
+    action: Literal["created", "updated", "skipped"]
+
+
 def upsert_rag_document_from_parsed_json(
     session: Session,
     document: dict[str, Any],
-) -> RagDocument:
-    """Create or update a RAG document from parsed source JSON."""
+) -> RagDocumentUpsertResult:
+    """Create or update a RAG document when the parsed source is newer."""
     values = _rag_document_values(document)
 
     stmt = select(RagDocument).where(RagDocument.source_id == values["source_id"])
     rag_document = session.execute(stmt).scalar_one_or_none()
+    action: Literal["created", "updated"]
 
     if rag_document is None:
         rag_document = RagDocument(**values)
         session.add(rag_document)
+        action = "created"
     else:
+        incoming_freshness = _freshness_datetime(
+            updated_at=values["updated_at"],
+            effective_date=values["effective_date"],
+        )
+        stored_freshness = _freshness_datetime(
+            updated_at=rag_document.updated_at,
+            effective_date=rag_document.effective_date,
+        )
+
+        if incoming_freshness <= stored_freshness:
+            return RagDocumentUpsertResult(document=rag_document, action="skipped")
+
         for field, value in values.items():
             setattr(rag_document, field, value)
+        action = "updated"
 
     try:
         session.commit()
@@ -38,7 +62,7 @@ def upsert_rag_document_from_parsed_json(
             "RAG document was not persisted because of a data conflict."
         ) from exc
 
-    return rag_document
+    return RagDocumentUpsertResult(document=rag_document, action=action)
 
 
 def _rag_document_values(document: dict[str, Any]) -> dict[str, Any]:
@@ -54,11 +78,7 @@ def _rag_document_values(document: dict[str, Any]) -> dict[str, Any]:
     )
 
     if effective_date is None:
-        if updated_at is None:
-            raise ValueError(
-                "Parsed RAG document requires effective_date or updated_at."
-            )
-        effective_date = updated_at.date()
+        effective_date = updated_at.date() if updated_at is not None else _today_utc()
 
     return {
         "source_id": source_id,
@@ -70,6 +90,24 @@ def _rag_document_values(document: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "source_url": document.get("source_url") or document.get("url_eli"),
     }
+
+
+def _freshness_datetime(
+    *,
+    updated_at: datetime | None,
+    effective_date: date | None,
+) -> datetime:
+    if updated_at is not None:
+        if updated_at.tzinfo is None:
+            return updated_at.replace(tzinfo=UTC)
+        return updated_at.astimezone(UTC)
+
+    fallback_date = effective_date or _today_utc()
+    return datetime.combine(fallback_date, time.min, tzinfo=UTC)
+
+
+def _today_utc() -> date:
+    return datetime.now(UTC).date()
 
 
 def _required_string(document: dict[str, Any], field: str) -> str:
