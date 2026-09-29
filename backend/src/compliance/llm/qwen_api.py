@@ -7,7 +7,7 @@ import httpx
 import ollama
 from ollama import ChatResponse
 from pydantic import BaseModel, ValidationError
-from tenacity import RetryCallState, retry, retry_if_exception_type, wait_exponential
+from tenacity import retry, retry_if_exception_type, wait_exponential
 
 from compliance.config import settings
 from compliance.llm._helpers import (
@@ -17,6 +17,7 @@ from compliance.llm._helpers import (
     LLMToolUseError,
     raise_or_create_format_repair_prompt,
 )
+from compliance.llm.ollama_retry import stop_after_ollama_attempts
 
 logger = logging.getLogger(__name__)
 
@@ -29,41 +30,7 @@ class LLMEmptyResponseError(LLMStopReasonError):
     """Raised when Ollama stops without returning response content."""
 
 
-def _stop_after_attempts_by_error(retry_state: RetryCallState) -> bool:
-    """Dynamically drops or extends retry limits based on the specific exception."""
-    if retry_state.outcome is None:
-        return retry_state.attempt_number >= 2
-
-    exc = retry_state.outcome.exception()
-    if isinstance(exc, (httpx.TransportError, ConnectionRefusedError)):
-        return retry_state.attempt_number >= 6
-
-    if not isinstance(exc, ollama.ResponseError):
-        return retry_state.attempt_number >= 1
-
-    status_code = exc.status_code or 0
-
-    if (
-        status_code in {408, 429} or status_code >= 500
-    ):  # request_timeout, rate_limited, transient_provider (500), transient_timeout (504), transient_overload (529)
-        return retry_state.attempt_number >= 6
-
-    elif status_code in {
-        400,
-        401,
-        402,
-        403,
-        404,
-        413,
-        422,
-    }:  # invalid_request_error, authentication_error, billing_error, permission_error, not_found_error, request_too_large, unprocessable_entity
-        return retry_state.attempt_number >= 1
-
-    elif status_code == 409:  # 409 (ConflictError)
-        return retry_state.attempt_number >= 2
-
-    # Default fallback for other retryable errors
-    return retry_state.attempt_number >= 1
+_stop_after_attempts_by_error = stop_after_ollama_attempts
 
 
 class QwenAIProvider:

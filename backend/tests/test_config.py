@@ -77,6 +77,7 @@ class TestSettingsEnvironmentValidation:
             "ATTACHMENTS_DIR",
             "CORS_ORIGINS",
             "AI_MODE",
+            "RAG_EMBEDDING_MODEL",
             "AI_LOG_PROMPTS",
             "LOG_TO_FILE",
             "ANTHROPIC_API_KEY",
@@ -103,6 +104,7 @@ class TestSettingsEnvironmentValidation:
                 "CORS_ORIGINS": "https://compliance.example.com",
                 "AI_MODE": "anthropic",
                 "AI_MODEL": "claude-test",
+                "RAG_EMBEDDING_MODEL": "embed-test",
                 "AI_LOG_PROMPTS": "false",
                 "LOG_TO_FILE": "false",
                 "ANTHROPIC_API_KEY": "test-api-key",
@@ -121,6 +123,7 @@ class TestSettingsEnvironmentValidation:
         assert settings.postgres_host == "postgres"
         assert settings.postgres_db == "compliance_db"
         assert settings.postgres_port == 5432
+        assert settings.rag_embedding_model == "embed-test"
         assert settings.attachments_dir == tmp_path
         assert settings.allowed_cors_origins == ["https://compliance.example.com"]
         assert settings.ai_log_prompts is False

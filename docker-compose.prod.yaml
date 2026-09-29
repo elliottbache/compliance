@@ -101,7 +101,14 @@ services:
       ollama:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull \"$${AI_MODEL}\""]
+    command:
+      - >-
+        if [ -n "$${RAG_EMBEDDING_MODEL}" ]; then
+          ollama pull "$${RAG_EMBEDDING_MODEL}";
+        fi;
+        if [ "$${AI_MODE}" = "local" ]; then
+          ollama pull "$${AI_MODEL}";
+        fi
 
   frontend:
     build:

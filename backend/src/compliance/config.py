@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     ollama_timeout_seconds: int = 300
     ollama_num_ctx: int = 4096
     ollama_temperature: float = 0.2
+    rag_embedding_model: str | None = None
     malware_scanning_enabled: bool = False
     malware_scanner_host: str = "clamav"
     malware_scanner_port: int = 3310
