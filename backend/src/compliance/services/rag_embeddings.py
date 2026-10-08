@@ -2,6 +2,7 @@
 
 import math
 import re
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal, Protocol
@@ -11,9 +12,17 @@ from compliance.llm.rag.embedding_input import (
     build_clause_embedding_input,
     build_clause_embedding_input_hash,
 )
+from compliance.llm.rag.ollama_embeddings import OllamaEmbeddingProvider
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session, object_session, selectinload
 
+_DEAFULT_TOTAL_CLOSEST_EMBEDDINGS = (
+    8  # number of closest embeddings to the input findings to use from RAG retrieval
+)
+_DEAFULT_CLOSEST_EMBEDDINGS = (
+    3  # number of closest embeddings to the input clause to use from RAG retrieval
+)
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
@@ -32,6 +41,44 @@ class RagClauseEmbeddingSyncResult:
     created: int
     updated: int
     unchanged: int
+
+
+@dataclass(frozen=True)
+class ClosestEmbedding:
+    """Embedding clause with its distance to the query."""
+
+    embedding: RagClauseEmbedding
+    distance: float
+
+
+@dataclass(frozen=True)
+class TopEmbedding:
+    """Embedding clause with its distance to the finding."""
+
+    closest_embedding: ClosestEmbedding
+    finding_id: int
+
+
+class RagClausePublicSchema(BaseModel):
+    """Public schema containing necessary attributes for finding closest embeddings to query."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    document_id: int
+    citation_ref: str
+    title: str | None
+    path_text: str | None
+    text: str
+
+
+class TopClause(BaseModel):
+    """One of closest RAG clauses to the site history with associated finding."""
+
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
+
+    rag_clause: RagClausePublicSchema
+    finding_id: int
 
 
 class EmbeddingProvider(Protocol):
@@ -67,11 +114,74 @@ def is_rag_clause_embedding_stale(
     )
 
 
+def embed_rag_queries(*, queries: dict[int, str]) -> dict[int, list[float]]:
+    """Generate embedding for RAG query."""
+    try:
+        embedding_provider = OllamaEmbeddingProvider()
+    except Exception as exc:
+        print(f"RAG embedding setup failed: {exc}", file=sys.stderr)
+        raise
+
+    _validate_model(embedding_provider.model)
+    embeddings = {}
+    for finding_id in queries:
+        vector = embedding_provider.embed_text(queries[finding_id])
+        _validate_vector(vector)
+        embeddings[finding_id] = vector
+
+    # TODO make sure that embedded queries are compared with the same model
+
+    return embeddings
+
+
+def find_top_embeddings(
+    *, session: Session, query_embeddings: dict[int, list[float]]
+) -> list[TopEmbedding]:
+
+    top_embeddings: list[TopEmbedding] = []
+    for finding_id in query_embeddings:
+        nearest_neighbors_to_vector = _find_closest_embeddings(
+            session=session, query_embedding=query_embeddings[finding_id]
+        )
+        top_embeddings.extend(
+            [
+                TopEmbedding(finding_id=finding_id, closest_embedding=closest_embedding)
+                for closest_embedding in nearest_neighbors_to_vector
+            ]
+        )
+        top_embeddings.sort(
+            key=lambda rag_embedding: rag_embedding.closest_embedding.distance
+        )
+        top_embeddings[8:] = []
+
+    return top_embeddings
+
+
+def _find_closest_embeddings(
+    *, session: Session, query_embedding: list[float]
+) -> list[ClosestEmbedding]:
+    """Find the ``_DEAFULT_CLOSEST_EMBEDDINGS`` closest embeddings to the input vector representing
+    a clause."""
+
+    distance_expression = RagClauseEmbedding.embedding.cosine_distance(query_embedding)
+
+    nearest_neighbors = session.execute(
+        select(
+            distance_expression,
+            RagClauseEmbedding,
+        )
+        .order_by(distance_expression)
+        .limit(_DEAFULT_CLOSEST_EMBEDDINGS)
+    ).all()
+
+    return [
+        ClosestEmbedding(embedding=embedding, distance=distance)
+        for distance, embedding in nearest_neighbors
+    ]
+
+
 def sync_rag_clause_embeddings(
-    session: Session,
-    *,
-    document: RagDocument,
-    provider: EmbeddingProvider,
+    session: Session, *, document: RagDocument, provider: EmbeddingProvider
 ) -> RagClauseEmbeddingSyncResult:
     """Generate and persist only missing or stale embeddings for a document."""
     document_id = _persistent_document_id(session, document)
@@ -223,3 +333,159 @@ def _validate_vector(vector: list[float]) -> list[float]:
         normalized.append(float(value))
 
     return normalized
+
+
+if __name__ == "__main__":
+    from datetime import date
+
+    from compliance.db.db_access import get_engine
+    from compliance.db.models import RagClause, RagDocument, Site
+    from compliance.llm.rag.embedding_input import (
+        build_site_analysis_query_embedding_input,
+    )
+    from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+
+    sample_site = Site(
+        id=101,
+        nif="A12345678",
+        city="Madrid",
+        postal_code=28001,
+        street="Mayor",
+        street_number=10,
+        suite=None,
+        address_info=None,
+        archived_at=None,
+        archive_reason=None,
+    )
+
+    sample_site_history = SiteHistory(
+        site_id=sample_site.id,
+        inspection_count=1,
+        latest_inspection_date=date(2026, 9, 15),
+        certifications=[
+            CertificationHistory(
+                cert_id=201,
+                result="Fail",
+                resolution_date=None,
+                reg_title="Workplace Safety Regulation",
+                reg_description=(
+                    "Establishes safety requirements for workplace facilities."
+                ),
+                certifier_org_name="Example Certification Services",
+                inspection_date=date(2026, 9, 15),
+                findings=[
+                    FindingHistory(
+                        finding_id=301,
+                        finding=(
+                            "The emergency exit was partially obstructed by "
+                            "stored materials."
+                        ),
+                        rule_index="4.2",
+                        rule_title="Emergency exits",
+                        rule_description=(
+                            "Emergency exits must remain clear and accessible."
+                        ),
+                    ),
+                    FindingHistory(
+                        finding_id=302,
+                        finding=(
+                            "The inspection record for one fire extinguisher "
+                            "was not available."
+                        ),
+                        rule_index="5.1",
+                        rule_title=None,
+                        rule_description=(
+                            "Fire-protection equipment must be inspected and "
+                            "documented at the required intervals."
+                        ),
+                    ),
+                ],
+            )
+        ],
+    )
+
+    queries = build_site_analysis_query_embedding_input(
+        sample_site,
+        sample_site_history,
+    )
+
+    for finding_id, query in queries.items():
+        print(f"Finding ID: {finding_id}")
+        print(query)
+        print("-" * 80)
+
+    finding_embeddings = embed_rag_queries(queries=queries)
+    print("finding_embeddings = ", finding_embeddings)
+
+    # search RAG embeddings for closest 3 vectors for each and retrieve text from top 8 vectors
+    with Session(get_engine()) as session:
+        sample_embedding = session.scalar(
+            select(RagClauseEmbedding)
+            .where(RagClauseEmbedding.embedding.is_not(None))
+            .order_by(RagClauseEmbedding.id)
+            .limit(1)
+        )
+
+    top_embeddings = find_top_embeddings(
+        session=session, query_embeddings=finding_embeddings
+    )
+    print("top_embeddings = ", top_embeddings)
+
+    # return RAG clauses
+    closest_clauses = [
+        TopClause(
+            rag_clause=RagClausePublicSchema.model_validate(
+                top_embedding.closest_embedding.embedding.rag_clause_embedding_clause_rel
+            ),
+            finding_id=top_embedding.finding_id,
+        )
+        for top_embedding in top_embeddings
+    ]
+    for closest_clause in closest_clauses:
+        print(
+            "closest_clause: ",
+            closest_clause.rag_clause.title,
+            ": ",
+            closest_clause.rag_clause.text,
+        )
+
+    """with Session(get_engine()) as session:
+        sample_embedding = session.scalar(
+            select(RagClauseEmbedding)
+            .where(RagClauseEmbedding.embedding.is_not(None))
+            .order_by(RagClauseEmbedding.id)
+            .limit(1)
+        )
+
+        if sample_embedding is None:
+            raise SystemExit(
+                "No RAG clause embeddings found. Import a RAG document first."
+            )
+
+        query_embedding = [float(value) for value in sample_embedding.embedding]
+        closest_embeddings = _find_closest_embeddings(
+            session=session,
+            query_embedding=query_embedding,
+        )
+
+        print(f"Query embedding ID: {sample_embedding.id}")
+        for result in closest_embeddings:
+            print(
+                f"embedding_id={result.embedding.id}, "
+                f"clause_id={result.embedding.clause_id}, "
+                f"distance={result.distance:.6f}"
+            )
+
+        top_embeddings = find_top_embeddings(session=session, query_embeddings={1: query_embedding})
+        print(f"Query embedding ID: {sample_embedding.id}")
+        for result in top_embeddings:
+            print(
+                f"finding_id={result.finding_id}, "
+                f"embedding_id={result.closest_embedding.embedding.id}, "
+                f"clause_id={result.closest_embedding.embedding.clause_id}, "
+                f"distance={result.closest_embedding.distance:.6f}"
+            )
+
+        queries = {1: "here is the first query."}
+        embeddings = embed_rag_queries(queries=queries)
+        print("embeddings = ", embeddings)"""

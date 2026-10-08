@@ -5,11 +5,20 @@ import logging
 from typing import Protocol
 
 from compliance.config import Settings, settings
+from compliance.db.models import Site
 from compliance.llm.anthropic_api import AnthropicAIProvider
 from compliance.llm.qwen_api import QwenAIProvider
+from compliance.llm.rag.embedding_input import build_site_analysis_query_embedding_input
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
+from compliance.services.rag_embeddings import (
+    RagClausePublicSchema,
+    TopClause,
+    embed_rag_queries,
+    find_top_embeddings,
+)
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +41,10 @@ class AIProvider(Protocol):
 
 
 def summarize_previous_visits(
-    site_history: SiteHistory,
     *,
+    session: Session,
+    site: Site,
+    site_history: SiteHistory,
     ai_model: str | None = None,
     prompt_version: str = "v1.3",
     case_info: str = "",
@@ -79,7 +90,15 @@ def summarize_previous_visits(
         raise RuntimeError("AI_MODEL is required when AI_MODE is not mock.")
 
     system_context = _build_site_analysis_system_prompt()
-    user_message = _build_site_analysis_user_message(site_history)
+
+    # retrieve RAG embeddings: create function in this module to retrieve embeddings and create one str
+    embedded_context = _retrieve_site_analysis_rag_clauses(
+        session=session, site=site, site_history=site_history
+    )
+
+    user_message = _build_site_analysis_user_message(
+        site_history=site_history, embedded_context=embedded_context
+    )
 
     return ai_provider.call_model(
         system_context,
@@ -130,7 +149,38 @@ def _build_site_analysis_system_prompt() -> str:
     Return output that matches the requested schema exactly."""
 
 
-def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
+def _retrieve_site_analysis_rag_clauses(
+    *, session: Session, site: Site, site_history: SiteHistory
+) -> list[TopClause]:
+    """Retrieve embedded clauses that are closest to the input findings."""
+    # create list of findings
+    finding_queries = build_site_analysis_query_embedding_input(site, site_history)
+
+    # transform into vectors
+    finding_embeddings = embed_rag_queries(queries=finding_queries)
+
+    # search RAG embeddings for closest 3 vectors for each and retrieve text from top 8 vectors
+    top_embeddings = find_top_embeddings(
+        session=session, query_embeddings=finding_embeddings
+    )
+
+    # return RAG clauses
+    closest_clauses = [
+        TopClause(
+            rag_clause=RagClausePublicSchema.model_validate(
+                top_embedding.closest_embedding.embedding.rag_clause_embedding_clause_rel
+            ),
+            finding_id=top_embedding.finding_id,
+        )
+        for top_embedding in top_embeddings
+    ]
+
+    return closest_clauses
+
+
+def _build_site_analysis_user_message(
+    site_history: SiteHistory, embedded_context: list[TopClause]
+) -> str:
     """Build the user prompt containing instructions and serialized site history."""
     user_message = """Analyze the following site history.
     
@@ -178,4 +228,118 @@ def _build_site_analysis_user_message(site_history: SiteHistory) -> str:
         site_history.model_dump(mode="json"), separators=(",", ":")
     )
 
+    if embedded_context:
+        user_message += (
+            "\n\n<relevant_rag_clauses>\n"
+            "The following retrieved clauses may be relevant to the cited findings. "
+            "Treat them as supporting context, not as conclusions.\n"
+        )
+        user_message += json.dumps(
+            [clause.model_dump(mode="json") for clause in embedded_context],
+            ensure_ascii=False,
+            indent=2,
+        )
+        user_message += "\n</relevant_rag_clauses>"
+
     return user_message
+
+
+if __name__ == "__main__":
+    from datetime import date
+
+    from compliance.db.db_access import get_engine
+    from compliance.schemas import CertificationHistory, FindingHistory
+
+    sample_site = Site(
+        id=101,
+        nif="A12345678",
+        city="Madrid",
+        postal_code=28001,
+        street="Mayor",
+        street_number=10,
+        suite=None,
+        address_info=None,
+        archived_at=None,
+        archive_reason=None,
+    )
+
+    sample_site_history = SiteHistory(
+        site_id=sample_site.id,
+        inspection_count=2,
+        latest_inspection_date=date(2026, 9, 15),
+        certifications=[
+            CertificationHistory(
+                cert_id=201,
+                result="Fail",
+                resolution_date=None,
+                reg_title="Workplace Safety Regulation",
+                reg_description=(
+                    "Establishes safety requirements for workplace facilities."
+                ),
+                certifier_org_name="Example Certification Services",
+                inspection_date=date(2025, 9, 10),
+                findings=[
+                    FindingHistory(
+                        finding_id=301,
+                        finding=(
+                            "The emergency exit was partially obstructed by "
+                            "stored materials."
+                        ),
+                        rule_index="4.2",
+                        rule_title="Emergency exits",
+                        rule_description=(
+                            "Emergency exits must remain clear and accessible."
+                        ),
+                    ),
+                ],
+            ),
+            CertificationHistory(
+                cert_id=202,
+                result="Fail",
+                resolution_date=None,
+                reg_title="Workplace Safety Regulation",
+                reg_description=(
+                    "Establishes safety requirements for workplace facilities."
+                ),
+                certifier_org_name="Example Certification Services",
+                inspection_date=date(2026, 9, 15),
+                findings=[
+                    FindingHistory(
+                        finding_id=302,
+                        finding=(
+                            "Boxes were stored in front of an emergency exit, "
+                            "restricting access."
+                        ),
+                        rule_index="4.2",
+                        rule_title="Emergency exits",
+                        rule_description=(
+                            "Emergency exits must remain clear and accessible."
+                        ),
+                    ),
+                    FindingHistory(
+                        finding_id=303,
+                        finding=(
+                            "The inspection record for one fire extinguisher "
+                            "was not available."
+                        ),
+                        rule_index="5.1",
+                        rule_title="Fire-protection equipment",
+                        rule_description=(
+                            "Fire-protection equipment must be inspected and "
+                            "documented at the required intervals."
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    with Session(get_engine()) as session:
+        analysis = summarize_previous_visits(
+            session=session,
+            site=sample_site,
+            site_history=sample_site_history,
+            case_info="temporary-site-analysis-entrypoint",
+        )
+
+    print(analysis.model_dump_json(indent=2))

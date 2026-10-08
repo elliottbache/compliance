@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from compliance.api.routers import sites as sites_router
@@ -842,24 +843,33 @@ class TestCreateSiteAnalysisRouteUnit:
 
 class TestCreateSiteAnalysis:
     def test_returns_site_analysis_when_history_exists(
-        self, main_module, monkeypatch, site_history_factory, site_analysis_factory
+        self,
+        main_module,
+        monkeypatch,
+        site_factory,
+        site_history_factory,
+        site_analysis_factory,
     ) -> None:
-        fake_session = object()
-        site_history = site_history_factory()
+        site = site_factory(id=101)
+        fake_session = MagicMock()
+        fake_session.get.return_value = site
+        expected_site_history = site_history_factory()
         site_analysis = site_analysis_factory()
 
         def fake_get_site_history(session, site_id, *, include_archived=False):
             assert site_id == 101
             assert session is fake_session
-            return site_history
+            return expected_site_history
 
-        def fake_summarize_previous_visits(history):
-            assert history is site_history
+        def fake_summarize_previous_visits(*, session, site, site_history):
+            assert session is fake_session
+            assert site.id == 101
+            assert site_history is expected_site_history
             return site_analysis
 
         def fake_validate_llm_references(analysis, history):
             assert analysis is site_analysis
-            assert history is site_history
+            assert history is expected_site_history
             return True
 
         monkeypatch.setattr(
@@ -883,8 +893,11 @@ class TestCreateSiteAnalysis:
         assert result == site_analysis
 
     def test_returns_404_when_site_history_is_not_found(
-        self, main_module, monkeypatch
+        self, main_module, monkeypatch, site_factory
     ) -> None:
+        fake_session = MagicMock()
+        fake_session.get.return_value = site_factory(id=999)
+
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return None
 
@@ -895,7 +908,7 @@ class TestCreateSiteAnalysis:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            sites_router._create_site_analysis(object(), 999)
+            sites_router._create_site_analysis(fake_session, 999)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Site 999 not found."
@@ -913,6 +926,13 @@ class TestCreateSiteAnalysis:
                 [{"type": "missing", "loc": ("site_id",), "input": {}}],
             ),
             lambda main_module: sites_router.JSONDecodeError("Invalid JSON", "{", 0),
+            lambda main_module: sites_router.httpx.ConnectError(
+                "Could not connect to Ollama",
+                request=Request("POST", "http://localhost:11434/api/embed"),
+            ),
+            lambda main_module: RuntimeError(
+                "Ollama returned an unusable embedding response"
+            ),
         ],
     )
     def test_returns_502_when_ai_analysis_fails(
@@ -920,16 +940,19 @@ class TestCreateSiteAnalysis:
         caplog,
         main_module,
         monkeypatch,
+        site_factory,
         site_history_factory,
         exception_factory,
     ) -> None:
+        fake_session = MagicMock()
+        fake_session.get.return_value = site_factory(id=101)
         site_history = site_history_factory()
         actor = SimpleNamespace(id=10, email="reviewer@example.com")
 
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return site_history
 
-        def fake_summarize_previous_visits(history):
+        def fake_summarize_previous_visits(*, session, site, site_history):
             raise exception_factory(main_module)
 
         monkeypatch.setattr(
@@ -947,7 +970,7 @@ class TestCreateSiteAnalysis:
             caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
             pytest.raises(HTTPException) as exc_info,
         ):
-            sites_router._create_site_analysis(object(), 101, actor=actor)
+            sites_router._create_site_analysis(fake_session, 101, actor=actor)
 
         assert exc_info.value.status_code == 502
         assert exc_info.value.detail == "AI analysis failed for site 101."
@@ -961,16 +984,25 @@ class TestCreateSiteAnalysis:
         assert record.actor_user_id == 10
         assert record.actor_email == "reviewer@example.com"
         assert record.status_code == 502
-        assert record.error_type in {"APIError", "ValidationError", "JSONDecodeError"}
+        assert record.error_type in {
+            "APIError",
+            "ValidationError",
+            "JSONDecodeError",
+            "ConnectError",
+            "RuntimeError",
+        }
 
     def test_returns_502_when_analysis_references_invalid_evidence(
         self,
         caplog,
         main_module,
         monkeypatch,
+        site_factory,
         site_history_factory,
         site_analysis_factory,
     ) -> None:
+        fake_session = MagicMock()
+        fake_session.get.return_value = site_factory(id=101)
         site_history = site_history_factory()
         site_analysis = site_analysis_factory()
         actor = SimpleNamespace(id=10, email="reviewer@example.com")
@@ -978,8 +1010,8 @@ class TestCreateSiteAnalysis:
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return site_history
 
-        def fake_summarize_previous_visits(history):
-            return False, "v-test", site_analysis
+        def fake_summarize_previous_visits(*, session, site, site_history):
+            return site_analysis
 
         def fake_validate_llm_references(analysis, history):
             return False
@@ -1004,7 +1036,7 @@ class TestCreateSiteAnalysis:
             caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
             pytest.raises(HTTPException) as exc_info,
         ):
-            sites_router._create_site_analysis(object(), 101, actor=actor)
+            sites_router._create_site_analysis(fake_session, 101, actor=actor)
 
         assert exc_info.value.status_code == 502
         assert (
@@ -1023,15 +1055,17 @@ class TestCreateSiteAnalysis:
         assert record.error_type == "ValueError"
 
     def test_returns_504_and_logs_when_ai_analysis_times_out(
-        self, caplog, main_module, monkeypatch, site_history_factory
+        self, caplog, main_module, monkeypatch, site_factory, site_history_factory
     ) -> None:
+        fake_session = MagicMock()
+        fake_session.get.return_value = site_factory(id=101)
         site_history = site_history_factory()
         actor = SimpleNamespace(id=10, email="reviewer@example.com")
 
         def fake_get_site_history(session, site_id, *, include_archived=False):
             return site_history
 
-        def fake_summarize_previous_visits(history):
+        def fake_summarize_previous_visits(*, session, site, site_history):
             raise sites_router.httpx.ReadTimeout("timed out")
 
         monkeypatch.setattr(
@@ -1049,7 +1083,7 @@ class TestCreateSiteAnalysis:
             caplog.at_level(logging.WARNING, logger=sites_router.logger.name),
             pytest.raises(HTTPException) as exc_info,
         ):
-            sites_router._create_site_analysis(object(), 101, actor=actor)
+            sites_router._create_site_analysis(fake_session, 101, actor=actor)
 
         assert exc_info.value.status_code == 504
         [record] = [

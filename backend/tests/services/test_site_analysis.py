@@ -82,7 +82,9 @@ class TestSummarizePreviousVisits:
             "compliance.services.site_analysis.AnthropicAIProvider",
             return_value=provider,
         ):
-            result = summarize_previous_visits(site_history)
+            result = summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
         assert result == site_analysis
         assert provider.call_model.call_args.kwargs["response_model"] is SiteAnalysis
@@ -105,7 +107,9 @@ class TestSummarizePreviousVisits:
             return_value=provider,
         ):
             result = summarize_previous_visits(
-                site_history,
+                session=MagicMock(),
+                site=MagicMock(),
+                site_history=site_history,
                 ai_model="claude-test",
                 prompt_version="v-custom",
                 case_info="case-1",
@@ -128,7 +132,9 @@ class TestSummarizePreviousVisits:
             "compliance.services.site_analysis.QwenAIProvider",
             return_value=provider,
         ):
-            result = summarize_previous_visits(site_history)
+            result = summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
         assert result == site_analysis
         assert provider.call_model.call_args.kwargs["ai_model"] == "qwen-test"
@@ -142,7 +148,9 @@ class TestSummarizePreviousVisits:
             patch("compliance.services.site_analysis.AnthropicAIProvider") as anthropic,
             patch("compliance.services.site_analysis.QwenAIProvider") as qwen,
         ):
-            result = summarize_previous_visits(site_history)
+            result = summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
         assert result.site_id == 71
         assert result.inspection_count == 1
@@ -160,7 +168,9 @@ class TestSummarizePreviousVisits:
         site_analysis_settings(ai_mode="unsupported")
 
         with pytest.raises(ValueError, match="Unsupported AI_MODE: unsupported"):
-            summarize_previous_visits(site_history)
+            summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
     def test_requires_api_key_for_anthropic_mode(
         self, site_history, site_analysis_settings
@@ -168,7 +178,9 @@ class TestSummarizePreviousVisits:
         site_analysis_settings(ai_mode="anthropic")
 
         with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY is required"):
-            summarize_previous_visits(site_history)
+            summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
     def test_requires_ai_model_for_live_ai_mode(
         self, site_history, site_analysis_settings
@@ -176,7 +188,9 @@ class TestSummarizePreviousVisits:
         site_analysis_settings(ai_mode="local")
 
         with pytest.raises(RuntimeError, match="AI_MODEL is required"):
-            summarize_previous_visits(site_history)
+            summarize_previous_visits(
+                session=MagicMock(), site=MagicMock(), site_history=site_history
+            )
 
 
 class TestBuildSiteAnalysisPrompts:
@@ -187,7 +201,9 @@ class TestBuildSiteAnalysisPrompts:
         assert "Do not make compliance decisions" in result
 
     def test_user_message_serializes_site_history(self, site_history) -> None:
-        result = _build_site_analysis_user_message(site_history)
+        result = _build_site_analysis_user_message(
+            site_history=site_history, embedded_context=[]
+        )
 
         assert "Analyze the following site history" in result
         assert (

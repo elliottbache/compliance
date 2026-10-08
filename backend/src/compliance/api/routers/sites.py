@@ -5,6 +5,7 @@ from json import JSONDecodeError
 from typing import Annotated
 
 import httpx
+import ollama
 from anthropic import APIError
 from compliance._helpers import validate_llm_references
 from compliance.api.deps import SessionDep
@@ -16,10 +17,11 @@ from compliance.api.schemas import (
 )
 from compliance.auth.authorization import require_role
 from compliance.config import settings
-from compliance.db.models import AuditAction, AuditTargetType, Role
+from compliance.db.models import AuditAction, AuditTargetType, Role, Site
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
 from compliance.services.audit import record_audit_event
+from compliance.services.lifecycle import record_is_visible
 from compliance.services.schemas import UserOut
 from compliance.services.site_analysis import (
     summarize_previous_visits,
@@ -287,23 +289,18 @@ def _create_site_analysis(
             LLM call or response parsing fails, or if the generated analysis
             references evidence that is not present in the source site history.
     """
+    site = session.get(Site, site_id)
+    if site is None or not record_is_visible(site, include_archived=False):
+        raise HTTPException(status_code=404, detail=f"Site {site_id} not found.")
+
     site_history = get_site_history(session, site_id)
     if site_history is None:
         raise HTTPException(status_code=404, detail=f"Site {site_id} not found.")
 
     try:
-        site_analysis = summarize_previous_visits(site_history)
-    except (APIError, ValidationError, JSONDecodeError) as exc:
-        _log_ai_analysis_failure(
-            site_id=site_id,
-            actor=actor,
-            exc=exc,
-            status_code=502,
+        site_analysis = summarize_previous_visits(
+            session=session, site=site, site_history=site_history
         )
-        raise HTTPException(
-            status_code=502,
-            detail=f"AI analysis failed for site {site_id}.",
-        ) from exc
     except httpx.ReadTimeout as exc:
         _log_ai_analysis_failure(
             site_id=site_id,
@@ -314,6 +311,25 @@ def _create_site_analysis(
         raise HTTPException(
             status_code=504,
             detail=f"AI analysis taking too long for site {site_id}.  Consider adding more seconds to timeout in .env.",
+        ) from exc
+    except (
+        APIError,
+        ValidationError,
+        JSONDecodeError,
+        httpx.TransportError,
+        ollama.ResponseError,
+        ConnectionRefusedError,
+        RuntimeError,
+    ) as exc:
+        _log_ai_analysis_failure(
+            site_id=site_id,
+            actor=actor,
+            exc=exc,
+            status_code=502,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI analysis failed for site {site_id}.",
         ) from exc
 
     if not validate_llm_references(site_analysis, site_history):

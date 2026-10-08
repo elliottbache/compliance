@@ -6,14 +6,17 @@ from typing import Any
 
 import spacy
 from compliance._helpers import validate_llm_references
+from compliance.db.db_access import get_engine
+from compliance.db.models import Site
 from compliance.llm.schemas import (
     ExpectedResults,
     ResultChecks,
     SiteAnalysis,
 )
-from compliance.schemas import Site
+from compliance.schemas import SiteHistory
 from compliance.services.site_analysis import summarize_previous_visits
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.orm import Session
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
@@ -22,6 +25,7 @@ _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
 _DEFAULT_AI_MODEL = (
     "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
 )
+_DEFAULT_PROMPT_VERSION = "v1.3"
 _DEFAULT_MINIMUM_EVIDENCE = {
     "recurring_issues": 2,
     "missing_information": 1,
@@ -51,61 +55,70 @@ def run_evals(
     Returns:
         None
     """
-    # loop through eval folders
-    eval_results = dict()
-    input_filename = _DEFAULT_INPUT_FILE
-    expected_filename = _DEFAULT_EXPECTED_FILE
+    # load session to db
+    with Session(get_engine()) as session:
 
-    # if given a case name, only use that case name.  Otherwise, walk through directory.
-    cases = (
-        [case_name]
-        if case_name
-        else _eval_case_generator(
-            evals_path,
-            input_filename=input_filename,
-            expected_filename=expected_filename,
+        # loop through eval folders
+        eval_results = dict()
+        input_filename = _DEFAULT_INPUT_FILE
+        expected_filename = _DEFAULT_EXPECTED_FILE
+
+        # if given a case name, only use that case name.  Otherwise, walk through directory.
+        cases = (
+            [case_name]
+            if case_name
+            else _eval_case_generator(
+                evals_path,
+                input_filename=input_filename,
+                expected_filename=expected_filename,
+            )
         )
-    )
-    for case in cases:
-        case_path = evals_path / case
-        # load each eval case
-        with open(case_path / input_filename) as f:
-            site_history = Site.model_validate(json.load(f))
-        with open(case_path / expected_filename) as f:
-            expected_results = ExpectedResults.model_validate(json.load(f))
+        for case in cases:
+            case_path = evals_path / case
+            # load each eval case
+            with open(case_path / input_filename) as f:
+                site_history = SiteHistory.model_validate(json.load(f))
+            with open(case_path / expected_filename) as f:
+                expected_results = ExpectedResults.model_validate(json.load(f))
 
-        # run your current prompt + model call
-        eval_results[case] = dict()
-        try:
-            prompt_version, response = summarize_previous_visits(
-                site_history, ai_model=_DEFAULT_AI_MODEL, case_info=case
-            )
+            # run your current prompt + model call
+            eval_results[case] = dict()
+            try:
+                site = session.get(Site, site_history.site_id)
+                response = summarize_previous_visits(
+                    session=session,
+                    site=site,
+                    site_history=site_history,
+                    ai_model=_DEFAULT_AI_MODEL,
+                    prompt_version=_DEFAULT_PROMPT_VERSION,
+                    case_info=case,
+                )
 
-            # record the prompt version
-            eval_results[case]["prompt_version"] = prompt_version
+                # record the prompt version
+                eval_results[case]["prompt_version"] = _DEFAULT_PROMPT_VERSION
 
-            # record whether structured parse succeeded
-            eval_results[case]["parse_succeeded"] = True
+                # record whether structured parse succeeded
+                eval_results[case]["parse_succeeded"] = True
 
-            # record the parsed result
-            eval_results[case]["model_results"] = response
+                # record the parsed result
+                eval_results[case]["model_results"] = response
 
-            # record the expected results
-            eval_results[case]["expected_results"] = expected_results
+                # record the expected results
+                eval_results[case]["expected_results"] = expected_results
 
-            # run a few deterministic checks
-            eval_results[case]["response_checks"] = _compare_results_to_expected(
-                response, expected_results, site_history
-            )
+                # run a few deterministic checks
+                eval_results[case]["response_checks"] = _compare_results_to_expected(
+                    response, expected_results, site_history
+                )
 
-        except ValidationError:
-            # record whether structured parse succeeded
-            eval_results[case]["parse_succeeded"] = False
+            except ValidationError:
+                # record whether structured parse succeeded
+                eval_results[case]["parse_succeeded"] = False
 
-        # record LLM model name
-        eval_results[case]["model_name"] = _DEFAULT_AI_MODEL
+            # record LLM model name
+            eval_results[case]["model_name"] = _DEFAULT_AI_MODEL
 
-    _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
+        _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
 
 
 def _eval_case_generator(
