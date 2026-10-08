@@ -352,4 +352,4 @@ if __name__ == "__main__":
     run_evals(case_name="repeated_rule_across_certifications")
     # run_evals()
 
-    # TODO run evals again with RAG
+    # TODO run evals again with RAG, then add/modify docstrings, and add tests

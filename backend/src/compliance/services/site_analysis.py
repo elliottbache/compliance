@@ -4,6 +4,8 @@ import json
 import logging
 from typing import Protocol
 
+import httpx
+import ollama
 from compliance.config import Settings, settings
 from compliance.db.models import Site
 from compliance.llm.anthropic_api import AnthropicAIProvider
@@ -92,8 +94,7 @@ def summarize_previous_visits(
 
     system_context = _build_site_analysis_system_prompt()
 
-    # retrieve RAG embeddings: create function in this module to retrieve embeddings and create one str
-    embedded_context = _retrieve_site_analysis_rag_clauses(
+    embedded_context = _retrieve_optional_site_analysis_rag_clauses(
         session=session, site=site, site_history=site_history
     )
 
@@ -182,6 +183,38 @@ def _retrieve_site_analysis_rag_clauses(
     ]
 
     return closest_clauses
+
+
+def _retrieve_optional_site_analysis_rag_clauses(
+    *, session: Session, site: Site, site_history: SiteHistory
+) -> list[TopClause]:
+    """Return relevant RAG clauses when embedding retrieval is available."""
+    if not settings.rag_embedding_model:
+        return []
+
+    try:
+        return _retrieve_site_analysis_rag_clauses(
+            session=session,
+            site=site,
+            site_history=site_history,
+        )
+    except (
+        httpx.TransportError,
+        ollama.ResponseError,
+        ConnectionError,
+        RuntimeError,
+        ValueError,
+    ) as exc:
+        logger.warning(
+            "RAG retrieval unavailable; continuing without retrieved context.",
+            exc_info=True,
+            extra={
+                "event": "rag_retrieval_unavailable",
+                "site_id": site_history.site_id,
+                "error_type": type(exc).__name__,
+            },
+        )
+        return []
 
 
 def _build_site_analysis_user_message(

@@ -172,9 +172,12 @@ def _find_closest_embeddings(
             distance_expression,
             RagClauseEmbedding,
         )
+        .join(RagClause, RagClauseEmbedding.clause_id == RagClause.id)
+        .join(RagDocument, RagClause.document_id == RagDocument.id)
         .where(
             RagClauseEmbedding.embedding_model == model,
             RagClauseEmbedding.dimensions == len(normalized_query_embedding),
+            RagDocument.status == "active",
         )
         .order_by(distance_expression)
         .limit(_DEAFULT_CLOSEST_EMBEDDINGS)

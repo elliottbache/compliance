@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
 from compliance.services.site_analysis import (
     _build_site_analysis_system_prompt,
     _build_site_analysis_user_message,
+    _retrieve_optional_site_analysis_rag_clauses,
     summarize_previous_visits,
 )
 
@@ -51,6 +53,7 @@ def site_analysis_settings(monkeypatch):
         ai_mode: str = "mock",
         ai_model: str | None = None,
         anthropic_api_key: str | None = None,
+        rag_embedding_model: str | None = None,
     ):
         monkeypatch.setattr(
             "compliance.services.site_analysis.settings",
@@ -59,6 +62,7 @@ def site_analysis_settings(monkeypatch):
                 ai_model=ai_model,
                 anthropic_api_key=anthropic_api_key,
                 ai_log_prompts=False,
+                rag_embedding_model=rag_embedding_model,
             ),
         )
 
@@ -228,3 +232,65 @@ class TestBuildSiteAnalysisPrompts:
             json.dumps(site_history.model_dump(mode="json"), separators=(",", ":"))[:40]
             in result
         )
+
+
+class TestOptionalSiteAnalysisRagClauses:
+    def test_skips_retrieval_when_embedding_model_is_not_configured(
+        self, site_history, site_analysis_settings
+    ) -> None:
+        site_analysis_settings(rag_embedding_model=None)
+
+        with patch(
+            "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses"
+        ) as retrieve:
+            result = _retrieve_optional_site_analysis_rag_clauses(
+                session=MagicMock(),
+                site=MagicMock(),
+                site_history=site_history,
+            )
+
+        assert result == []
+        retrieve.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            ConnectionError("Ollama unavailable"),
+            RuntimeError("Invalid embedding response"),
+        ],
+    )
+    def test_logs_and_returns_empty_context_when_retrieval_is_unavailable(
+        self,
+        caplog,
+        site_history,
+        site_analysis_settings,
+        exception,
+    ) -> None:
+        site_analysis_settings(rag_embedding_model="embed-model")
+
+        with (
+            patch(
+                "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses",
+                side_effect=exception,
+            ),
+            caplog.at_level(
+                logging.WARNING,
+                logger="compliance.services.site_analysis",
+            ),
+        ):
+            result = _retrieve_optional_site_analysis_rag_clauses(
+                session=MagicMock(),
+                site=MagicMock(),
+                site_history=site_history,
+            )
+
+        assert result == []
+        [record] = [
+            record
+            for record in caplog.records
+            if record.message
+            == "RAG retrieval unavailable; continuing without retrieved context."
+        ]
+        assert record.event == "rag_retrieval_unavailable"
+        assert record.site_id == 71
+        assert record.error_type == type(exception).__name__

@@ -1,14 +1,43 @@
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from compliance.db.models import RagClause, RagClauseEmbedding, RagDocument
 from compliance.services.rag_embeddings import (
+    _find_closest_embeddings,
     is_rag_clause_embedding_stale,
     upsert_rag_clause_embedding,
 )
+from sqlalchemy.dialects import postgresql
 
 INPUT_HASH = "a" * 64
+
+
+class TestFindClosestEmbeddings:
+    def test_filters_by_model_dimensions_and_active_document(self) -> None:
+        session = MagicMock()
+        session.execute.return_value.all.return_value = []
+
+        result = _find_closest_embeddings(
+            session=session,
+            query_embedding=[0.1, 0.2, 0.3],
+            provider=SimpleNamespace(model="embed-model"),
+        )
+
+        assert result == []
+        statement = session.execute.call_args.args[0]
+        compiled = statement.compile(dialect=postgresql.dialect())
+        sql = str(compiled)
+
+        assert "JOIN rag_clauses" in sql
+        assert "JOIN rag_documents" in sql
+        assert "rag_clause_embeddings.embedding_model" in sql
+        assert "rag_clause_embeddings.dimensions" in sql
+        assert "rag_documents.status" in sql
+        assert "embed-model" in compiled.params.values()
+        assert 3 in compiled.params.values()
+        assert "active" in compiled.params.values()
 
 
 def _persisted_clause(sqlite_session) -> RagClause:
