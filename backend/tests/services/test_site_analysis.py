@@ -78,9 +78,15 @@ class TestSummarizePreviousVisits:
         provider = MagicMock()
         provider.call_model.return_value = site_analysis
 
-        with patch(
-            "compliance.services.site_analysis.AnthropicAIProvider",
-            return_value=provider,
+        with (
+            patch(
+                "compliance.services.site_analysis.AnthropicAIProvider",
+                return_value=provider,
+            ),
+            patch(
+                "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses",
+                return_value=[],
+            ),
         ):
             result = summarize_previous_visits(
                 session=MagicMock(), site=MagicMock(), site_history=site_history
@@ -102,9 +108,15 @@ class TestSummarizePreviousVisits:
         provider = MagicMock()
         provider.call_model.return_value = site_analysis
 
-        with patch(
-            "compliance.services.site_analysis.AnthropicAIProvider",
-            return_value=provider,
+        with (
+            patch(
+                "compliance.services.site_analysis.AnthropicAIProvider",
+                return_value=provider,
+            ),
+            patch(
+                "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses",
+                return_value=[],
+            ),
         ):
             result = summarize_previous_visits(
                 session=MagicMock(),
@@ -128,9 +140,15 @@ class TestSummarizePreviousVisits:
         provider = MagicMock()
         provider.call_model.return_value = site_analysis
 
-        with patch(
-            "compliance.services.site_analysis.QwenAIProvider",
-            return_value=provider,
+        with (
+            patch(
+                "compliance.services.site_analysis.QwenAIProvider",
+                return_value=provider,
+            ),
+            patch(
+                "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses",
+                return_value=[],
+            ),
         ):
             result = summarize_previous_visits(
                 session=MagicMock(), site=MagicMock(), site_history=site_history

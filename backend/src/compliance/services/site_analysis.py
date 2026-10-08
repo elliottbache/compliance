@@ -9,6 +9,7 @@ from compliance.db.models import Site
 from compliance.llm.anthropic_api import AnthropicAIProvider
 from compliance.llm.qwen_api import QwenAIProvider
 from compliance.llm.rag.embedding_input import build_site_analysis_query_embedding_input
+from compliance.llm.rag.ollama_embeddings import OllamaEmbeddingProvider
 from compliance.llm.schemas import SiteAnalysis
 from compliance.schemas import SiteHistory
 from compliance.services.rag_embeddings import (
@@ -155,13 +156,18 @@ def _retrieve_site_analysis_rag_clauses(
     """Retrieve embedded clauses that are closest to the input findings."""
     # create list of findings
     finding_queries = build_site_analysis_query_embedding_input(site, site_history)
+    embedding_provider = OllamaEmbeddingProvider()
 
     # transform into vectors
-    finding_embeddings = embed_rag_queries(queries=finding_queries)
+    finding_embeddings = embed_rag_queries(
+        queries=finding_queries, provider=embedding_provider
+    )
 
     # search RAG embeddings for closest 3 vectors for each and retrieve text from top 8 vectors
     top_embeddings = find_top_embeddings(
-        session=session, query_embeddings=finding_embeddings
+        session=session,
+        query_embeddings=finding_embeddings,
+        provider=embedding_provider,
     )
 
     # return RAG clauses

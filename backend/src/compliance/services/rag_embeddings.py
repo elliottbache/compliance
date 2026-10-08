@@ -2,7 +2,6 @@
 
 import math
 import re
-import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal, Protocol
@@ -114,34 +113,33 @@ def is_rag_clause_embedding_stale(
     )
 
 
-def embed_rag_queries(*, queries: dict[int, str]) -> dict[int, list[float]]:
+def embed_rag_queries(
+    *, queries: dict[int, str], provider: EmbeddingProvider
+) -> dict[int, list[float]]:
     """Generate embedding for RAG query."""
-    try:
-        embedding_provider = OllamaEmbeddingProvider()
-    except Exception as exc:
-        print(f"RAG embedding setup failed: {exc}", file=sys.stderr)
-        raise
-
-    _validate_model(embedding_provider.model)
+    _validate_model(provider.model)
     embeddings = {}
     for finding_id in queries:
-        vector = embedding_provider.embed_text(queries[finding_id])
+        vector = provider.embed_text(queries[finding_id])
         _validate_vector(vector)
         embeddings[finding_id] = vector
-
-    # TODO make sure that embedded queries are compared with the same model
 
     return embeddings
 
 
 def find_top_embeddings(
-    *, session: Session, query_embeddings: dict[int, list[float]]
+    *,
+    session: Session,
+    query_embeddings: dict[int, list[float]],
+    provider: EmbeddingProvider,
 ) -> list[TopEmbedding]:
 
     top_embeddings: list[TopEmbedding] = []
     for finding_id in query_embeddings:
         nearest_neighbors_to_vector = _find_closest_embeddings(
-            session=session, query_embedding=query_embeddings[finding_id]
+            session=session,
+            query_embedding=query_embeddings[finding_id],
+            provider=provider,
         )
         top_embeddings.extend(
             [
@@ -158,17 +156,25 @@ def find_top_embeddings(
 
 
 def _find_closest_embeddings(
-    *, session: Session, query_embedding: list[float]
+    *, session: Session, query_embedding: list[float], provider: EmbeddingProvider
 ) -> list[ClosestEmbedding]:
     """Find the ``_DEAFULT_CLOSEST_EMBEDDINGS`` closest embeddings to the input vector representing
     a clause."""
 
-    distance_expression = RagClauseEmbedding.embedding.cosine_distance(query_embedding)
+    normalized_query_embedding = _validate_vector(query_embedding)
+    distance_expression = RagClauseEmbedding.embedding.cosine_distance(
+        normalized_query_embedding
+    )
+    model = _validate_model(provider.model)
 
     nearest_neighbors = session.execute(
         select(
             distance_expression,
             RagClauseEmbedding,
+        )
+        .where(
+            RagClauseEmbedding.embedding_model == model,
+            RagClauseEmbedding.dimensions == len(normalized_query_embedding),
         )
         .order_by(distance_expression)
         .limit(_DEAFULT_CLOSEST_EMBEDDINGS)
@@ -414,7 +420,8 @@ if __name__ == "__main__":
         print(query)
         print("-" * 80)
 
-    finding_embeddings = embed_rag_queries(queries=queries)
+    embedding_provider = OllamaEmbeddingProvider()
+    finding_embeddings = embed_rag_queries(queries=queries, provider=embedding_provider)
     print("finding_embeddings = ", finding_embeddings)
 
     # search RAG embeddings for closest 3 vectors for each and retrieve text from top 8 vectors
@@ -427,7 +434,9 @@ if __name__ == "__main__":
         )
 
     top_embeddings = find_top_embeddings(
-        session=session, query_embeddings=finding_embeddings
+        session=session,
+        query_embeddings=finding_embeddings,
+        provider=embedding_provider,
     )
     print("top_embeddings = ", top_embeddings)
 
