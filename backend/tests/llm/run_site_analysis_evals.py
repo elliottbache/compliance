@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
+_DEFAULT_SITE_FILE = Path("input_site.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
 _DEFAULT_CASES_DIRECTORY = Path(__file__).parent / "evals/site_history_cases"
 _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
@@ -35,6 +36,14 @@ logger = logging.getLogger(__name__)
 # Create a blank English model and add sentencizer
 _nlp = spacy.blank("en")
 _nlp.add_pipe("sentencizer")
+
+
+class _EvalSite(BaseModel):
+    """Site fields required to build evaluation RAG queries."""
+
+    id: int
+    city: str
+    postal_code: int
 
 
 def run_evals(
@@ -61,6 +70,7 @@ def run_evals(
         # loop through eval folders
         eval_results = dict()
         input_filename = _DEFAULT_INPUT_FILE
+        site_filename = _DEFAULT_SITE_FILE
         expected_filename = _DEFAULT_EXPECTED_FILE
 
         # if given a case name, only use that case name.  Otherwise, walk through directory.
@@ -70,6 +80,7 @@ def run_evals(
             else _eval_case_generator(
                 evals_path,
                 input_filename=input_filename,
+                site_filename=site_filename,
                 expected_filename=expected_filename,
             )
         )
@@ -78,13 +89,13 @@ def run_evals(
             # load each eval case
             with open(case_path / input_filename) as f:
                 site_history = SiteHistory.model_validate(json.load(f))
+            site = _load_eval_site(case_path, case, site_history)
             with open(case_path / expected_filename) as f:
                 expected_results = ExpectedResults.model_validate(json.load(f))
 
             # run your current prompt + model call
             eval_results[case] = dict()
             try:
-                site = session.get(Site, site_history.site_id)
                 response = summarize_previous_visits(
                     session=session,
                     site=site,
@@ -121,17 +132,37 @@ def run_evals(
         _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
 
 
+def _load_eval_site(case_path: Path, case_name: str, site_history: SiteHistory) -> Site:
+    """Load self-contained site context and validate its history association."""
+    with open(case_path / _DEFAULT_SITE_FILE) as f:
+        eval_site = _EvalSite.model_validate(json.load(f))
+
+    if eval_site.id != site_history.site_id:
+        raise ValueError(
+            f"Evaluation case {case_name!r} has site ID {eval_site.id} in "
+            f"{_DEFAULT_SITE_FILE}, but its site history uses "
+            f"{site_history.site_id}."
+        )
+
+    return Site(**eval_site.model_dump())
+
+
 def _eval_case_generator(
-    evals_path: Path, *, input_filename: Path, expected_filename: Path
+    evals_path: Path,
+    *,
+    input_filename: Path,
+    site_filename: Path,
+    expected_filename: Path,
 ) -> Generator[str, None, None]:
     """Yield directory name for valid evaluation case directories.
 
     Checks each immediate subdirectory of `evals_path` and yields a directory
-    name when both the input file and expected file are present.
+    name when the site, history, and expected-result files are present.
 
     Args:
         evals_path: Directory containing evaluation case subdirectories.
         input_filename: Name of the input file expected in each case directory.
+        site_filename: Name of the site file expected in each case directory.
         expected_filename: Name of the expected output file expected in each case
             directory.
 
@@ -142,6 +173,7 @@ def _eval_case_generator(
         if (
             path.is_dir()
             and (path / input_filename).exists()
+            and (path / site_filename).exists()
             and (path / expected_filename).exists()
         ):
             yield path.parts[-1]
@@ -349,7 +381,7 @@ if __name__ == "__main__":
 
     configure_logging(level="DEBUG")
     # run_evals(case_name="no_findings")
-    run_evals(case_name="repeated_rule_across_certifications")
-    # run_evals()
+    # run_evals(case_name="repeated_rule_across_certifications")
+    run_evals()
 
     # TODO run evals again with RAG, then add/modify docstrings, and add tests

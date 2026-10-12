@@ -1570,6 +1570,14 @@ deployments.
 - Expand redaction and minimization policies for AI requests and generated
   outputs.
 
+### AI Evaluation
+
+- Make RAG evaluations repeatable by adding a small, version-controlled corpus
+  of evaluation documents and clauses, loading it into an isolated evaluation
+  database, and generating embeddings with a pinned model and input version.
+  Keep retrieval-quality checks separate from end-to-end analysis checks so
+  ranking regressions can be distinguished from prompt or model regressions.
+
 ### Operations
 
 - Add deployment automation around the explicit backup-first migration step.
