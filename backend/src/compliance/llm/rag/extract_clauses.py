@@ -1,3 +1,5 @@
+"""Flatten parsed document trees into stable, hashable RAG clauses."""
+
 import hashlib
 import json
 import re

@@ -52,14 +52,17 @@ _DANGEROUS_INNER_EXTENSIONS = {
 
 
 class FileScanner(Protocol):
+    """Protocol for malware scanners used by the attachment upload workflow."""
+
     def scan(self, file_stream: BinaryIO) -> None:
         """Raise an exception when the file is unsafe or cannot be scanned."""
 
 
 class NoOpFileScanner:
+    """Scanner implementation used when malware scanning is disabled."""
+
     def scan(self, file_stream: BinaryIO) -> None:
         """Skip malware scan."""
-
         if not file_stream:
             raise AttachmentScanError("No file to scan.")
 
@@ -82,7 +85,6 @@ class ClamAVFileScanner:
 
     def scan(self, file_stream: BinaryIO) -> None:
         """Stream a file to ClamAV, rewind it, and require a clean result."""
-
         try:
             result = self._client.instream(file_stream)
             file_stream.seek(0)
@@ -350,6 +352,7 @@ def check_attachment_storage() -> bool:
 
 
 def _build_file_scanner() -> FileScanner:
+    """Build the configured attachment malware scanner."""
     if not settings.malware_scanning_enabled:
         return NoOpFileScanner()
 
@@ -362,6 +365,7 @@ def _build_file_scanner() -> FileScanner:
 def _copy_upload_with_limit(
     source: BinaryIO, destination: Path, max_bytes: int, chunk_size: int = 1024 * 1024
 ) -> int:
+    """Copy an upload atomically while enforcing the maximum byte count."""
     total = 0
 
     try:

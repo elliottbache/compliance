@@ -42,6 +42,8 @@ class RagDocumentImportResult:
 
 @dataclass(frozen=True)
 class _ClauseSyncResult:
+    """Count clause changes produced by synchronizing one document."""
+
     created: int
     updated: int
     deleted: int
@@ -146,6 +148,7 @@ def _rag_document_import_result(
     clause_result: _ClauseSyncResult | None = None,
     embedding_result: RagClauseEmbeddingSyncResult,
 ) -> RagDocumentImportResult:
+    """Combine document, clause, and embedding changes into an import result."""
     return RagDocumentImportResult(
         document=document,
         action=action,
@@ -160,6 +163,7 @@ def _rag_document_import_result(
 
 
 def _validate_extracted_clauses(clauses: list[ExtractedRagClause]) -> None:
+    """Reject extracted clauses with missing or duplicate stable identifiers."""
     content_hashes = [
         _required_extracted_string(clause, "content_hash") for clause in clauses
     ]
@@ -178,6 +182,7 @@ def _sync_rag_clauses(
     document_id: int,
     extracted_clauses: list[ExtractedRagClause],
 ) -> _ClauseSyncResult:
+    """Synchronize extracted clauses while preserving matching database rows."""
     stmt = select(RagClause).where(RagClause.document_id == document_id)
     existing_clauses = list(session.scalars(stmt))
     original_values = {
@@ -245,6 +250,7 @@ def _sync_rag_clauses(
 
 
 def _extracted_clause_values(clause: ExtractedRagClause) -> dict[str, Any]:
+    """Return validated persistence values for an extracted clause."""
     return {
         "citation_ref": _required_extracted_string(clause, "citation_ref"),
         "title": clause["title"],
@@ -256,6 +262,7 @@ def _extracted_clause_values(clause: ExtractedRagClause) -> dict[str, Any]:
 
 
 def _required_extracted_string(clause: ExtractedRagClause, field: str) -> str:
+    """Return one required extracted-clause string or raise ``ValueError``."""
     value = clause.get(field)
     if not isinstance(value, str) or not value:
         raise ValueError(f"Extracted RAG clause requires {field}.")
@@ -263,6 +270,7 @@ def _required_extracted_string(clause: ExtractedRagClause, field: str) -> str:
 
 
 def _persisted_clause_values(clause: RagClause) -> dict[str, Any]:
+    """Return the persisted values used to detect clause changes."""
     return {
         "citation_ref": clause.citation_ref,
         "title": clause.title,
@@ -274,6 +282,7 @@ def _persisted_clause_values(clause: RagClause) -> dict[str, Any]:
 
 
 def _rag_document_values(document: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize parsed document metadata for persistence."""
     source_id = _required_string(document, "id")
     title = _required_string(document, "title")
     source_kind = _required_string(document, "source_kind")
@@ -305,6 +314,7 @@ def _freshness_datetime(
     updated_at: datetime | None,
     effective_date: date | None,
 ) -> datetime:
+    """Return the document freshness timestamp normalized to UTC."""
     if updated_at is not None:
         if updated_at.tzinfo is None:
             return updated_at.replace(tzinfo=UTC)
@@ -315,10 +325,12 @@ def _freshness_datetime(
 
 
 def _today_utc() -> date:
+    """Return the current UTC calendar date."""
     return datetime.now(UTC).date()
 
 
 def _required_string(document: dict[str, Any], field: str) -> str:
+    """Return a stripped required document string or raise ``ValueError``."""
     value = document.get(field)
 
     if not isinstance(value, str) or not value.strip():
@@ -328,6 +340,7 @@ def _required_string(document: dict[str, Any], field: str) -> str:
 
 
 def _parse_optional_date(value: object, field: str) -> date | None:
+    """Parse an optional ISO date value with a field-specific error."""
     if value is None:
         return None
 
@@ -347,6 +360,7 @@ def _parse_optional_date(value: object, field: str) -> date | None:
 
 
 def _parse_optional_datetime(value: object, field: str) -> datetime | None:
+    """Parse an optional ISO datetime and attach UTC when no zone is supplied."""
     if value is None:
         return None
 

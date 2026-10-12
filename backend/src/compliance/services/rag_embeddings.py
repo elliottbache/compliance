@@ -116,7 +116,7 @@ def is_rag_clause_embedding_stale(
 def embed_rag_queries(
     *, queries: dict[int, str], provider: EmbeddingProvider
 ) -> dict[int, list[float]]:
-    """Generate embedding for RAG query."""
+    """Generate one validated embedding for each finding query."""
     _validate_model(provider.model)
     embeddings = {}
     for finding_id in queries:
@@ -133,6 +133,7 @@ def find_top_embeddings(
     query_embeddings: dict[int, list[float]],
     provider: EmbeddingProvider,
 ) -> list[TopEmbedding]:
+    """Return the eight closest clause embeddings across all finding queries."""
 
     top_embeddings: list[TopEmbedding] = []
     for finding_id in query_embeddings:
@@ -158,8 +159,7 @@ def find_top_embeddings(
 def _find_closest_embeddings(
     *, session: Session, query_embedding: list[float], provider: EmbeddingProvider
 ) -> list[ClosestEmbedding]:
-    """Find the ``_DEAFULT_CLOSEST_EMBEDDINGS`` closest embeddings to the input vector representing
-    a clause."""
+    """Find the closest clause embeddings to one query vector."""
 
     normalized_query_embedding = _validate_vector(query_embedding)
     distance_expression = RagClauseEmbedding.embedding.cosine_distance(
@@ -294,6 +294,7 @@ def upsert_rag_clause_embedding(
 
 
 def _persistent_clause_id(session: Session, clause: RagClause) -> int:
+    """Return a clause ID after verifying persistence in the given session."""
     state = inspect(clause)
     if (
         not state.persistent
@@ -305,6 +306,7 @@ def _persistent_clause_id(session: Session, clause: RagClause) -> int:
 
 
 def _persistent_document_id(session: Session, document: RagDocument) -> int:
+    """Return a document ID after verifying persistence in the given session."""
     state = inspect(document)
     if (
         not state.persistent
@@ -316,18 +318,21 @@ def _persistent_document_id(session: Session, document: RagDocument) -> int:
 
 
 def _validate_model(model: str) -> str:
+    """Normalize a non-empty embedding model name."""
     if not isinstance(model, str) or not model.strip():
         raise ValueError("Embedding model cannot be empty.")
     return model.strip()
 
 
 def _validate_input_hash(input_hash: str) -> str:
+    """Validate and return a lowercase SHA-256 input hash."""
     if not isinstance(input_hash, str) or not _SHA256_PATTERN.fullmatch(input_hash):
         raise ValueError("Embedding input hash must be lowercase SHA-256 hexadecimal.")
     return input_hash
 
 
 def _validate_vector(vector: list[float]) -> list[float]:
+    """Validate an embedding vector and normalize its values to floats."""
     if not isinstance(vector, list) or not vector:
         raise ValueError("Embedding vector cannot be empty.")
 

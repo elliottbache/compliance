@@ -97,6 +97,7 @@ def build_clause_embedding_input_hash(
 
 
 def _required_text(value: object | None, field: str) -> str:
+    """Normalize required embedding text or raise a field-specific error."""
     normalized = normalize_text(value)
     if normalized is None:
         raise ValueError(f"Embedding input requires {field}.")

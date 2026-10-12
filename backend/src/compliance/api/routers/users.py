@@ -34,6 +34,8 @@ def get_users_route(
 
     Args:
         session: Database session provided by FastAPI dependency injection.
+        _authorized_user: Administrator authorized to list user records.
+        token: Bearer token supplied through the OAuth2 dependency.
         limit: Maximum number of users to return.
         offset: Number of users to skip before returning results.
         include_inactive: When true, include inactive users.

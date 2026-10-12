@@ -40,7 +40,9 @@ class AIProvider(Protocol):
         ai_model: str,
         prompt_version: str,
         case_info: str = "",
-    ) -> T: ...
+    ) -> T:
+        """Call a provider and validate its structured response model."""
+        ...
 
 
 def summarize_previous_visits(
@@ -60,6 +62,9 @@ def summarize_previous_visits(
     returns a validated SiteAnalysis.
 
     Args:
+        session: Database session used for RAG retrieval. May be omitted only
+            when ``retrieved_clauses`` is supplied.
+        site: Site metadata used to construct retrieval queries.
         site_history: Site history data to summarize and analyze.
         ai_model: Optional model override. Defaults to the configured AI_MODEL
             for the active provider.

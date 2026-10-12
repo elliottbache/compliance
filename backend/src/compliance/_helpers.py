@@ -14,7 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 def validate_llm_references(
     site_analysis: SiteAnalysis, site_history: SiteHistory
 ) -> bool:
-    """Validates all evidence references within a SiteAnalysis against site history.
+    """Validate all evidence references in a site analysis against its history.
 
     Iterates through specific analysis categories (recurring issues, missing
     info, human review, and suggestions) and ensures every attached
@@ -51,7 +51,7 @@ def validate_llm_references(
 
 
 def _validate_evidence_ref(evidence: EvidenceRef, site_history: SiteHistory) -> None:
-    """Verifies a single evidence reference against historical records.
+    """Verify one evidence reference against historical records.
 
     Performs a cascading check to ensure the certification ID exists,
     the inspection date matches, and any cited finding ID or rule index

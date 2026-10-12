@@ -166,6 +166,7 @@ class RedactingTextFormatter(logging.Formatter):
     """Format text logs after removing obvious credential values."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format a record as redacted human-readable text."""
         original_msg = record.msg
         original_args = record.args
         try:
@@ -217,6 +218,7 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
     def _format_timestamp(self, record: logging.LogRecord) -> str:
+        """Return a deterministic tutorial timestamp or the local event time."""
         if self._is_tutorial:
             return "2000-01-01T00:00:00+01:00"
 

@@ -1,3 +1,5 @@
+"""Fetch and normalize consolidated Spanish BOE regulations for RAG import."""
+
 import re
 from datetime import datetime
 from typing import Any
@@ -160,6 +162,7 @@ def parse_boe_date(value: str | None) -> str | None:
 
 
 def parse_metadata(metadata: XmlNode) -> dict[str, str | None]:
+    """Map BOE metadata fields and status codes to the import schema."""
     raw_status = metadata.get("estatus_derogacion")
     status = raw_status if isinstance(raw_status, str) else None
     mapped_status = STATUS_MAP.get(status, status) if status is not None else None
@@ -188,6 +191,7 @@ def create_node(
     title: str | None = None,
     text: str | None = None,
 ) -> DocumentNode:
+    """Create one normalized document-tree node with an empty child list."""
     return {
         "type": node_type,
         "number": number,
@@ -296,6 +300,7 @@ def extract_heading_title(block: XmlNode) -> str | None:
 
 
 def create_heading_node(block: XmlNode) -> tuple[int, DocumentNode] | None:
+    """Convert a structural BOE block into its hierarchy level and node."""
     label = block.get(
         "@titulo",
         "",
@@ -406,6 +411,7 @@ def extract_article_text(version: XmlNode) -> str:
 
 
 def create_article_node(block: XmlNode) -> DocumentNode | None:
+    """Convert the latest version of a BOE article block into a document node."""
     block_title = block.get(
         "@titulo",
         "",
@@ -539,6 +545,7 @@ def fetch_boe_regulation(boe_id: str) -> XmlNode:
 
 
 def parse_boe_regulation(data: XmlNode) -> dict[str, Any]:
+    """Convert a parsed BOE API response into the normalized document schema."""
     document = data["response"]["data"]
 
     metadata = parse_metadata(document["metadatos"])
