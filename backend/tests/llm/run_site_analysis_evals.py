@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_EXPECTED_FILE = Path("expected.json")
-_DEFAULT_CASES_DIRECTORY = Path("tests/llm/evals/site_history_cases")
+_DEFAULT_CASES_DIRECTORY = Path(__file__).parent / "evals/site_history_cases"
 _DEFAULT_RESULTS_FILE = _DEFAULT_CASES_DIRECTORY / "eval_results.json"
 _DEFAULT_AI_MODEL = (
     "claude-haiku-4-5-20251001"  # options: claude-opus-4-6, claude-haiku-4-5-20251001
