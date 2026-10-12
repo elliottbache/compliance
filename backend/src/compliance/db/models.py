@@ -368,7 +368,13 @@ class Certification(Base):
 
 
 class Attachment(Base):
-    """Represents a file attached to a certification record."""
+    """Represent a file attached to a certification record.
+
+    The unique constraint on ``(id, certification_id)`` supports the composite
+    foreign key from ``finding_attachments``, ensuring linked attachments and
+    findings belong to the same certification. Although ``id`` is already
+    unique, PostgreSQL requires the referenced column pair to be unique.
+    """
 
     __tablename__ = "attachments"
     __table_args__ = (
@@ -402,7 +408,13 @@ class Attachment(Base):
 
 
 class Finding(Base):
-    """Represents a compliance finding tied to a certification and rule."""
+    """Represent a compliance finding tied to a certification and rule.
+
+    The unique constraint on ``(id, certification_id)`` supports the composite
+    foreign key from ``finding_attachments``, ensuring linked findings and
+    attachments belong to the same certification. Although ``id`` is already
+    unique, PostgreSQL requires the referenced column pair to be unique.
+    """
 
     __tablename__ = "findings"
     __table_args__ = (
