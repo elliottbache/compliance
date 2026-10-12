@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 from compliance.db.models import RagClause, RagClauseEmbedding, RagDocument
 from compliance.services.rag_embeddings import (
     ClosestEmbedding,
     _find_closest_embeddings,
+    embed_rag_queries,
     find_top_embeddings,
     is_rag_clause_embedding_stale,
     upsert_rag_clause_embedding,
@@ -17,6 +18,42 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 INPUT_HASH = "a" * 64
+
+
+class TestEmbedRagQueries:
+    def test_embeds_each_finding_and_preserves_association(self) -> None:
+        provider = SimpleNamespace(
+            model="embed-model",
+            embed_text=MagicMock(side_effect=[[0.1, 0.2], [0.3, 0.4]]),
+        )
+
+        result = embed_rag_queries(
+            queries={10: "first query", 20: "second query"}, provider=provider
+        )
+
+        assert result == {10: [0.1, 0.2], 20: [0.3, 0.4]}
+        assert provider.embed_text.call_args_list == [
+            call("first query"),
+            call("second query"),
+        ]
+
+    @pytest.mark.parametrize("model", ["", "   "])
+    def test_rejects_empty_model_before_embedding(self, model) -> None:
+        provider = SimpleNamespace(model=model, embed_text=MagicMock())
+
+        with pytest.raises(ValueError, match="model cannot be empty"):
+            embed_rag_queries(queries={10: "query"}, provider=provider)
+
+        provider.embed_text.assert_not_called()
+
+    @pytest.mark.parametrize("vector", [[], [float("nan")], [True]])
+    def test_rejects_invalid_provider_vector(self, vector) -> None:
+        provider = SimpleNamespace(
+            model="embed-model", embed_text=MagicMock(return_value=vector)
+        )
+
+        with pytest.raises(ValueError, match="Embedding vector"):
+            embed_rag_queries(queries={10: "query"}, provider=provider)
 
 
 class TestFindClosestEmbeddings:

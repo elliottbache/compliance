@@ -201,6 +201,26 @@ class TestSetFormatter:
         assert isinstance(handler.formatter, JsonLogFormatter)
 
 
+class TestRedactingTextFormatter:
+    def test_redacts_formatted_message_and_restores_record(self) -> None:
+        formatter = RedactingTextFormatter("{message}", style="{")
+        record = logging.LogRecord(
+            name="compliance.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="token=%s",
+            args=("secret-token",),
+            exc_info=None,
+        )
+
+        result = formatter.format(record)
+
+        assert result == "token=[redacted]"
+        assert record.msg == "token=%s"
+        assert record.args == ("secret-token",)
+
+
 class TestJsonLogFormatter:
     def test_formats_record_as_json(self) -> None:
         stream = io.StringIO()

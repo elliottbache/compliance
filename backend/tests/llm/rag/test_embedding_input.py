@@ -1,5 +1,6 @@
 from copy import copy
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
 import pytest
 from compliance.db.models import RagClause, RagDocument
@@ -7,6 +8,7 @@ from compliance.llm.rag import embedding_input
 from compliance.llm.rag.embedding_input import (
     build_clause_embedding_input,
     build_clause_embedding_input_hash,
+    build_site_analysis_query_embedding_input,
 )
 
 
@@ -35,6 +37,66 @@ def _clause() -> RagClause:
         content_hash="content-hash",
         sort_key="000001",
     )
+
+
+class TestBuildSiteAnalysisQueryEmbeddingInput:
+    def test_builds_one_labeled_query_per_finding(self) -> None:
+        site = SimpleNamespace(city="Madrid", postal_code=28001)
+        findings = [
+            SimpleNamespace(
+                finding_id=10,
+                finding="Exit obstructed.",
+                rule_index="4.2",
+                rule_title="Emergency exits",
+                rule_description="Exits must remain clear.",
+            ),
+            SimpleNamespace(
+                finding_id=20,
+                finding="Panel label missing.",
+                rule_index="5.1",
+                rule_title=None,
+                rule_description="Panels must be labeled.",
+            ),
+        ]
+        history = SimpleNamespace(
+            certifications=[
+                SimpleNamespace(
+                    certifier_org_name="Example Certifier",
+                    reg_title="Safety Standard",
+                    reg_description="Workplace safety requirements.",
+                    findings=findings,
+                )
+            ]
+        )
+
+        result = build_site_analysis_query_embedding_input(site, history)
+
+        assert result == {
+            10: (
+                "Certifier: Example Certifier\n"
+                "Site: Madrid 28001\n"
+                "Regulation: Safety Standard\n"
+                "Regulation text: Workplace safety requirements.\n"
+                "Rule: 4.2 -- Emergency exits\n"
+                "Rule text: Exits must remain clear.\n"
+                "Finding: Exit obstructed."
+            ),
+            20: (
+                "Certifier: Example Certifier\n"
+                "Site: Madrid 28001\n"
+                "Regulation: Safety Standard\n"
+                "Regulation text: Workplace safety requirements.\n"
+                "Rule: 5.1\n"
+                "Rule text: Panels must be labeled.\n"
+                "Finding: Panel label missing."
+            ),
+        }
+
+    def test_returns_empty_mapping_without_findings(self) -> None:
+        site = SimpleNamespace(city="Madrid", postal_code=28001)
+        history = SimpleNamespace(certifications=[SimpleNamespace(findings=[])])
+
+        assert build_site_analysis_query_embedding_input(site, history) == {}
 
 
 class TestBuildClauseEmbeddingInput:

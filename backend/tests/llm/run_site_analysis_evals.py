@@ -391,5 +391,3 @@ if __name__ == "__main__":
     # run_evals(case_name="repeated_rule_across_certifications")
     run_evals(case_name="rag_context_utilization")
     # run_evals()
-
-    # TODO add tests
