@@ -6,7 +6,6 @@ from typing import Any
 
 import spacy
 from compliance._helpers import validate_llm_references
-from compliance.db.db_access import get_engine
 from compliance.db.models import Site
 from compliance.llm.schemas import (
     ExpectedResults,
@@ -16,7 +15,7 @@ from compliance.llm.schemas import (
 from compliance.schemas import SiteHistory
 from compliance.services.site_analysis import summarize_previous_visits
 from pydantic import BaseModel, ValidationError
-from sqlalchemy.orm import Session
+from rag_eval_support import RAG_CONTEXT_FILE, load_corpus, load_rag_context
 
 _DEFAULT_INPUT_FILE = Path("input_site_history.json")
 _DEFAULT_SITE_FILE = Path("input_site.json")
@@ -64,72 +63,72 @@ def run_evals(
     Returns:
         None
     """
-    # load session to db
-    with Session(get_engine()) as session:
+    corpus = load_corpus()
+    eval_results = dict()
+    input_filename = _DEFAULT_INPUT_FILE
+    site_filename = _DEFAULT_SITE_FILE
+    expected_filename = _DEFAULT_EXPECTED_FILE
 
-        # loop through eval folders
-        eval_results = dict()
-        input_filename = _DEFAULT_INPUT_FILE
-        site_filename = _DEFAULT_SITE_FILE
-        expected_filename = _DEFAULT_EXPECTED_FILE
-
-        # if given a case name, only use that case name.  Otherwise, walk through directory.
-        cases = (
-            [case_name]
-            if case_name
-            else _eval_case_generator(
-                evals_path,
-                input_filename=input_filename,
-                site_filename=site_filename,
-                expected_filename=expected_filename,
-            )
+    cases = (
+        [case_name]
+        if case_name
+        else _eval_case_generator(
+            evals_path,
+            input_filename=input_filename,
+            site_filename=site_filename,
+            expected_filename=expected_filename,
+            rag_filename=RAG_CONTEXT_FILE,
         )
-        for case in cases:
-            case_path = evals_path / case
-            # load each eval case
-            with open(case_path / input_filename) as f:
-                site_history = SiteHistory.model_validate(json.load(f))
-            site = _load_eval_site(case_path, case, site_history)
-            with open(case_path / expected_filename) as f:
-                expected_results = ExpectedResults.model_validate(json.load(f))
+    )
+    for case in cases:
+        case_path = evals_path / case
+        with open(case_path / input_filename) as f:
+            site_history = SiteHistory.model_validate(json.load(f))
+        site = _load_eval_site(case_path, case, site_history)
+        finding_ids = {
+            finding.finding_id
+            for certification in site_history.certifications
+            for finding in certification.findings
+        }
+        retrieved_clauses = load_rag_context(case_path, corpus, finding_ids=finding_ids)
+        with open(case_path / expected_filename) as f:
+            expected_results = ExpectedResults.model_validate(json.load(f))
 
-            # run your current prompt + model call
-            eval_results[case] = dict()
-            try:
-                response = summarize_previous_visits(
-                    session=session,
-                    site=site,
-                    site_history=site_history,
-                    ai_model=_DEFAULT_AI_MODEL,
-                    prompt_version=_DEFAULT_PROMPT_VERSION,
-                    case_info=case,
-                )
+        eval_results[case] = dict()
+        try:
+            response = summarize_previous_visits(
+                session=None,
+                site=site,
+                site_history=site_history,
+                ai_model=_DEFAULT_AI_MODEL,
+                prompt_version=_DEFAULT_PROMPT_VERSION,
+                case_info=case,
+                retrieved_clauses=retrieved_clauses,
+            )
 
-                # record the prompt version
-                eval_results[case]["prompt_version"] = _DEFAULT_PROMPT_VERSION
+            # record the prompt version
+            eval_results[case]["prompt_version"] = _DEFAULT_PROMPT_VERSION
 
-                # record whether structured parse succeeded
-                eval_results[case]["parse_succeeded"] = True
+            # record whether structured parse succeeded
+            eval_results[case]["parse_succeeded"] = True
 
-                # record the parsed result
-                eval_results[case]["model_results"] = response
+            # record the parsed result
+            eval_results[case]["model_results"] = response
 
-                # record the expected results
-                eval_results[case]["expected_results"] = expected_results
+            # record the expected results
+            eval_results[case]["expected_results"] = expected_results
 
-                # run a few deterministic checks
-                eval_results[case]["response_checks"] = _compare_results_to_expected(
-                    response, expected_results, site_history
-                )
+            # run a few deterministic checks
+            eval_results[case]["response_checks"] = _compare_results_to_expected(
+                response, expected_results, site_history
+            )
 
-            except ValidationError:
-                # record whether structured parse succeeded
-                eval_results[case]["parse_succeeded"] = False
+        except ValidationError:
+            eval_results[case]["parse_succeeded"] = False
 
-            # record LLM model name
-            eval_results[case]["model_name"] = _DEFAULT_AI_MODEL
+        eval_results[case]["model_name"] = _DEFAULT_AI_MODEL
 
-        _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
+    _write_eval_results(eval_results, _DEFAULT_RESULTS_FILE)
 
 
 def _load_eval_site(case_path: Path, case_name: str, site_history: SiteHistory) -> Site:
@@ -153,6 +152,7 @@ def _eval_case_generator(
     input_filename: Path,
     site_filename: Path,
     expected_filename: Path,
+    rag_filename: Path,
 ) -> Generator[str, None, None]:
     """Yield directory name for valid evaluation case directories.
 
@@ -165,9 +165,10 @@ def _eval_case_generator(
         site_filename: Name of the site file expected in each case directory.
         expected_filename: Name of the expected output file expected in each case
             directory.
+        rag_filename: Name of the retrieval expectations file.
 
     Yields:
-        tuple[Path, None, None]: Name the valid evaluation case directory.
+        Name of each valid evaluation case directory.
     """
     for path in evals_path.iterdir():
         if (
@@ -175,6 +176,7 @@ def _eval_case_generator(
             and (path / input_filename).exists()
             and (path / site_filename).exists()
             and (path / expected_filename).exists()
+            and (path / rag_filename).exists()
         ):
             yield path.parts[-1]
 

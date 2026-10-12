@@ -117,11 +117,15 @@ testpaths = ["backend/tests"]
 pythonpath = ["backend/src"]
 addopts = [
   "-q",
+  "-m=not pgvector_integration",
   "--cov=backend/src",
   "--cov-report=term-missing",
   "--cov-report=xml:coverage.xml",
   "--cov-report=html:htmlcov",
   "--cov-fail-under=85"
+]
+markers = [
+  "pgvector_integration: tests requiring a disposable PostgreSQL/pgvector database",
 ]
 
 [tool.alembic]

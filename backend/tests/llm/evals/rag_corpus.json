@@ -1,0 +1,51 @@
+{
+  "documents": [
+    {
+      "source_id": "EVAL-WORKPLACE",
+      "title": "Synthetic Workplace and Facility Safety Standard",
+      "effective_date": "2026-01-01",
+      "clauses": [
+        {"citation_ref": "WS-1", "title": "Clear emergency egress", "path_text": "Emergency safety", "text": "Emergency exits, exit doors, and evacuation routes must remain clear and unobstructed at all times. Storage boxes, pallets, waste containers, and inventory must not block immediate egress."},
+        {"citation_ref": "WS-2", "title": "Exit signage", "path_text": "Emergency safety", "text": "Emergency exits must be identified by illuminated, photoluminescent, or high-contrast signs that remain visible from the occupied work area."},
+        {"citation_ref": "WS-3", "title": "Electrical panel identification", "path_text": "Electrical safety", "text": "Electrical panels and their circuits must have complete, durable, and legible identification labels."},
+        {"citation_ref": "WS-4", "title": "Emergency shutoff access", "path_text": "Electrical safety", "text": "Emergency electrical shutoff devices must remain visible, reachable, and free from obstruction."},
+        {"citation_ref": "WS-5", "title": "Cable protection", "path_text": "Electrical safety", "text": "Installed cables and cable trays must be covered or otherwise protected against accidental contact and physical damage."},
+        {"citation_ref": "WS-6", "title": "Waste traceability", "path_text": "Environmental controls", "text": "Industrial and office waste must be documented and traceable from its point of origin through final disposal or recycling."},
+        {"citation_ref": "WS-D1", "title": "Protective footwear", "path_text": "Personal protective equipment", "text": "Workers in designated loading areas must wear approved protective footwear."}
+      ]
+    },
+    {
+      "source_id": "EVAL-DATA",
+      "title": "Synthetic Data Protection Standard",
+      "effective_date": "2026-01-01",
+      "clauses": [
+        {"citation_ref": "DP-1", "title": "Encryption at rest", "path_text": "Security of personal data", "text": "Sensitive personal identifiers stored in databases or other non-volatile systems must be encrypted with approved cryptographic algorithms."},
+        {"citation_ref": "DP-2", "title": "Right to erasure", "path_text": "Data subject rights", "text": "Verified requests for deletion of personal data must be completed without undue delay and no later than thirty days after receipt."},
+        {"citation_ref": "DP-3", "title": "Data protection officer contact", "path_text": "Governance", "text": "The organization must publish accurate contact details that allow data subjects to reach its designated Data Protection Officer easily."},
+        {"citation_ref": "DP-D1", "title": "Retention review", "path_text": "Records management", "text": "Retention schedules must be reviewed annually and obsolete records must be disposed of securely."}
+      ]
+    },
+    {
+      "source_id": "EVAL-INFOSEC",
+      "title": "Synthetic Information and Physical Security Standard",
+      "effective_date": "2026-01-01",
+      "clauses": [
+        {"citation_ref": "IS-1", "title": "Cryptographic key protection", "path_text": "Cryptography", "text": "Cryptographic keys must be protected against unauthorized disclosure, replacement, and storage in plaintext systems."},
+        {"citation_ref": "IS-2", "title": "Physical entry records", "path_text": "Physical security", "text": "Entry to sensitive facilities must be controlled and visitor access must be recorded in complete, reviewable logs."},
+        {"citation_ref": "IS-3", "title": "Network perimeter", "path_text": "Network security", "text": "Firewall and network boundary rules must prevent unauthorized traffic and obsolete permissive rules must be removed."},
+        {"citation_ref": "IS-4", "title": "Critical patching", "path_text": "Vulnerability management", "text": "Critical operating-system and application security patches must be applied to endpoints within fourteen days of release."},
+        {"citation_ref": "IS-5", "title": "Equipment anchoring", "path_text": "Physical security", "text": "Server racks and comparable hardware infrastructure must be permanently anchored to the building structure to resist movement and unauthorized removal."},
+        {"citation_ref": "IS-D1", "title": "Backup testing", "path_text": "Operational resilience", "text": "Backups of critical systems must be restored in a test environment at least once each year."}
+      ]
+    },
+    {
+      "source_id": "EVAL-SITE",
+      "title": "Synthetic Site Administration Standard",
+      "effective_date": "2026-01-01",
+      "clauses": [
+        {"citation_ref": "SR-1", "title": "Site contact records", "path_text": "Facility records", "text": "Each facility must maintain current emergency contact details and accurate ownership information."},
+        {"citation_ref": "SR-D1", "title": "Visitor directions", "path_text": "Facility records", "text": "Public-facing facilities should display clear directions to their reception area."}
+      ]
+    }
+  ]
+}

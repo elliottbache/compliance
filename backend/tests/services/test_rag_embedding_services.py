@@ -1,15 +1,20 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from compliance.db.models import RagClause, RagClauseEmbedding, RagDocument
 from compliance.services.rag_embeddings import (
+    ClosestEmbedding,
     _find_closest_embeddings,
+    find_top_embeddings,
     is_rag_clause_embedding_stale,
     upsert_rag_clause_embedding,
 )
+from pgvector_test_database import temporary_pgvector_database
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 INPUT_HASH = "a" * 64
 
@@ -38,6 +43,133 @@ class TestFindClosestEmbeddings:
         assert "embed-model" in compiled.params.values()
         assert 3 in compiled.params.values()
         assert "active" in compiled.params.values()
+
+    @pytest.mark.pgvector_integration
+    def test_executes_cosine_ranking_and_filters_with_pgvector(self) -> None:
+        with temporary_pgvector_database() as engine:
+            with engine.begin() as connection:
+                connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                RagDocument.metadata.create_all(
+                    connection,
+                    tables=[
+                        RagDocument.__table__,
+                        RagClause.__table__,
+                        RagClauseEmbedding.__table__,
+                    ],
+                )
+
+            with Session(engine) as session:
+                rows = [
+                    ("relevant", "active", "embed-model", [1.0, 0.0, 0.0]),
+                    ("nearby", "active", "embed-model", [0.9, 0.1, 0.0]),
+                    ("distractor", "active", "embed-model", [0.0, 1.0, 0.0]),
+                    ("fourth", "active", "embed-model", [-1.0, 0.0, 0.0]),
+                    ("inactive", "inactive", "embed-model", [1.0, 0.0, 0.0]),
+                    ("wrong-model", "active", "other-model", [1.0, 0.0, 0.0]),
+                    ("wrong-dimensions", "active", "embed-model", [1.0, 0.0]),
+                ]
+                for index, (citation, status, model, vector) in enumerate(
+                    rows, start=1
+                ):
+                    document = RagDocument(
+                        source_id=f"EVAL-{index}",
+                        title=f"Document {index}",
+                        source_kind="evaluation",
+                        jurisdiction="Spain",
+                        effective_date=datetime(2026, 1, 1).date(),
+                        updated_at=None,
+                        status=status,
+                        source_url=None,
+                    )
+                    clause = RagClause(
+                        citation_ref=citation,
+                        title=citation,
+                        path_text=None,
+                        text=f"Clause {index}",
+                        content_hash=f"{index:064x}",
+                        sort_key=f"{index:06d}",
+                    )
+                    document.rag_document_clause_rel.append(clause)
+                    session.add(document)
+                    session.flush()
+                    session.add(
+                        RagClauseEmbedding(
+                            clause_id=clause.id,
+                            embedding=vector,
+                            embedding_model=model,
+                            input_hash="a" * 64,
+                            dimensions=len(vector),
+                            embedded_at=datetime.now(UTC),
+                        )
+                    )
+                session.commit()
+
+                results = _find_closest_embeddings(
+                    session=session,
+                    query_embedding=[1.0, 0.0, 0.0],
+                    provider=SimpleNamespace(model="embed-model"),
+                )
+
+                assert [
+                    result.embedding.rag_clause_embedding_clause_rel.citation_ref
+                    for result in results
+                ] == ["relevant", "nearby", "distractor"]
+
+
+class TestFindTopEmbeddings:
+    def test_associates_results_with_each_finding(self, monkeypatch) -> None:
+        first = ClosestEmbedding(embedding=SimpleNamespace(), distance=0.1)
+        second = ClosestEmbedding(embedding=SimpleNamespace(), distance=0.2)
+        monkeypatch.setattr(
+            "compliance.services.rag_embeddings._find_closest_embeddings",
+            MagicMock(side_effect=[[first], [second]]),
+        )
+
+        results = find_top_embeddings(
+            session=MagicMock(),
+            query_embeddings={10: [1.0], 20: [2.0]},
+            provider=SimpleNamespace(model="embed-model"),
+        )
+
+        assert [
+            (result.finding_id, result.closest_embedding.distance) for result in results
+        ] == [
+            (10, 0.1),
+            (20, 0.2),
+        ]
+
+    def test_keeps_only_eight_closest_results(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "compliance.services.rag_embeddings._find_closest_embeddings",
+            MagicMock(
+                side_effect=[
+                    [
+                        ClosestEmbedding(
+                            embedding=SimpleNamespace(), distance=float(distance)
+                        )
+                        for distance in distances
+                    ]
+                    for distances in ([1, 4, 7], [2, 5, 8], [3, 6, 9])
+                ]
+            ),
+        )
+
+        results = find_top_embeddings(
+            session=MagicMock(),
+            query_embeddings={10: [1.0], 20: [2.0], 30: [3.0]},
+            provider=SimpleNamespace(model="embed-model"),
+        )
+
+        assert [result.closest_embedding.distance for result in results] == [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+        ]
 
 
 def _persisted_clause(sqlite_session) -> RagClause:

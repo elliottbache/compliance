@@ -1386,6 +1386,26 @@ pytest --no-cov backend/tests/db
 pytest --no-cov backend/tests/llm
 ```
 
+### RAG Evaluations
+
+RAG retrieval mechanics are tested independently from LLM response quality.
+Normal pytest runs cover query construction and aggregation with deterministic
+inputs. To exercise the production cosine-distance query against a disposable
+PostgreSQL/pgvector database, run the explicitly marked integration test:
+
+```bash
+pytest --no-cov -m pgvector_integration backend/tests/services/test_rag_embedding_services.py
+```
+
+The integration fixture starts pgvector on localhost port `55432`, inserts fixed
+vectors, runs the retrieval assertions, and removes the database and data on
+exit. It is excluded from normal pytest and CI runs and requires Docker.
+
+The existing LLM response evaluations remain self-contained. Each case supplies
+known-good clauses from the shared synthetic corpus, so running
+`backend/tests/llm/run_site_analysis_evals.py` evaluates prompt and model output
+without invoking embeddings, retrieval, or a database.
+
 Python linting:
 
 ```bash
@@ -1569,14 +1589,6 @@ deployments.
   the optional Ollama production profile.
 - Expand redaction and minimization policies for AI requests and generated
   outputs.
-
-### AI Evaluation
-
-- Make RAG evaluations repeatable by adding a small, version-controlled corpus
-  of evaluation documents and clauses, loading it into an isolated evaluation
-  database, and generating embeddings with a pinned model and input version.
-  Keep retrieval-quality checks separate from end-to-end analysis checks so
-  ranking regressions can be distinguished from prompt or model regressions.
 
 ### Operations
 

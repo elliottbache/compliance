@@ -45,12 +45,13 @@ class AIProvider(Protocol):
 
 def summarize_previous_visits(
     *,
-    session: Session,
+    session: Session | None,
     site: Site,
     site_history: SiteHistory,
     ai_model: str | None = None,
     prompt_version: str = "v1.3",
     case_info: str = "",
+    retrieved_clauses: list[TopClause] | None = None,
 ) -> SiteAnalysis:
     """Analyze site history with the site-analysis prompt workflow.
 
@@ -65,6 +66,8 @@ def summarize_previous_visits(
         prompt_version: Version label for the site-analysis prompt.
         case_info: Optional metadata or identifier for the current case,
             used primarily for error logging. Defaults to an empty string.
+        retrieved_clauses: Optional preselected RAG context. When supplied,
+            retrieval is skipped. Intended for deterministic evaluations.
 
     Returns:
         The validated structured output containing the summary, recurring
@@ -94,9 +97,14 @@ def summarize_previous_visits(
 
     system_context = _build_site_analysis_system_prompt()
 
-    embedded_context = _retrieve_optional_site_analysis_rag_clauses(
-        session=session, site=site, site_history=site_history
-    )
+    if retrieved_clauses is None:
+        if session is None:
+            raise ValueError("A database session is required for RAG retrieval.")
+        embedded_context = _retrieve_optional_site_analysis_rag_clauses(
+            session=session, site=site, site_history=site_history
+        )
+    else:
+        embedded_context = retrieved_clauses
 
     user_message = _build_site_analysis_user_message(
         site_history=site_history, embedded_context=embedded_context

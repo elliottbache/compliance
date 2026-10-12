@@ -9,6 +9,7 @@ from compliance.llm.schemas import (
     SiteAnalysis,
 )
 from compliance.schemas import CertificationHistory, FindingHistory, SiteHistory
+from compliance.services.rag_embeddings import RagClausePublicSchema, TopClause
 from compliance.services.site_analysis import (
     _build_site_analysis_system_prompt,
     _build_site_analysis_user_message,
@@ -99,6 +100,49 @@ class TestSummarizePreviousVisits:
         assert result == site_analysis
         assert provider.call_model.call_args.kwargs["response_model"] is SiteAnalysis
         assert provider.call_model.call_args.kwargs["ai_model"] == "claude-test"
+
+    def test_uses_supplied_rag_context_without_retrieval(
+        self, site_history, site_analysis_factory, site_analysis_settings
+    ) -> None:
+        site_analysis_settings(
+            ai_mode="anthropic",
+            ai_model="claude-test",
+            anthropic_api_key="test-key",
+        )
+        provider = MagicMock()
+        provider.call_model.return_value = site_analysis_factory()
+        retrieved_clauses = [
+            TopClause(
+                finding_id=1,
+                rag_clause=RagClausePublicSchema(
+                    id=1,
+                    document_id=1,
+                    citation_ref="WS-1",
+                    title="Clear emergency egress",
+                    path_text="Emergency safety",
+                    text="Emergency exits must remain unobstructed.",
+                ),
+            )
+        ]
+
+        with (
+            patch(
+                "compliance.services.site_analysis.AnthropicAIProvider",
+                return_value=provider,
+            ),
+            patch(
+                "compliance.services.site_analysis._retrieve_site_analysis_rag_clauses"
+            ) as retrieve,
+        ):
+            summarize_previous_visits(
+                session=None,
+                site=MagicMock(),
+                site_history=site_history,
+                retrieved_clauses=retrieved_clauses,
+            )
+
+        retrieve.assert_not_called()
+        assert "WS-1" in provider.call_model.call_args.args[1]
 
     def test_passes_provided_ai_model_and_case_info(
         self, site_history, site_analysis_factory, site_analysis_settings
