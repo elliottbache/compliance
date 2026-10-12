@@ -1,0 +1,23 @@
+{
+  "site_id": 137,
+  "inspection_count": 1,
+  "summary_phrases": [],
+  "recurring_issues": [],
+  "missing_information": [],
+  "needs_human_review": [],
+  "max_summary_sentences": 4,
+  "rule_mentions": ["A.7"],
+  "rag_context_mentions": [
+    ["137 centimeters", "137 centimetres", "137 cm", "1.37 meters", "1.37 metres", "1.37 m"]
+  ],
+  "forbidden_phrases": [
+    "were recurring issues",
+    "are recurring issues",
+    "multiple recurring issues",
+    "passed inspection"
+  ],
+  "forbidden_summary_terms": [
+    "recurring",
+    "passed"
+  ]
+}

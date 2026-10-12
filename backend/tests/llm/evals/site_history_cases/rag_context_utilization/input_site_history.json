@@ -1,0 +1,25 @@
+{
+  "site_id": 137,
+  "inspection_count": 1,
+  "latest_inspection_date": "2026-09-18",
+  "certifications": [
+    {
+      "cert_id": 1370,
+      "result": "Fail",
+      "resolution_date": null,
+      "reg_title": "Workplace Access Standard",
+      "reg_description": "Requirements for keeping workplace access routes available and safe.",
+      "certifier_org_name": "Iberia Safety Certification",
+      "inspection_date": "2026-09-18",
+      "findings": [
+        {
+          "finding_id": 13700,
+          "finding": "Stored materials narrowed the marked aisle used to reach production equipment.",
+          "rule_index": "A.7",
+          "rule_title": "Equipment access aisles",
+          "rule_description": "Marked equipment access aisles must remain sufficiently clear for safe access."
+        }
+      ]
+    }
+  ]
+}

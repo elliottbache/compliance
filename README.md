@@ -1405,6 +1405,9 @@ The existing LLM response evaluations remain self-contained. Each case supplies
 known-good clauses from the shared synthetic corpus, so running
 `backend/tests/llm/run_site_analysis_evals.py` evaluates prompt and model output
 without invoking embeddings, retrieval, or a database.
+The `rag_context_utilization` case requires the response to use a distinctive
+fact found only in its supplied clause, verifying that the model takes the RAG
+context into account.
 
 Python linting:
 

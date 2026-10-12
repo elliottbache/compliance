@@ -218,6 +218,10 @@ def _compare_results_to_expected(
         rule_mention.lower() in response_texts.lower()
         for rule_mention in exp.rule_mentions
     )
+    checks["is_rag_context_mentions"] = all(
+        any(alternative.lower() in response_texts.lower() for alternative in group)
+        for group in exp.rag_context_mentions
+    )
 
     checks["is_valid_references"] = _is_valid_references(resp, site_history)
 
@@ -363,6 +367,7 @@ def _find_failed_checks(checks: ResultChecks) -> list[str]:
         "is_missing_information",
         "is_needs_human_review",
         "is_rule_mentions",
+        "is_rag_context_mentions",
     }
 
     forbidden_checks = {
@@ -384,6 +389,7 @@ if __name__ == "__main__":
     configure_logging(level="DEBUG")
     # run_evals(case_name="no_findings")
     # run_evals(case_name="repeated_rule_across_certifications")
-    run_evals()
+    run_evals(case_name="rag_context_utilization")
+    # run_evals()
 
     # TODO run evals again with RAG, then add/modify docstrings, and add tests

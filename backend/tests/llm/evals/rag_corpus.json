@@ -11,6 +11,7 @@
         {"citation_ref": "WS-4", "title": "Emergency shutoff access", "path_text": "Electrical safety", "text": "Emergency electrical shutoff devices must remain visible, reachable, and free from obstruction."},
         {"citation_ref": "WS-5", "title": "Cable protection", "path_text": "Electrical safety", "text": "Installed cables and cable trays must be covered or otherwise protected against accidental contact and physical damage."},
         {"citation_ref": "WS-6", "title": "Waste traceability", "path_text": "Environmental controls", "text": "Industrial and office waste must be documented and traceable from its point of origin through final disposal or recycling."},
+        {"citation_ref": "WS-7", "title": "Equipment access aisle clearance", "path_text": "Workplace access", "text": "Marked equipment access aisles must maintain an unobstructed width of at least 137 centimeters."},
         {"citation_ref": "WS-D1", "title": "Protective footwear", "path_text": "Personal protective equipment", "text": "Workers in designated loading areas must wear approved protective footwear."}
       ]
     },
